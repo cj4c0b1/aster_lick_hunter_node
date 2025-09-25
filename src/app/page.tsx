@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -34,16 +34,34 @@ export default function DashboardPage() {
     totalPnL: 60,
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [positions, setPositions] = useState<any[]>([]);
+  const [markPrices, setMarkPrices] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    // Load initial balance from API (fallback)
+    // Load initial balance and positions
     loadAccountInfo();
+    loadPositions();
 
-    // Set up WebSocket listener for real-time balance updates
+    // Set up WebSocket listener for real-time updates
     const handleMessage = (message: any) => {
+      console.log('📨 Dashboard received WebSocket message:', message.type);
       if (message.type === 'balance_update') {
+        console.log('💰 Updating balance with:', message.data);
         setAccountInfo(message.data);
         setIsLoading(false);
+      } else if (message.type === 'position_update') {
+        console.log('🔄 Position changed, refreshing balance and positions...');
+        loadPositions();
+        setTimeout(() => loadAccountInfo(), 500);
+      } else if (message.type === 'mark_price_update') {
+        // Update mark prices for live PnL display
+        if (Array.isArray(message.data)) {
+          const priceUpdates: Record<string, number> = {};
+          message.data.forEach((price: any) => {
+            priceUpdates[price.symbol] = parseFloat(price.markPrice);
+          });
+          setMarkPrices(prev => ({ ...prev, ...priceUpdates }));
+        }
       }
     };
 
@@ -52,6 +70,19 @@ export default function DashboardPage() {
     // Cleanup on unmount
     return cleanupMessageHandler;
   }, []);
+
+  // Load positions for live PnL calculation
+  const loadPositions = async () => {
+    try {
+      const response = await fetch('/api/positions');
+      if (response.ok) {
+        const data = await response.json();
+        setPositions(data);
+      }
+    } catch (error) {
+      console.error('Failed to load positions:', error);
+    }
+  };
 
   const loadAccountInfo = async () => {
     try {
@@ -79,6 +110,48 @@ export default function DashboardPage() {
     const formatted = Math.abs(value).toFixed(2);
     return `${value >= 0 ? '+' : '-'}${formatted}%`;
   };
+
+  // Calculate live account info with real-time mark prices
+  // This supplements the official balance data with live price updates
+  const liveAccountInfo = useMemo(() => {
+    if (positions.length === 0) {
+      return accountInfo;
+    }
+
+    // Calculate live PnL based on current mark prices
+    let liveTotalPnL = 0;
+    let hasLivePrices = false;
+
+    positions.forEach(position => {
+      const liveMarkPrice = markPrices[position.symbol];
+      if (liveMarkPrice && liveMarkPrice !== position.markPrice) {
+        hasLivePrices = true;
+        const entryPrice = position.entryPrice;
+        const quantity = position.quantity;
+        const isLong = position.side === 'LONG';
+
+        // Calculate live PnL for this position
+        const priceDiff = liveMarkPrice - entryPrice;
+        const positionPnL = isLong ? priceDiff * quantity : -priceDiff * quantity;
+        liveTotalPnL += positionPnL;
+      } else {
+        // Use the position's current PnL if no live price available
+        liveTotalPnL += position.pnl || 0;
+      }
+    });
+
+    // If we have live prices, update the PnL and total balance
+    if (hasLivePrices) {
+      return {
+        ...accountInfo,
+        totalPnL: liveTotalPnL,
+        totalBalance: accountInfo.availableBalance + accountInfo.totalPositionValue + liveTotalPnL
+      };
+    }
+
+    // Otherwise return official balance data
+    return accountInfo;
+  }, [accountInfo, positions, markPrices]);
 
   const handleClosePosition = async (symbol: string, side: 'LONG' | 'SHORT') => {
     try {
@@ -128,7 +201,7 @@ export default function DashboardPage() {
                 <Skeleton className="h-8 w-24" />
               ) : (
                 <>
-                  <div className="text-2xl font-bold">{formatCurrency(accountInfo.totalBalance)}</div>
+                  <div className="text-2xl font-bold">{formatCurrency(liveAccountInfo.totalBalance)}</div>
                   <p className="text-xs text-muted-foreground">
                     +20.1% from last month
                   </p>
@@ -147,7 +220,7 @@ export default function DashboardPage() {
                 <Skeleton className="h-8 w-24" />
               ) : (
                 <>
-                  <div className="text-2xl font-bold">{formatCurrency(accountInfo.availableBalance)}</div>
+                  <div className="text-2xl font-bold">{formatCurrency(liveAccountInfo.availableBalance)}</div>
                   <p className="text-xs text-muted-foreground">
                     Ready for trading
                   </p>
@@ -166,7 +239,7 @@ export default function DashboardPage() {
                 <Skeleton className="h-8 w-24" />
               ) : (
                 <>
-                  <div className="text-2xl font-bold">{formatCurrency(accountInfo.totalPositionValue)}</div>
+                  <div className="text-2xl font-bold">{formatCurrency(liveAccountInfo.totalPositionValue)}</div>
                   <p className="text-xs text-muted-foreground">
                     Across all positions
                   </p>
@@ -178,7 +251,7 @@ export default function DashboardPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Unrealized PnL</CardTitle>
-              {accountInfo.totalPnL >= 0 ? (
+              {liveAccountInfo.totalPnL >= 0 ? (
                 <TrendingUp className="h-4 w-4 text-green-600" />
               ) : (
                 <TrendingDown className="h-4 w-4 text-red-600" />
@@ -190,12 +263,12 @@ export default function DashboardPage() {
               ) : (
                 <>
                   <div className={`text-2xl font-bold ${
-                    accountInfo.totalPnL >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                    liveAccountInfo.totalPnL >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                   }`}>
-                    {formatCurrency(accountInfo.totalPnL)}
+                    {formatCurrency(liveAccountInfo.totalPnL)}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {formatPercentage(accountInfo.totalPnL / accountInfo.totalBalance * 100)} of balance
+                    {formatPercentage(liveAccountInfo.totalPnL / liveAccountInfo.totalBalance * 100)} of balance
                   </p>
                 </>
               )}
