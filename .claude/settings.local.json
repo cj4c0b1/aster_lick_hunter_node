@@ -11,7 +11,11 @@
       "Bash(npm run lint:*)",
       "Bash(npx tsx:*)",
       "Bash(npm run test:*)",
-      "Bash(npm run test:flow:*)"
+      "Bash(npm run test:flow:*)",
+      "Bash(tasklist)",
+      "Bash(findstr:*)",
+      "Bash(powershell:*)",
+      "Bash(netstat:*)"
     ],
     "deny": [],
     "ask": []

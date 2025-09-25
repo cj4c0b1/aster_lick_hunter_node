@@ -7,6 +7,22 @@ import { Config } from '../lib/types';
 import { StatusBroadcaster } from './websocketServer';
 import { initializeBalanceService, stopBalanceService, getBalanceService } from '../lib/services/balanceService';
 import { initializePriceService, stopPriceService, getPriceService } from '../lib/services/priceService';
+import { execSync } from 'child_process';
+
+// Helper function to kill all child processes (synchronous for exit handler)
+function killAllProcesses() {
+  try {
+    if (process.platform === 'win32') {
+      // On Windows, kill the entire process tree
+      execSync(`taskkill /F /T /PID ${process.pid}`, { stdio: 'ignore' });
+    } else {
+      // On Unix-like systems, kill the process group
+      process.kill(-process.pid, 'SIGKILL');
+    }
+  } catch (e) {
+    // Ignore errors, process might already be dead
+  }
+}
 
 class AsterBot {
   private hunter: Hunter | null = null;
@@ -166,9 +182,40 @@ class AsterBot {
       this.statusBroadcaster.setRunning(true);
       console.log('🟢 Bot is now running. Press Ctrl+C to stop.');
 
-      // Handle graceful shutdown
-      process.on('SIGINT', () => this.stop());
-      process.on('SIGTERM', () => this.stop());
+      // Handle graceful shutdown with enhanced signal handling
+      const shutdownHandler = async (signal: string) => {
+        console.log(`\n📡 Received ${signal}`);
+        await this.stop();
+      };
+
+      // Register multiple signal handlers for cross-platform compatibility
+      process.on('SIGINT', () => shutdownHandler('SIGINT'));
+      process.on('SIGTERM', () => shutdownHandler('SIGTERM'));
+      process.on('SIGHUP', () => shutdownHandler('SIGHUP'));
+
+      // Windows specific
+      if (process.platform === 'win32') {
+        process.on('SIGBREAK', () => shutdownHandler('SIGBREAK'));
+      }
+
+      // Handle process exit
+      process.on('exit', (code) => {
+        if (!this.isRunning) return;
+        console.log(`Process exiting with code ${code}`);
+        // Synchronous cleanup only
+        killAllProcesses();
+      });
+
+      // Handle uncaught errors
+      process.on('uncaughtException', (error) => {
+        console.error('❌ Uncaught exception:', error);
+        this.stop().catch(console.error);
+      });
+
+      process.on('unhandledRejection', (reason, promise) => {
+        console.error('❌ Unhandled rejection at:', promise, 'reason:', reason);
+        this.stop().catch(console.error);
+      });
 
     } catch (error) {
       console.error('❌ Failed to start bot:', error);
@@ -183,18 +230,39 @@ class AsterBot {
     this.isRunning = false;
     this.statusBroadcaster.setRunning(false);
 
+    // Create a timeout to force exit if graceful shutdown takes too long
+    const forceExitTimeout = setTimeout(() => {
+      console.error('⚠️  Graceful shutdown timeout, forcing exit...');
+      process.exit(1);
+    }, 5000); // 5 second timeout
+
     try {
+      // Stop services in parallel where possible
+      const stopPromises = [];
+
       if (this.hunter) {
-        await this.hunter.stop();
-        console.log('✅ Hunter stopped');
+        stopPromises.push(
+          this.hunter.stop()
+            .then(() => console.log('✅ Hunter stopped'))
+            .catch(err => console.error('⚠️  Hunter stop error:', err))
+        );
       }
 
       if (this.positionManager) {
-        await this.positionManager.stop();
-        console.log('✅ Position Manager stopped');
+        stopPromises.push(
+          this.positionManager.stop()
+            .then(() => console.log('✅ Position Manager stopped'))
+            .catch(err => console.error('⚠️  Position Manager stop error:', err))
+        );
       }
 
-      await stopBalanceService();
+      // Wait for hunter and position manager to stop
+      await Promise.allSettled(stopPromises);
+
+      // Stop other services
+      await stopBalanceService().catch(err =>
+        console.error('⚠️  Balance service stop error:', err)
+      );
       console.log('✅ Balance service stopped');
 
       stopPriceService();
@@ -203,9 +271,11 @@ class AsterBot {
       this.statusBroadcaster.stop();
       console.log('✅ WebSocket server stopped');
 
+      clearTimeout(forceExitTimeout);
       console.log('👋 Bot stopped successfully');
       process.exit(0);
     } catch (error) {
+      clearTimeout(forceExitTimeout);
       console.error('❌ Error while stopping:', error);
       process.exit(1);
     }
