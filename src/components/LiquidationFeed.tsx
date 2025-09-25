@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, TrendingUp, Activity, Flame } from 'lucide-react';
+import websocketService from '@/lib/services/websocketService';
 
 interface LiquidationEvent {
   symbol: string;
@@ -39,82 +40,59 @@ export default function LiquidationFeed({ volumeThresholds = {}, maxEvents = 50 
   });
 
   useEffect(() => {
-    let ws: WebSocket;
+    setIsLoading(false);
 
-    // Connect to bot WebSocket server
-    const connectWebSocket = () => {
-      ws = new WebSocket('ws://localhost:8081');
+    // Handle WebSocket messages
+    const handleMessage = (message: any) => {
+      if (message.type === 'liquidation') {
+        const liquidationData = message.data;
 
-      ws.onopen = () => {
-        console.log('LiquidationFeed: Connected to bot WebSocket');
-        setIsConnected(true);
-        setIsLoading(false);
-      };
+        // Calculate volume and determine if high volume
+        const volume = liquidationData.quantity * liquidationData.price;
+        const threshold = volumeThresholds[liquidationData.symbol] || 10000; // Default $10k
+        const isHighVolume = volume >= threshold;
 
-      ws.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
+        const liquidationEvent: LiquidationEvent = {
+          ...liquidationData,
+          volume,
+          isHighVolume,
+        };
 
-          if (message.type === 'liquidation') {
-            const liquidationData = message.data;
+        setEvents(prev => {
+          const newEvents = [liquidationEvent, ...prev].slice(0, maxEvents);
 
-            // Calculate volume and determine if high volume
-            const volume = liquidationData.quantity * liquidationData.price;
-            const threshold = volumeThresholds[liquidationData.symbol] || 10000; // Default $10k
-            const isHighVolume = volume >= threshold;
+          // Update stats
+          const now = Date.now();
+          const last24h = newEvents.filter(e =>
+            (e.timestamp instanceof Date ? e.timestamp.getTime() : e.eventTime) > now - 24 * 60 * 60 * 1000
+          );
 
-            const liquidationEvent: LiquidationEvent = {
-              ...liquidationData,
-              volume,
-              isHighVolume,
-            };
+          const totalVol = last24h.reduce((sum, e) => sum + e.volume, 0);
+          const maxVol = Math.max(...last24h.map(e => e.volume), 0);
 
-            setEvents(prev => {
-              const newEvents = [liquidationEvent, ...prev].slice(0, maxEvents);
+          setStats({
+            totalVolume24h: totalVol,
+            largestLiquidation: maxVol,
+            totalEvents: last24h.length,
+          });
 
-              // Update stats
-              const now = Date.now();
-              const last24h = newEvents.filter(e =>
-                (e.timestamp instanceof Date ? e.timestamp.getTime() : e.eventTime) > now - 24 * 60 * 60 * 1000
-              );
-
-              const totalVol = last24h.reduce((sum, e) => sum + e.volume, 0);
-              const maxVol = Math.max(...last24h.map(e => e.volume), 0);
-
-              setStats({
-                totalVolume24h: totalVol,
-                largestLiquidation: maxVol,
-                totalEvents: last24h.length,
-              });
-
-              return newEvents;
-            });
-          }
-        } catch (error) {
-          console.error('LiquidationFeed: Error parsing WebSocket message:', error);
-        }
-      };
-
-      ws.onclose = () => {
-        console.log('LiquidationFeed: Disconnected from bot WebSocket');
-        setIsConnected(false);
-
-        // Attempt to reconnect after 3 seconds
-        setTimeout(connectWebSocket, 3000);
-      };
-
-      ws.onerror = (error) => {
-        console.error('LiquidationFeed: WebSocket error:', error);
-        setIsConnected(false);
-      };
+          return newEvents;
+        });
+      }
     };
 
-    connectWebSocket();
+    // Handle connection status changes
+    const handleConnectionChange = (connected: boolean) => {
+      setIsConnected(connected);
+    };
+
+    // Set up WebSocket service handlers
+    const cleanupMessageHandler = websocketService.addMessageHandler(handleMessage);
+    const cleanupConnectionListener = websocketService.addConnectionListener(handleConnectionChange);
 
     return () => {
-      if (ws) {
-        ws.close();
-      }
+      cleanupMessageHandler();
+      cleanupConnectionListener();
     };
   }, [volumeThresholds, maxEvents]);
 
