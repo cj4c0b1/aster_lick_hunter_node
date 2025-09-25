@@ -1,0 +1,95 @@
+# Aster Liquidation Hunter Bot - Implementation Plan
+
+This document outlines the step-by-step implementation of the Aster Liquidation Hunter Bot, based on the [DESIGN.md](DESIGN.md). Follow this checklist in order for a structured build. Include a changelog at the end to track progress and changes.
+
+## Checklist
+- [ ] **Setup Project Structure**
+  - Initialize Next.js with TypeScript, Tailwind CSS, App Router.
+  - Install dependencies: `ethers@^6`, `ws@^8`, `axios@^1`, `recharts@^2`, `zod@^3`, `@types/node`, `next@latest`.
+  - Create folder layout as per DESIGN.md.
+
+- [ ] **Implement Types and Config**
+  - Define TypeScript interfaces in `lib/types.ts` (e.g., SymbolConfig, Config, ApiCredentials).
+  - Create `lib/bot/config.ts`: Zod schema for validation, load from `config.json`, handle .env for private keys.
+
+- [ ] **Build API Authentication Layer**
+  - Implement signing in `lib/api/auth.ts`: Convert params to sorted JSON, ABI encode (per API docs), keccak hash, ECDSA sign with ethers.js.
+  - Create utility functions in `lib/api/auth.ts` for nonce generation (microseconds).
+
+- [ ] **Develop Market Data Utilities**
+  - In `lib/api/market.ts`: Functions for GET requests (exchangeInfo, klines, mark price, recent trades).
+  - Handle public (no auth) vs. signed requests (balance, position risk).
+  - Error handling: Retry 429 errors, log rate limits.
+
+- [ ] **Implement Order Management**
+  - In `lib/api/orders.ts`: Functions for POST orders (new, cancel, batch), GET queries (open orders, all orders).
+  - Wrap with signed auth; handle responses (e.g., orderId, status).
+
+- [ ] **Core Bot Logic: Hunter Module**
+  - Build `lib/bot/hunter.ts`: WebSocket connection to `!forceOrder@arr`.
+  - Parse liquidation events: Calculate volume (qty * price), check against thresholds.
+  - Simple analysis: Fetch mark price, basic trend check (e.g., price deviation).
+  - Execute trades: Set leverage, place MARKET orders (counter to liquidation side).
+  - Emit events to Position Manager.
+
+- [ ] **Core Bot Logic: Position Manager**
+  - Build `lib/bot/positionManager.ts`: Start listenKey stream (`/ws/<key>`).
+  - Listen for ACCOUNT_UPDATE, ORDER_TRADE_UPDATE.
+  - On entry fill: Place SL/TP orders (STOP_MARKET, TAKE_PROFIT_MARKET with reduceOnly).
+  - Monitor and adjust: Partial fills, cancel on SL/TP hit, risk checks.
+
+- [ ] **Standalone Bot Entry Point**
+  - Create `bot/index.ts`: Load config, spawn Hunter and Position Manager as async operations.
+  - Add paper mode (simulate without real orders).
+  - Readme section: Run `node bot/index.js` locally.
+
+- [ ] **UI Components**
+  - `components/SymbolConfigForm.tsx`: Form for API keys and per-symbol settings (volume, leverage, etc.).
+  - `components/LiquidationFeed.tsx`: Display liquidation events.
+  - `components/PositionTable.tsx`: Show open positions, SL/TP.
+  - `components/BotControls.tsx`: Start/stop bot (via child_process for local runs).
+
+- [ ] **UI Pages**
+  - `app/config/page.tsx`: Wrap SymbolConfigForm, save to config.json.
+  - `app/dashboard/page.tsx`: Dashboard with feeds, tables, charts (Recharts for klines).
+  - `app/layout.tsx`: Global layout, nav to config/dashboard.
+  - `app/page.tsx`: Landing page explain bot.
+
+- [ ] **API Routes (Serverless)**
+  - `/api/balance`: Fetch balance (signed).
+  - `/api/trades`: Get recent trades (signed).
+  - `/api/config`: Load/save config (for polling).
+  - Guard private keys server-side.
+
+- [ ] **Integration and Testing**
+  - Integrate bot start/stop: UI spawns `bot/index.js` via child_process.
+  - Test API calls with mock data (e.g., simulate WS events).
+  - Add logging: Console logs for trades, errors; later, persist to `data/logs.json`.
+  - Edge cases: Rate limits, invalid keys, network issues.
+
+- [ ] **Deployment and Polish**
+  - Local: `npm run dev` for app, `npm run bot` for standalone.
+  - Vercel: Deploy UI/API; bots run locally (app deploys with instructions).
+  - Security: .gitignore config.json, .env; warn on private key exposure.
+  - Final README: Setup, run, config explanation.
+
+## Changelog
+Track changes, bugs, and additions here. Format: `[Date] - Description (Commit/Issue #)`
+
+- [2025-09-25] - INITIAL: Created IMPLEMENTATION_PLAN.md and DESIGN.md. (#initial)
+- [2025-09-25] - CLARIFIED: Defined per-symbol configs with thresholds, SL/TP as %; Position Manager separate. (#clarify)
+- [TBD] - SETUP: Initialized Next.js project. Added deps ethers, ws, axios, recharts, zod. (#setup)
+- [TBD] - TYPES: Added lib/types.ts with interfaces, lib/bot/config.ts with Zod. (#types)
+- [TBD] - AUTH: Implemented signing in lib/api/auth.ts. (#auth)
+- [TBD] - MARKET: Built market.ts for data fetching. (#market)
+- [TBD] - ORDERS: Implemented orders.ts for trading. (#orders)
+- [TBD] - HUNTER: Developed hunter.ts WebSocket logic. (#hunter)
+- [TBD] - POS_MGR: Built positionManager.ts. (#pos_mgr)
+- [TBD] - BOT_ENTRY: Created bot/index.ts entry. (#bot_entry)
+- [TBD] - COMPONENTS: Made SymbolConfigForm, etc. (#components)
+- [TBD] - PAGES: Built config, dashboard pages. (#pages)
+- [TBD] - API_ROUTES: Added balance, trades routes. (#api)
+- [TBD] - INTEGRATION: Connected UI to bot modules. (#integration)
+- [TBD] - TESTING: Added paper mode, mock events. (#testing)
+- [TBD] - DEPLOY: Tested local/Vercel. (#deploy)
+- [TBD] - FINAL: Added README, polished. (#final)
