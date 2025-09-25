@@ -34,6 +34,9 @@ npm run lint
 
 # Check TypeScript types
 npx tsc --noEmit
+
+# Setup (install + build)
+npm run setup
 ```
 
 ## Architecture Overview
@@ -48,6 +51,7 @@ The application has a dual architecture:
 - **PositionManager** (`src/lib/bot/positionManager.ts`): Manages open positions, SL/TP orders, and user data streams
 - **AsterBot** (`src/bot/index.ts`): Main bot orchestrator that coordinates Hunter and PositionManager
 - **StatusBroadcaster** (`src/bot/websocketServer.ts`): WebSocket server for real-time status updates to web UI
+- **Services**: Helper services for balance (`balanceService.ts`), pricing (`priceService.ts`), and WebSocket management (`websocketService.ts`)
 
 ### Data Flow
 1. Hunter connects to `wss://fstream.asterdex.com/ws/!forceOrder@arr` for liquidation events
@@ -115,6 +119,9 @@ Connects to Aster Finance exchange API (`https://fapi.asterdex.com`):
 - **@radix-ui/***: UI component library for the web interface
 - **recharts**: Charts for displaying trading data
 - **tailwindcss**: v4 for styling
+- **ethers**: Ethereum utilities (for additional blockchain functionality)
+- **zod**: Schema validation for configuration and API responses
+- **sonner**: Toast notifications for the web UI
 
 ## Development Workflow
 
@@ -132,6 +139,15 @@ Connects to Aster Finance exchange API (`https://fapi.asterdex.com`):
 - WebSocket auto-reconnection with exponential backoff
 - Graceful shutdown handling (Ctrl+C to stop)
 
-# Important Instructions for Claude Code
+## Web UI Structure
+
+The Next.js application uses App Router with key pages:
+- `/` (dashboard): Main trading dashboard with positions, liquidation feed, and bot status
+- `/config`: Configuration page for editing trading parameters and API keys
+- `/api/*`: REST endpoints for bot communication (balance, positions, trades, config)
+
+## Important Instructions for Claude Code
 
 **NEVER** start the development server or run `npm run dev` or any server commands. The user manages the server themselves and starting additional servers can cause port conflicts and issues.
+
+**SECURITY NOTE**: The `config.json` file contains API keys and should never be committed to version control. Always check that sensitive configuration is properly excluded from git.
