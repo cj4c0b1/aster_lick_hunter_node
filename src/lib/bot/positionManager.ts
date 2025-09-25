@@ -152,3 +152,120 @@ export class PositionManager extends EventEmitter {
         });
         this.placeSLTP(order.symbol, order.side);
       }
+    } else if (order.type === 'STOP_MARKET' || order.type === 'TAKE_PROFIT_MARKET') {
+      // SL/TP filled, update position
+      console.log(`PositionManager: ${order.type} filled for ${order.symbol}`);
+    }
+  }
+
+  // Listen for new positions from Hunter
+  public onNewPosition(data: { symbol: string; side: string; quantity: number; orderId?: number }): void {
+    const positionKey = `${data.symbol}_${data.side}`;
+    // Wait for ORDER_TRADE_UPDATE to confirm fill before placing SL/TP
+    // For paper mode, place immediately
+    if (this.config.global.paperMode) {
+      if (!this.positions.has(positionKey)) {
+        this.positions.set(positionKey, {
+          symbol: data.symbol,
+          side: data.side,
+          quantity: data.quantity,
+          entryPrice: 0, // Placeholder
+        });
+        this.placeSLTP(data.symbol, data.side);
+      }
+    }
+  }
+
+  private async placeSLTP(symbol: string, side: string): Promise<void> {
+    const positionKey = `${symbol}_${side}`;
+    const position = this.positions.get(positionKey);
+    if (!position || position.slOrderId || position.tpOrderId) return;
+
+    const symbolConfig = this.config.symbols[symbol];
+    if (!symbolConfig) return;
+
+    const entryPrice = position.entryPrice;
+    const sideStr = side.toUpperCase();
+
+    try {
+      // SL: STOP_MARKET with price below/above entry
+      const slPrice = sideStr === 'BUY'
+        ? entryPrice * (1 - symbolConfig.slPercent / 100)
+        : entryPrice * (1 + symbolConfig.slPercent / 100);
+
+      const slOrder = await placeOrder({
+        symbol,
+        side: sideStr === 'BUY' ? 'SELL' : 'BUY', // Opposite side
+        type: 'STOP_MARKET',
+        quantity: position.quantity, // Close entire position
+        stopPrice: slPrice,
+        reduceOnly: true,
+        positionSide: 'BOTH',
+      }, this.config.api);
+
+      position.slOrderId = parseInt(slOrder.clientOrderId || slOrder.orderId.toString());
+      console.log(`PositionManager: Placed SL for ${symbol} at ${slPrice}, orderId: ${slOrder.orderId}`);
+
+      // TP: TAKE_PROFIT_MARKET
+      const tpPrice = sideStr === 'BUY'
+        ? entryPrice * (1 + symbolConfig.tpPercent / 100)
+        : entryPrice * (1 - symbolConfig.tpPercent / 100);
+
+      const tpOrder = await placeOrder({
+        symbol,
+        side: sideStr === 'BUY' ? 'SELL' : 'BUY',
+        type: 'TAKE_PROFIT_MARKET',
+        quantity: position.quantity, // Close entire position
+        stopPrice: tpPrice, // stopPrice for take profit
+        reduceOnly: true,
+        positionSide: 'BOTH',
+      }, this.config.api);
+
+      position.tpOrderId = parseInt(tpOrder.clientOrderId || tpOrder.orderId.toString());
+      console.log(`PositionManager: Placed TP for ${symbol} at ${tpPrice}, orderId: ${tpOrder.orderId}`);
+
+      this.positions.set(positionKey, position);
+    } catch (error: any) {
+      console.error(`PositionManager: Failed to place SL/TP for ${symbol}:`, error.response?.data || error.message);
+    }
+  }
+
+  private async checkRisk(): Promise<void> {
+    // Check total PnL
+    const riskPercent = this.config.global.riskPercent / 100;
+    // Simplified: assume some PnL calculation
+    // If unrealized PnL < -risk * balance, close all positions
+    // Implementation depends on balance query
+
+    console.log(`PositionManager: Risk check complete`);
+  }
+
+  // Manual methods
+  public async closePosition(symbol: string, side: string): Promise<void> {
+    const positionKey = `${symbol}_${side}`;
+    const position = this.positions.get(positionKey);
+    if (!position) return;
+
+    // Cancel SL/TP if exist
+    if (position.slOrderId) {
+      await cancelOrder({ symbol, orderId: position.slOrderId }, this.config.api);
+    }
+    if (position.tpOrderId) {
+      await cancelOrder({ symbol, orderId: position.tpOrderId }, this.config.api);
+    }
+
+    // Place market close order (reduceOnly=true)
+    const closeSide = side === 'BUY' ? 'SELL' : 'BUY';
+    await placeOrder({
+      symbol,
+      side: closeSide,
+      type: 'MARKET',
+      quantity: Math.abs(position.quantity),
+      reduceOnly: true,
+      positionSide: 'BOTH',
+    }, this.config.api);
+
+    this.positions.delete(positionKey);
+    console.log(`PositionManager: Closed position ${symbol} ${side}`);
+  }
+}
