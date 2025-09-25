@@ -45,20 +45,14 @@ export async function getRecentTrades(symbol: string, limit: number = 500): Prom
 
 // Signed endpoints (require authentication)
 export async function getBalance(credentials: ApiCredentials): Promise<any> {
-  const params = {
-    timestamp: Date.now(),
-    recvWindow: 5000,
-    nonce: Date.now() * 1000
-  };
+  const params = {}; // Empty params for balance endpoint
   const signedParams = getSignedParams(params, credentials);
-  // Remove apiKey from query params (should be in header)
-  const { apiKey, ...queryParams } = signedParams;
-  const query = paramsToQuery(queryParams);
+  const query = paramsToQuery(signedParams);
 
   try {
-    const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v3/balance?${query}`, {
+    const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v2/balance?${query}`, {
       headers: {
-        'X-MBX-APIKEY': apiKey
+        'X-MBX-APIKEY': credentials.apiKey
       }
     });
     return response.data;
@@ -67,8 +61,32 @@ export async function getBalance(credentials: ApiCredentials): Promise<any> {
       status: error.response?.status,
       statusText: error.response?.statusText,
       data: error.response?.data,
-      url: `${BASE_URL}/fapi/v3/balance?${query}`,
-      headers: { 'X-MBX-APIKEY': apiKey }
+      url: `${BASE_URL}/fapi/v2/balance?${query}`,
+      headers: { 'X-MBX-APIKEY': credentials.apiKey }
+    });
+    throw error;
+  }
+}
+
+export async function getAccountInfo(credentials: ApiCredentials): Promise<any> {
+  const params = {}; // Empty params for account endpoint
+  const signedParams = getSignedParams(params, credentials);
+  const query = paramsToQuery(signedParams);
+
+  try {
+    const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v2/account?${query}`, {
+      headers: {
+        'X-MBX-APIKEY': credentials.apiKey
+      }
+    });
+    return response.data;
+  } catch (error: any) {
+    console.log('Account API Error Details:', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      url: `${BASE_URL}/fapi/v2/account?${query}`,
+      headers: { 'X-MBX-APIKEY': credentials.apiKey }
     });
     throw error;
   }
@@ -76,26 +94,28 @@ export async function getBalance(credentials: ApiCredentials): Promise<any> {
 
 export async function getPositionRisk(symbol: string, credentials: ApiCredentials): Promise<any> {
   const params = {
-    symbol,
-    timestamp: Date.now(),
-    recvWindow: 5000
+    symbol
   };
   const signedParams = getSignedParams(params, credentials);
   const query = paramsToQuery(signedParams);
-  const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v3/positionRisk?${query}`);
+  const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v1/positionRisk?${query}`, {
+    headers: {
+      'X-MBX-APIKEY': credentials.apiKey
+    }
+  });
   return response.data;
 }
 
 export async function getOpenOrders(symbol: string, credentials: ApiCredentials): Promise<any[]> {
   const params = {
-    symbol,
-    timestamp: Date.now(),
-    recvWindow: 5000
+    symbol
   };
   const signedParams = getSignedParams(params, credentials);
   const query = paramsToQuery(signedParams);
-  const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v1/openOrders?${query}`);
+  const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v1/openOrders?${query}`, {
+    headers: {
+      'X-MBX-APIKEY': credentials.apiKey
+    }
+  });
   return response.data;
 }
-
-// Note: Adjust headers/params based on actual Aster API (may use headers instead of query sig)

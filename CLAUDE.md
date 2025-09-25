@@ -131,3 +131,7 @@ Connects to Aster Finance exchange API (`https://fapi.asterdex.com`):
 - Risk management with configurable risk percentage per trade
 - WebSocket auto-reconnection with exponential backoff
 - Graceful shutdown handling (Ctrl+C to stop)
+
+# Important Instructions for Claude Code
+
+**NEVER** start the development server or run `npm run dev` or any server commands. The user manages the server themselves and starting additional servers can cause port conflicts and issues.

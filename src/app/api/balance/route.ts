@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getBalance } from '@/lib/api/market';
+import { getBalance, getAccountInfo } from '@/lib/api/market';
 import { loadConfig } from '@/lib/bot/config';
 
 export async function GET() {
@@ -16,22 +16,60 @@ export async function GET() {
       });
     }
 
-    // Get real balance from API
-    const balanceData = await getBalance(config.api);
+    // Try account info first (better for multi-asset mode)
+    try {
+      const accountData = await getAccountInfo(config.api);
+      console.log('Account API response (first 500 chars):', JSON.stringify(accountData, null, 2).slice(0, 500) + '...');
 
-    // Calculate summary
+      if (accountData) {
+        // Use pre-calculated USDT-equivalent totals from account endpoint
+        const walletBalance = parseFloat(accountData.totalWalletBalance || '0');
+        const availableBalance = parseFloat(accountData.availableBalance || '0');
+        const totalPnL = parseFloat(accountData.totalUnrealizedProfit || '0');
+        const totalPositionValue = parseFloat(accountData.totalPositionInitialMargin || '0');
+
+        // Total balance = margin used in positions + available balance
+        // This represents your total trading equity/buying power
+        const totalBalance = totalPositionValue + availableBalance;
+
+        console.log('Account totals:', {
+          walletBalance,
+          totalBalance,
+          availableBalance,
+          totalPnL,
+          totalPositionValue,
+          calculatedTotal: totalPositionValue + availableBalance
+        });
+
+        return NextResponse.json({
+          totalBalance,
+          availableBalance,
+          totalPositionValue,
+          totalPnL,
+        });
+      }
+    } catch (accountError) {
+      console.error('Account API failed, falling back to balance API:', accountError);
+    }
+
+    // Fallback to balance API
+    const balanceData = await getBalance(config.api);
+    console.log('Balance API response (array):', Array.isArray(balanceData));
+
     let totalBalance = 0;
     let availableBalance = 0;
     let totalPositionValue = 0;
     let totalPnL = 0;
 
-    if (balanceData && balanceData.assets) {
-      const usdtAsset = balanceData.assets.find((a: any) => a.asset === 'USDT');
+    if (balanceData && Array.isArray(balanceData)) {
+      const usdtAsset = balanceData.find((a: any) => a.asset === 'USDT');
+      console.log('Found USDT asset:', usdtAsset);
       if (usdtAsset) {
-        totalBalance = parseFloat(usdtAsset.walletBalance || '0');
+        totalBalance = parseFloat(usdtAsset.balance || '0');
         availableBalance = parseFloat(usdtAsset.availableBalance || '0');
-        totalPositionValue = totalBalance - availableBalance;
-        totalPnL = parseFloat(usdtAsset.unrealizedProfit || '0');
+        totalPnL = parseFloat(usdtAsset.crossUnPnl || '0');
+        totalPositionValue = Math.abs(totalPnL);
+        console.log('Parsed values:', { totalBalance, availableBalance, totalPnL, totalPositionValue });
       }
     }
 
