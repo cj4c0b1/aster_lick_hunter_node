@@ -61,10 +61,12 @@ export class PositionManager extends EventEmitter {
   }
 
   private async startUserDataStream(): Promise<void> {
-    // Start stream: POST /fapi/v1/listenKey (requires signature)
-    const params = getSignedParams({}, this.config.api);
-    const url = `${BASE_URL}/fapi/v1/listenKey?${paramsToQuery(params)}`;
-    const response: AxiosResponse = await axios.post(url);
+    // For listen key endpoint, typically only needs API key header, no signature
+    const headers = {
+      'X-MBX-APIKEY': this.config.api.apiKey  // Binance-style header
+    };
+
+    const response: AxiosResponse = await axios.post(`${BASE_URL}/fapi/v1/listenKey`, null, { headers });
     this.listenKey = response.data.listenKey;
     console.log('PositionManager: Got listenKey:', this.listenKey);
 
@@ -103,9 +105,10 @@ export class PositionManager extends EventEmitter {
   private async keepalive(): Promise<void> {
     if (!this.listenKey) return;
     try {
-      const params = getSignedParams({}, this.config.api);
-      const url = `${BASE_URL}/fapi/v1/listenKey?${paramsToQuery(params)}`;
-      await axios.put(url);
+      const headers = {
+        'X-MBX-APIKEY': this.config.api.apiKey
+      };
+      await axios.put(`${BASE_URL}/fapi/v1/listenKey`, null, { headers });
       console.log('PositionManager: Keepalive sent');
     } catch (error) {
       console.error('PositionManager: Keepalive error:', error);
@@ -115,9 +118,10 @@ export class PositionManager extends EventEmitter {
   private async closeUserDataStream(): Promise<void> {
     if (!this.listenKey) return;
     try {
-      const params = getSignedParams({}, this.config.api);
-      const url = `${BASE_URL}/fapi/v1/listenKey?${paramsToQuery(params)}`;
-      await axios.delete(url);
+      const headers = {
+        'X-MBX-APIKEY': this.config.api.apiKey
+      };
+      await axios.delete(`${BASE_URL}/fapi/v1/listenKey`, null, { headers });
       console.log('PositionManager: User data stream closed');
     } catch (error) {
       console.error('PositionManager: Close stream error:', error);
