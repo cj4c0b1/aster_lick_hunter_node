@@ -35,6 +35,9 @@ npm run lint
 # Check TypeScript types
 npx tsc --noEmit
 
+# Run tests (if available)
+npm test
+
 # Setup (install + build)
 npm run setup
 ```
@@ -55,9 +58,9 @@ The application has a dual architecture:
 
 ### Data Flow
 1. Hunter connects to `wss://fstream.asterdex.com/ws/!forceOrder@arr` for liquidation events
-2. When a qualifying liquidation occurs, Hunter analyzes price action and places entry orders
+2. When a qualifying liquidation occurs, Hunter analyzes order book depth and places intelligent limit orders
 3. PositionManager monitors user data stream for order fills and automatically places SL/TP orders
-4. Status updates are broadcasted to the web UI via internal WebSocket server
+4. Status updates are broadcasted to the web UI via internal WebSocket server on port 8080
 
 ## Project Structure
 
@@ -84,7 +87,10 @@ Example symbol configuration:
   "tradeSize": 0.001,            // Base trade size
   "leverage": 5,                 // Leverage multiplier
   "tpPercent": 5,                // Take profit percentage
-  "slPercent": 2                 // Stop loss percentage
+  "slPercent": 2,                // Stop loss percentage
+  "priceOffsetBps": 2,          // Basis points offset for limit orders
+  "maxSlippageBps": 50,         // Maximum allowed slippage
+  "orderType": "LIMIT"          // Order type (LIMIT or MARKET)
 }
 ```
 
@@ -137,7 +143,9 @@ Connects to Aster Finance exchange API (`https://fapi.asterdex.com`):
 - Automatic stop-loss and take-profit orders on all positions
 - Risk management with configurable risk percentage per trade
 - WebSocket auto-reconnection with exponential backoff
-- Graceful shutdown handling (Ctrl+C to stop)
+- Graceful shutdown handling (Ctrl+C to stop) with cross-platform support
+- Intelligent limit orders with order book analysis and slippage protection
+- Exchange filter validation (price, quantity, notional limits)
 
 ## Web UI Structure
 
