@@ -43,16 +43,26 @@ export default function PositionTable({
   const [tempTP, setTempTP] = useState<number>(0);
   const [realPositions, setRealPositions] = useState<Position[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [markPrices, setMarkPrices] = useState<Record<string, number>>({});
 
   // Load initial positions and set up WebSocket updates
   useEffect(() => {
     loadPositions();
 
-    // Set up WebSocket listener for real-time position updates
+    // Set up WebSocket listener for real-time updates
     const handleMessage = (message: any) => {
       if (message.type === 'position_update') {
         // Refresh positions when we get position updates
         loadPositions();
+      } else if (message.type === 'mark_price_update') {
+        // Update mark prices for live PnL calculation
+        if (Array.isArray(message.data)) {
+          const priceUpdates: Record<string, number> = {};
+          message.data.forEach((price: any) => {
+            priceUpdates[price.symbol] = parseFloat(price.markPrice);
+          });
+          setMarkPrices(prev => ({ ...prev, ...priceUpdates }));
+        }
       }
     };
 
@@ -77,7 +87,29 @@ export default function PositionTable({
   };
 
   // Use passed positions if available, otherwise use fetched positions
-  const displayPositions = positions.length > 0 ? positions : realPositions;
+  // Apply live mark prices to calculate real-time PnL
+  const displayPositions = (positions.length > 0 ? positions : realPositions).map(position => {
+    const liveMarkPrice = markPrices[position.symbol];
+    if (liveMarkPrice && liveMarkPrice !== position.markPrice) {
+      // Calculate live PnL based on current mark price
+      const entryPrice = position.entryPrice;
+      const quantity = position.quantity;
+      const isLong = position.side === 'LONG';
+
+      const priceDiff = liveMarkPrice - entryPrice;
+      const livePnL = isLong ? priceDiff * quantity : -priceDiff * quantity;
+      const notionalValue = quantity * entryPrice;
+      const livePnLPercent = notionalValue > 0 ? (livePnL / notionalValue) * 100 : 0;
+
+      return {
+        ...position,
+        markPrice: liveMarkPrice,
+        pnl: livePnL,
+        pnlPercent: livePnLPercent
+      };
+    }
+    return position;
+  });
 
   // Removed color helper functions since we're using inline classes now
 

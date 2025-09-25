@@ -6,6 +6,7 @@ import { loadConfig } from '../lib/bot/config';
 import { Config } from '../lib/types';
 import { StatusBroadcaster } from './websocketServer';
 import { initializeBalanceService, stopBalanceService, getBalanceService } from '../lib/services/balanceService';
+import { initializePriceService, stopPriceService, getPriceService } from '../lib/services/priceService';
 
 class AsterBot {
   private hunter: Hunter | null = null;
@@ -74,6 +75,29 @@ class AsterBot {
         } catch (error: any) {
           console.error('⚠️  Balance service failed to start:', error.message);
           this.statusBroadcaster.addError(`Balance Service: ${error.message}`);
+        }
+
+        // Initialize Price Service for real-time mark prices
+        try {
+          await initializePriceService();
+          console.log('✅ Real-time price service started');
+
+          // Listen for mark price updates and broadcast to web UI
+          const priceService = getPriceService();
+          if (priceService) {
+            priceService.on('markPriceUpdate', (priceUpdates) => {
+              // Broadcast price updates to web UI for live PnL calculation
+              this.statusBroadcaster.broadcast('mark_price_update', priceUpdates);
+            });
+
+            // Subscribe to symbols we're trading
+            const symbols = Object.keys(this.config.symbols);
+            priceService.subscribeToSymbols(symbols);
+            console.log('✅ Price streaming enabled for configured symbols');
+          }
+        } catch (error: any) {
+          console.error('⚠️  Price service failed to start:', error.message);
+          this.statusBroadcaster.addError(`Price Service: ${error.message}`);
         }
       }
 
@@ -169,6 +193,9 @@ class AsterBot {
 
       await stopBalanceService();
       console.log('✅ Balance service stopped');
+
+      stopPriceService();
+      console.log('✅ Price service stopped');
 
       this.statusBroadcaster.stop();
       console.log('✅ WebSocket server stopped');

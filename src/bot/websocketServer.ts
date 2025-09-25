@@ -66,7 +66,7 @@ export class StatusBroadcaster extends EventEmitter {
       this.uptimeInterval = setInterval(() => {
         if (this.status.isRunning && this.status.startTime) {
           this.status.uptime = Date.now() - this.status.startTime.getTime();
-          this.broadcast('status', this.status);
+          this._broadcast('status', this.status);
         }
       }, 1000);
 
@@ -95,7 +95,7 @@ export class StatusBroadcaster extends EventEmitter {
 
   updateStatus(updates: Partial<BotStatus>): void {
     this.status = { ...this.status, ...updates };
-    this.broadcast('status', this.status);
+    this._broadcast('status', this.status);
   }
 
   setRunning(isRunning: boolean): void {
@@ -107,7 +107,7 @@ export class StatusBroadcaster extends EventEmitter {
       this.status.startTime = null;
       this.status.uptime = 0;
     }
-    this.broadcast('status', this.status);
+    this._broadcast('status', this.status);
   }
 
   addError(error: string): void {
@@ -116,15 +116,15 @@ export class StatusBroadcaster extends EventEmitter {
     if (this.status.errors.length > 10) {
       this.status.errors.shift();
     }
-    this.broadcast('status', this.status);
+    this._broadcast('status', this.status);
   }
 
   clearErrors(): void {
     this.status.errors = [];
-    this.broadcast('status', this.status);
+    this._broadcast('status', this.status);
   }
 
-  private broadcast(type: string, data: any): void {
+  private _broadcast(type: string, data: any): void {
     const message = JSON.stringify({ type, data });
 
     this.clients.forEach(client => {
@@ -136,7 +136,7 @@ export class StatusBroadcaster extends EventEmitter {
 
   logActivity(activity: string): void {
     this.status.lastActivity = new Date();
-    this.broadcast('activity', {
+    this._broadcast('activity', {
       message: activity,
       timestamp: this.status.lastActivity,
     });
@@ -144,7 +144,7 @@ export class StatusBroadcaster extends EventEmitter {
 
   // Broadcast liquidation events to connected clients
   broadcastLiquidation(liquidationEvent: LiquidationEvent): void {
-    this.broadcast('liquidation', {
+    this._broadcast('liquidation', {
       symbol: liquidationEvent.symbol,
       side: liquidationEvent.side,
       orderType: liquidationEvent.orderType,
@@ -169,7 +169,7 @@ export class StatusBroadcaster extends EventEmitter {
     priceImpact: number;
     confidence: number;
   }): void {
-    this.broadcast('trade_opportunity', {
+    this._broadcast('trade_opportunity', {
       ...data,
       timestamp: new Date(),
     });
@@ -184,7 +184,7 @@ export class StatusBroadcaster extends EventEmitter {
     type: 'opened' | 'closed' | 'updated';
     pnl?: number;
   }): void {
-    this.broadcast('position_update', {
+    this._broadcast('position_update', {
       ...data,
       timestamp: new Date(),
     });
@@ -197,9 +197,20 @@ export class StatusBroadcaster extends EventEmitter {
     totalPositionValue: number;
     totalPnL: number;
   }): void {
-    this.broadcast('balance_update', {
+    this._broadcast('balance_update', {
       ...data,
       timestamp: new Date(),
+    });
+  }
+
+  // Public broadcast method for external use
+  broadcast(type: string, data: any): void {
+    const message = JSON.stringify({ type, data });
+
+    this.clients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(message);
+      }
     });
   }
 }
