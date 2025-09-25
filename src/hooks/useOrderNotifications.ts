@@ -209,5 +209,5 @@ export function useOrderNotifications(wsUrl: string = 'ws://localhost:8081') {
         wsRef.current.close();
       }
     };
-  }, [connect]);
+  }, [wsUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 }

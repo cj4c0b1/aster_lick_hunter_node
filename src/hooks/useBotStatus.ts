@@ -136,7 +136,7 @@ export function useBotStatus(url: string = 'ws://localhost:8081'): UseBotStatusR
         wsRef.current.close();
       }
     };
-  }, [connect]);
+  }, [url]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     status,

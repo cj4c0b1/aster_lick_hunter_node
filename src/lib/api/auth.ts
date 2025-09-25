@@ -35,11 +35,6 @@ export function buildSignedForm(params: Record<string, any>, credentials: ApiCre
   // Append signature as the final parameter
   sp.append('signature', signature);
 
-  // Debug logging - verify we sign what we send
-  console.log('[AUTH DEBUG] Pre-sign form string:', preSign);
-  console.log('[AUTH DEBUG] Generated signature:', signature);
-  console.log('[AUTH DEBUG] Final form string:', sp.toString());
-
   return sp;
 }
 
@@ -52,7 +47,6 @@ export function buildSignedQuery(params: Record<string, any>, credentials: ApiCr
 
 // Keep the old functions for backward compatibility (deprecated - use buildSignedForm/buildSignedQuery instead)
 export function getSignedParams(params: Record<string, any>, credentials: ApiCredentials): Record<string, any> {
-  console.warn('[AUTH WARNING] getSignedParams is deprecated - use buildSignedForm for POST endpoints');
   const sp = buildSignedForm(params, credentials);
   const result: Record<string, any> = {};
   for (const [key, value] of sp.entries()) {
@@ -62,7 +56,6 @@ export function getSignedParams(params: Record<string, any>, credentials: ApiCre
 }
 
 export function paramsToQuery(params: Record<string, any>): string {
-  console.warn('[AUTH WARNING] paramsToQuery is deprecated - use buildSignedQuery for GET endpoints');
   const sp = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== null) {

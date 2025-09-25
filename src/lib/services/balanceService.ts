@@ -80,8 +80,6 @@ export class BalanceService extends EventEmitter {
           totalPnL,
           lastUpdate: Date.now()
         };
-
-        console.log('Initial balance loaded from REST API:', this.currentBalance);
       }
     } catch (error) {
       console.error('Failed to fetch initial balance:', error);
@@ -90,15 +88,11 @@ export class BalanceService extends EventEmitter {
   }
 
   private handleAccountUpdate(update: AccountUpdate): void {
-    console.log(`Account update received: ${update.updateData.reasonType}`);
-
     // Update balance data based on WebSocket update
     this.updateBalanceFromStream(update);
 
     // Update timestamp
     this.currentBalance.lastUpdate = update.eventTime;
-
-    console.log('Balance updated from WebSocket:', this.currentBalance);
 
     // Emit balance update event
     this.emit('balanceUpdate', this.currentBalance);

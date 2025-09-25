@@ -5,7 +5,7 @@
   },
   "symbols": {
     "ASTERUSDT": {
-      "volumeThresholdUSDT": 5000,
+      "volumeThresholdUSDT": 500,
       "tradeSize": 3,
       "leverage": 10,
       "tpPercent": 0.1,

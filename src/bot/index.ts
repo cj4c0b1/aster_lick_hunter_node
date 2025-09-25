@@ -87,6 +87,30 @@ class AsterBot {
               });
             });
             console.log('✅ Balance broadcasting to web UI enabled');
+
+            // Also broadcast current balance immediately and periodically
+            const currentBalance = balanceService.getCurrentBalance();
+            if (currentBalance) {
+              this.statusBroadcaster.broadcastBalance({
+                totalBalance: currentBalance.totalBalance,
+                availableBalance: currentBalance.availableBalance,
+                totalPositionValue: currentBalance.totalPositionValue,
+                totalPnL: currentBalance.totalPnL,
+              });
+            }
+
+            // Broadcast balance every 5 seconds to ensure UI stays updated
+            setInterval(() => {
+              const balance = balanceService.getCurrentBalance();
+              if (balance) {
+                this.statusBroadcaster.broadcastBalance({
+                  totalBalance: balance.totalBalance,
+                  availableBalance: balance.availableBalance,
+                  totalPositionValue: balance.totalPositionValue,
+                  totalPnL: balance.totalPnL,
+                });
+              }
+            }, 5000);
           }
         } catch (error: any) {
           console.error('⚠️  Balance service failed to start:', error.message);
@@ -106,10 +130,7 @@ class AsterBot {
               this.statusBroadcaster.broadcast('mark_price_update', priceUpdates);
             });
 
-            // Subscribe to symbols we're trading
-            const symbols = Object.keys(this.config.symbols);
-            priceService.subscribeToSymbols(symbols);
-            console.log('✅ Price streaming enabled for configured symbols');
+            // Note: We'll subscribe to position symbols after position manager starts
           }
         } catch (error: any) {
           console.error('⚠️  Price service failed to start:', error.message);
@@ -126,6 +147,18 @@ class AsterBot {
       try {
         await this.positionManager.start();
         console.log('✅ Position Manager started');
+
+        // Subscribe to price updates for all open positions
+        const priceService = getPriceService();
+        if (priceService && this.positionManager) {
+          const positions = this.positionManager.getPositions();
+          const positionSymbols = [...new Set(positions.map(p => p.symbol))];
+
+          if (positionSymbols.length > 0) {
+            priceService.subscribeToSymbols(positionSymbols);
+            console.log(`📊 Price streaming enabled for open positions: ${positionSymbols.join(', ')}`);
+          }
+        }
       } catch (error: any) {
         console.error('⚠️  Position Manager failed to start:', error.message);
         this.statusBroadcaster.addError(`Position Manager: ${error.message}`);
@@ -168,6 +201,13 @@ class AsterBot {
         this.statusBroadcaster.updateStatus({
           positionsOpen: (this.statusBroadcaster as any).status.positionsOpen + 1,
         });
+
+        // Subscribe to price updates for the new position's symbol
+        const priceService = getPriceService();
+        if (priceService && data.symbol) {
+          priceService.subscribeToSymbols([data.symbol]);
+          console.log(`📊 Added price streaming for new position: ${data.symbol}`);
+        }
       });
 
       this.hunter.on('error', (error: any) => {
