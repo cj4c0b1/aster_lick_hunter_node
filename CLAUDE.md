@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Type
-This is a Next.js 15 application with TypeScript that appears to be a cryptocurrency trading application focused on monitoring market events.
+This is a cryptocurrency liquidation hunting bot built with Next.js 15 and TypeScript. The application monitors liquidation events on the Aster Finance exchange and automatically places trades to capitalize on price movements, with both a web UI for monitoring and a backend bot service.
 
 ## Development Commands
 
@@ -11,14 +11,23 @@ This is a Next.js 15 application with TypeScript that appears to be a cryptocurr
 # Install dependencies
 npm install
 
-# Run development server with Turbopack
+# Run both web UI and bot concurrently (development)
 npm run dev
 
-# Build for production with Turbopack
-npm run build --turbopack
+# Run only the web UI (development)
+npm run dev:web
 
-# Start production server
+# Run only the bot (development with watch mode)
+npm run dev:bot
+
+# Build for production
+npm run build
+
+# Start production (both web and bot)
 npm start
+
+# Run only the bot (one-time)
+npm run bot
 
 # Run linting
 npm run lint
@@ -27,48 +36,98 @@ npm run lint
 npx tsc --noEmit
 ```
 
+## Architecture Overview
+
+The application has a dual architecture:
+1. **Web UI**: Next.js application for configuration and monitoring
+2. **Bot Service**: Standalone Node.js service that runs the trading logic
+
+### Key Components
+
+- **Hunter** (`src/lib/bot/hunter.ts`): Monitors liquidation WebSocket streams and triggers trades
+- **PositionManager** (`src/lib/bot/positionManager.ts`): Manages open positions, SL/TP orders, and user data streams
+- **AsterBot** (`src/bot/index.ts`): Main bot orchestrator that coordinates Hunter and PositionManager
+- **StatusBroadcaster** (`src/bot/websocketServer.ts`): WebSocket server for real-time status updates to web UI
+
+### Data Flow
+1. Hunter connects to `wss://fstream.asterdex.com/ws/!forceOrder@arr` for liquidation events
+2. When a qualifying liquidation occurs, Hunter analyzes price action and places entry orders
+3. PositionManager monitors user data stream for order fills and automatically places SL/TP orders
+4. Status updates are broadcasted to the web UI via internal WebSocket server
+
 ## Project Structure
 
-- **src/app/**: Next.js app directory with layouts and pages
-- **src/lib/**: Core business logic
-  - `types.ts`: TypeScript type definitions for the application
-  - `api/`: API interaction modules for authentication and exchange operations
-  - `bot/`: Trading bot logic and position management
-- **src/components/**: React components
-- **config.json**: Application configuration file
+- **src/app/**: Next.js pages and API routes
+- **src/bot/**: Standalone bot service entry point and WebSocket server
+- **src/lib/**: Shared business logic
+  - `types.ts`: Core TypeScript interfaces for trading data
+  - `api/`: Exchange API interaction (auth, orders, market data)
+  - `bot/`: Bot components (hunter, position manager, config)
+- **src/components/**: React components for the web UI
+- **config.json**: Trading configuration (API keys, symbols, risk parameters)
+
+## Configuration System
+
+The bot reads from `config.json` which contains:
+- **api**: API credentials for Aster Finance exchange
+- **symbols**: Per-symbol trading configuration (volume thresholds, leverage, SL/TP percentages)
+- **global**: Global settings (paper mode, risk percentage)
+
+Example symbol configuration:
+```json
+"BTCUSDT": {
+  "volumeThresholdUSDT": 10000,  // Minimum liquidation volume to trigger
+  "tradeSize": 0.001,            // Base trade size
+  "leverage": 5,                 // Leverage multiplier
+  "tpPercent": 5,                // Take profit percentage
+  "slPercent": 2                 // Stop loss percentage
+}
+```
+
+## API Integration
+
+Connects to Aster Finance exchange API (`https://fapi.asterdex.com`):
+- **Authentication**: HMAC SHA256 signatures with API key/secret
+- **Market Data**: WebSocket streams for liquidations, mark prices, klines
+- **User Data**: WebSocket stream for account updates and order fills
+- **Trading**: REST API for placing orders, setting leverage, managing positions
+
+## Operating Modes
+
+### Paper Mode
+- Set `"paperMode": true` in config.json
+- Simulates trading without placing real orders
+- Generates mock liquidation events for testing
+- Safe for development and testing
+
+### Live Mode
+- Requires valid API keys in config.json
+- Places real orders on the exchange
+- Monitors real liquidation streams
+- Manages actual positions with real money
 
 ## Key Dependencies
 
-- **Next.js 15**: React framework with App Router
-- **ethers**: Ethereum/blockchain interactions
-- **axios**: HTTP client for API calls
-- **ws**: WebSocket client for real-time data
-- **recharts**: Data visualization
-- **zod**: Schema validation
-- **Tailwind CSS v4**: Styling framework
+- **concurrently**: Runs web UI and bot service simultaneously
+- **tsx**: TypeScript execution for bot service with watch mode
+- **ws**: WebSocket client for exchange connections and internal status server
+- **axios**: HTTP client for REST API calls
+- **@radix-ui/***: UI component library for the web interface
+- **recharts**: Charts for displaying trading data
+- **tailwindcss**: v4 for styling
 
-## TypeScript Configuration
+## Development Workflow
 
-The project uses strict TypeScript with path aliasing:
-- `@/*` maps to `./src/*`
-- Target: ES2017
-- Module resolution: bundler
+1. Configure `config.json` with your trading parameters (start in paper mode)
+2. Run `npm run dev` to start both web UI and bot
+3. Access web UI at http://localhost:3000 to monitor bot status
+4. Bot logs will show in the terminal with detailed trade information
+5. Use `/config` page to adjust settings without restarting
 
-## API Structure
+## Safety Features
 
-The application interacts with an exchange API at `https://fapi.asterdex.com` using:
-- HMAC SHA256 signature authentication
-- WebSocket connections for real-time data streams
-- RESTful endpoints for trading operations
-
-## Important Notes
-
-- The application uses API key/secret authentication stored in `config.json`
-- Paper mode is available for testing without real trades
-- WebSocket connections automatically reconnect on failure
-- Position management includes automatic stop-loss and take-profit order placement
-
-## Known Issues
-
-- TypeScript error in `src/lib/api/orders.ts` line 116: Required parameter after optional parameter
-- Several ESLint warnings about `any` types that should be properly typed
+- Paper mode for safe testing
+- Automatic stop-loss and take-profit orders on all positions
+- Risk management with configurable risk percentage per trade
+- WebSocket auto-reconnection with exponential backoff
+- Graceful shutdown handling (Ctrl+C to stop)
