@@ -266,10 +266,10 @@ export default function DashboardPage() {
         </div>
 
         {/* Main Content Tabs */}
-        <Tabs defaultValue="liquidations" className="space-y-4">
+        <Tabs defaultValue="positions" className="space-y-4">
           <TabsList className="grid w-full grid-cols-2 lg:w-[300px]">
-            <TabsTrigger value="liquidations">Liquidations</TabsTrigger>
             <TabsTrigger value="positions">Positions</TabsTrigger>
+            <TabsTrigger value="liquidations">Liquidations</TabsTrigger>
           </TabsList>
 
           <TabsContent value="liquidations" className="space-y-4">
