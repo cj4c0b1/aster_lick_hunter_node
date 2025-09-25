@@ -16,6 +16,7 @@ import MinimalBotStatus from '@/components/MinimalBotStatus';
 import LiquidationFeed from '@/components/LiquidationFeed';
 import PositionTable from '@/components/PositionTable';
 import { useConfig } from '@/components/ConfigProvider';
+import websocketService from '@/lib/services/websocketService';
 
 interface AccountInfo {
   totalBalance: number;
@@ -35,9 +36,21 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Load initial balance from API (fallback)
     loadAccountInfo();
-    const interval = setInterval(loadAccountInfo, 10000);
-    return () => clearInterval(interval);
+
+    // Set up WebSocket listener for real-time balance updates
+    const handleMessage = (message: any) => {
+      if (message.type === 'balance_update') {
+        setAccountInfo(message.data);
+        setIsLoading(false);
+      }
+    };
+
+    const cleanupMessageHandler = websocketService.addMessageHandler(handleMessage);
+
+    // Cleanup on unmount
+    return cleanupMessageHandler;
   }, []);
 
   const loadAccountInfo = async () => {

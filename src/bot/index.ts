@@ -5,7 +5,7 @@ import { PositionManager } from '../lib/bot/positionManager';
 import { loadConfig } from '../lib/bot/config';
 import { Config } from '../lib/types';
 import { StatusBroadcaster } from './websocketServer';
-import { initializeBalanceService, stopBalanceService } from '../lib/services/balanceService';
+import { initializeBalanceService, stopBalanceService, getBalanceService } from '../lib/services/balanceService';
 
 class AsterBot {
   private hunter: Hunter | null = null;
@@ -57,6 +57,20 @@ class AsterBot {
         try {
           await initializeBalanceService(this.config.api);
           console.log('✅ Real-time balance service started');
+
+          // Listen for balance updates and broadcast to web UI
+          const balanceService = getBalanceService();
+          if (balanceService) {
+            balanceService.on('balanceUpdate', (balanceData) => {
+              this.statusBroadcaster.broadcastBalance({
+                totalBalance: balanceData.totalBalance,
+                availableBalance: balanceData.availableBalance,
+                totalPositionValue: balanceData.totalPositionValue,
+                totalPnL: balanceData.totalPnL,
+              });
+            });
+            console.log('✅ Balance broadcasting to web UI enabled');
+          }
         } catch (error: any) {
           console.error('⚠️  Balance service failed to start:', error.message);
           this.statusBroadcaster.addError(`Balance Service: ${error.message}`);

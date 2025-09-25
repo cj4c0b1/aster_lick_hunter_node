@@ -189,4 +189,17 @@ export class StatusBroadcaster extends EventEmitter {
       timestamp: new Date(),
     });
   }
+
+  // Broadcast balance updates to web UI
+  broadcastBalance(data: {
+    totalBalance: number;
+    availableBalance: number;
+    totalPositionValue: number;
+    totalPnL: number;
+  }): void {
+    this.broadcast('balance_update', {
+      ...data,
+      timestamp: new Date(),
+    });
+  }
 }

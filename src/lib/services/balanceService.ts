@@ -1,6 +1,7 @@
 import { UserDataStream, AccountUpdate, BalanceUpdate, PositionUpdate } from '../api/userDataStream';
 import { getAccountInfo } from '../api/market';
 import { ApiCredentials } from '../types';
+import { EventEmitter } from 'events';
 
 export interface BalanceData {
   totalBalance: number;
@@ -10,7 +11,7 @@ export interface BalanceData {
   lastUpdate: number;
 }
 
-export class BalanceService {
+export class BalanceService extends EventEmitter {
   private userDataStream: UserDataStream | null = null;
   private currentBalance: BalanceData = {
     totalBalance: 0,
@@ -21,6 +22,10 @@ export class BalanceService {
   };
   private credentials: ApiCredentials | null = null;
   private initialized = false;
+
+  constructor() {
+    super();
+  }
 
   async initialize(credentials: ApiCredentials): Promise<void> {
     this.credentials = credentials;
@@ -34,6 +39,9 @@ export class BalanceService {
 
     this.initialized = true;
     console.log('Balance service initialized with WebSocket stream');
+
+    // Emit initial balance
+    this.emit('balanceUpdate', this.currentBalance);
   }
 
   async stop(): Promise<void> {
@@ -91,6 +99,9 @@ export class BalanceService {
     this.currentBalance.lastUpdate = update.eventTime;
 
     console.log('Balance updated from WebSocket:', this.currentBalance);
+
+    // Emit balance update event
+    this.emit('balanceUpdate', this.currentBalance);
   }
 
   private updateBalanceFromStream(update: AccountUpdate): void {
