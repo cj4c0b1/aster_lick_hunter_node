@@ -45,15 +45,41 @@ export async function getRecentTrades(symbol: string, limit: number = 500): Prom
 
 // Signed endpoints (require authentication)
 export async function getBalance(credentials: ApiCredentials): Promise<any> {
-  const params = {};
+  const params = {
+    timestamp: Date.now(),
+    recvWindow: 5000,
+    nonce: Date.now() * 1000
+  };
   const signedParams = getSignedParams(params, credentials);
-  const query = paramsToQuery(signedParams);
-  const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v3/balance?${query}`);
-  return response.data;
+  // Remove apiKey from query params (should be in header)
+  const { apiKey, ...queryParams } = signedParams;
+  const query = paramsToQuery(queryParams);
+
+  try {
+    const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v3/balance?${query}`, {
+      headers: {
+        'X-MBX-APIKEY': apiKey
+      }
+    });
+    return response.data;
+  } catch (error: any) {
+    console.log('Balance API Error Details:', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      url: `${BASE_URL}/fapi/v3/balance?${query}`,
+      headers: { 'X-MBX-APIKEY': apiKey }
+    });
+    throw error;
+  }
 }
 
 export async function getPositionRisk(symbol: string, credentials: ApiCredentials): Promise<any> {
-  const params = { symbol };
+  const params = {
+    symbol,
+    timestamp: Date.now(),
+    recvWindow: 5000
+  };
   const signedParams = getSignedParams(params, credentials);
   const query = paramsToQuery(signedParams);
   const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v3/positionRisk?${query}`);
@@ -61,7 +87,11 @@ export async function getPositionRisk(symbol: string, credentials: ApiCredential
 }
 
 export async function getOpenOrders(symbol: string, credentials: ApiCredentials): Promise<any[]> {
-  const params = { symbol };
+  const params = {
+    symbol,
+    timestamp: Date.now(),
+    recvWindow: 5000
+  };
   const signedParams = getSignedParams(params, credentials);
   const query = paramsToQuery(signedParams);
   const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v1/openOrders?${query}`);

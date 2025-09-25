@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -11,10 +10,9 @@ import {
   TrendingUp,
   TrendingDown,
   Wallet,
-  AlertCircle,
   Activity
 } from 'lucide-react';
-import BotControls from '@/components/BotControls';
+import MinimalBotStatus from '@/components/MinimalBotStatus';
 import LiquidationFeed from '@/components/LiquidationFeed';
 import PositionTable from '@/components/PositionTable';
 import { useConfig } from '@/components/ConfigProvider';
@@ -71,6 +69,9 @@ export default function DashboardPage() {
 
   return (
     <DashboardLayout>
+      {/* Minimal Bot Status Bar */}
+      <MinimalBotStatus />
+
       <div className="p-6 space-y-6">
         {/* Account Summary Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -159,61 +160,11 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        {/* Bot Controls */}
-        <div className="grid gap-4 lg:grid-cols-3">
-          <div className="lg:col-span-1">
-            <BotControls />
-          </div>
-
-          {/* Status Cards */}
-          <div className="lg:col-span-2 grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-medium">Trading Mode</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <Badge variant={config?.global?.paperMode ? "secondary" : "default"} className="text-lg px-3 py-1">
-                    {config?.global?.paperMode ? "Paper Trading" : "Live Trading"}
-                  </Badge>
-                  {config?.global?.paperMode && (
-                    <AlertCircle className="h-5 w-5 text-muted-foreground" />
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  {config?.global?.paperMode
-                    ? "Simulated trades only - no real money at risk"
-                    : "Real trades will be executed"}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-medium">Active Symbols</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  {config && Object.keys(config.symbols).map((symbol) => (
-                    <Badge key={symbol} variant="outline">
-                      {symbol}
-                    </Badge>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  {config ? `${Object.keys(config.symbols).length} symbols configured` : 'Loading...'}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-
         {/* Main Content Tabs */}
         <Tabs defaultValue="liquidations" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3 lg:w-[400px]">
+          <TabsList className="grid w-full grid-cols-2 lg:w-[300px]">
             <TabsTrigger value="liquidations">Liquidations</TabsTrigger>
             <TabsTrigger value="positions">Positions</TabsTrigger>
-            <TabsTrigger value="history">History</TabsTrigger>
           </TabsList>
 
           <TabsContent value="liquidations" className="space-y-4">
@@ -230,23 +181,6 @@ export default function DashboardPage() {
 
           <TabsContent value="positions" className="space-y-4">
             <PositionTable />
-          </TabsContent>
-
-          <TabsContent value="history" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Trade History</CardTitle>
-                <CardDescription>
-                  Recent trades executed by the bot
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Trade history will appear here once the bot starts executing trades</p>
-                </div>
-              </CardContent>
-            </Card>
           </TabsContent>
         </Tabs>
       </div>

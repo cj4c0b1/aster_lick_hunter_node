@@ -39,14 +39,11 @@ export function getSignedHeaders(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path
 }
 
 // For Aster specifically, if they use timestamp in query
-// Adjust params to include timestamp and apiKey
-export function getSignedParams(params: Record<string, any>, credentials: ApiCredentials): Record<string, any> & { timestamp: number; signature: string; apiKey: string } {
-  const timestamp = getTimestamp();
-  // Include timestamp and apiKey in params for signing
+// Generate signature for query parameters only (apiKey goes in header)
+export function getSignedParams(params: Record<string, any>, credentials: ApiCredentials): Record<string, any> & { signature: string; apiKey: string } {
+  // Sign only the query params, do NOT include apiKey in signature
   const signingParams = {
-    ...params,
-    apiKey: credentials.apiKey,
-    timestamp
+    ...params
   };
 
   // Create query string from sorted params
@@ -63,7 +60,6 @@ export function getSignedParams(params: Record<string, any>, credentials: ApiCre
   return {
     ...params,
     apiKey: credentials.apiKey,
-    timestamp,
     signature,
   };
 }
