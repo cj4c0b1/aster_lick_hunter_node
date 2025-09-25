@@ -1,6 +1,6 @@
 import axios, { AxiosResponse } from 'axios';
 import { ApiCredentials, Order, Position } from '../types';
-import { getSignedParams, paramsToQuery } from './auth';
+import { getSignedParams, paramsToQuery, buildSignedForm, buildSignedQuery } from './auth';
 
 const BASE_URL = 'https://fapi.asterdex.com';
 
@@ -25,10 +25,8 @@ export async function placeOrder(params: {
     orderParams.timeInForce = 'GTC';
   }
 
-  const signedParams = getSignedParams(orderParams, credentials);
-  // For Aster, POST with form data (application/x-www-form-urlencoded)
-  const formData = new URLSearchParams();
-  Object.entries(signedParams).forEach(([key, value]) => formData.append(key, String(value)));
+  // Build signed form data - this ensures we sign the exact payload we'll send
+  const formData = buildSignedForm(orderParams, credentials);
 
   // Debug: log what we're actually sending
   console.log('[ORDER DEBUG] Form data being sent:', formData.toString());
@@ -80,8 +78,7 @@ export async function cancelOrder(params: {
   const cancelParams = {
     ...params,
   };
-  const signedParams = getSignedParams(cancelParams, credentials);
-  const query = paramsToQuery(signedParams);
+  const query = buildSignedQuery(cancelParams, credentials);
 
   const response: AxiosResponse = await axios.delete(`${BASE_URL}/fapi/v1/order?${query}`, {
     headers: {
@@ -96,8 +93,7 @@ export async function cancelAllOrders(symbol: string, credentials: ApiCredential
   const params = {
     symbol,
   };
-  const signedParams = getSignedParams(params, credentials);
-  const query = paramsToQuery(signedParams);
+  const query = buildSignedQuery(params, credentials);
 
   const response: AxiosResponse = await axios.delete(`${BASE_URL}/fapi/v1/allOpenOrders?${query}`, {
     headers: {
@@ -116,8 +112,7 @@ export async function queryOrder(params: {
   const queryParams = {
     ...params,
   };
-  const signedParams = getSignedParams(queryParams, credentials);
-  const query = paramsToQuery(signedParams);
+  const query = buildSignedQuery(queryParams, credentials);
 
   const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v1/order?${query}`, {
     headers: {
@@ -136,8 +131,7 @@ export async function getAllOrders(symbol: string, credentials: ApiCredentials, 
   if (startTime) params.startTime = startTime;
   if (endTime) params.endTime = endTime;
 
-  const signedParams = getSignedParams(params, credentials);
-  const query = paramsToQuery(signedParams);
+  const query = buildSignedQuery(params, credentials);
 
   const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v1/allOrders?${query}`, {
     headers: {
@@ -153,9 +147,7 @@ export async function setLeverage(symbol: string, leverage: number, credentials:
     symbol,
     leverage,
   };
-  const signedParams = getSignedParams(params, credentials);
-  const formData = new URLSearchParams();
-  Object.entries(signedParams).forEach(([key, value]) => formData.append(key, String(value)));
+  const formData = buildSignedForm(params, credentials);
 
   const response: AxiosResponse = await axios.post(`${BASE_URL}/fapi/v1/leverage`, formData, {
     headers: {
@@ -170,8 +162,7 @@ export async function setLeverage(symbol: string, leverage: number, credentials:
 // Get all positions
 export async function getPositions(credentials: ApiCredentials): Promise<any[]> {
   const params = {}; // Empty params for positions endpoint
-  const signedParams = getSignedParams(params, credentials);
-  const query = paramsToQuery(signedParams);
+  const query = buildSignedQuery(params, credentials);
 
   const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v2/positionRisk?${query}`, {
     headers: {
