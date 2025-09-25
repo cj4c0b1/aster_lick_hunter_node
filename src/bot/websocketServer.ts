@@ -203,6 +203,101 @@ export class StatusBroadcaster extends EventEmitter {
     });
   }
 
+  // Broadcast when an order is placed
+  broadcastOrderPlaced(data: {
+    symbol: string;
+    side: 'BUY' | 'SELL';
+    orderType: string;
+    quantity: number;
+    price?: number;
+    orderId?: string;
+  }): void {
+    this._broadcast('order_placed', {
+      ...data,
+      timestamp: new Date(),
+    });
+  }
+
+  // Broadcast when an order is filled
+  broadcastOrderFilled(data: {
+    symbol: string;
+    side: 'BUY' | 'SELL';
+    orderType: string;
+    executedQty: number;
+    price: number;
+    orderId?: string;
+  }): void {
+    this._broadcast('order_filled', {
+      ...data,
+      timestamp: new Date(),
+    });
+  }
+
+  // Broadcast when a stop loss is placed
+  broadcastStopLossPlaced(data: {
+    symbol: string;
+    price: number;
+    quantity: number;
+    orderId?: string;
+  }): void {
+    this._broadcast('sl_placed', {
+      ...data,
+      timestamp: new Date(),
+    });
+  }
+
+  // Broadcast when a take profit is placed
+  broadcastTakeProfitPlaced(data: {
+    symbol: string;
+    price: number;
+    quantity: number;
+    orderId?: string;
+  }): void {
+    this._broadcast('tp_placed', {
+      ...data,
+      timestamp: new Date(),
+    });
+  }
+
+  // Broadcast when a position is closed
+  broadcastPositionClosed(data: {
+    symbol: string;
+    side: string;
+    quantity: number;
+    pnl?: number;
+    reason?: string;
+  }): void {
+    this._broadcast('position_closed', {
+      ...data,
+      timestamp: new Date(),
+    });
+  }
+
+  // Broadcast when an order is cancelled
+  broadcastOrderCancelled(data: {
+    symbol: string;
+    side: string;
+    orderType: string;
+    reason?: string;
+  }): void {
+    this._broadcast('order_cancelled', {
+      ...data,
+      timestamp: new Date(),
+    });
+  }
+
+  // Broadcast when an order fails
+  broadcastOrderFailed(data: {
+    symbol: string;
+    side: string;
+    reason?: string;
+  }): void {
+    this._broadcast('order_failed', {
+      ...data,
+      timestamp: new Date(),
+    });
+  }
+
   // Public broadcast method for external use
   broadcast(type: string, data: any): void {
     const message = JSON.stringify({ type, data });

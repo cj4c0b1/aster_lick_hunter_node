@@ -461,8 +461,24 @@ export class PositionManager extends EventEmitter {
 
     // Handle filled orders
     if (orderStatus === 'FILLED') {
+      const executedQty = parseFloat(order.z || '0');
+      const avgPrice = parseFloat(order.ap || order.p || '0');
+
       if (!order.cp && !order.R) { // Not close-all and not reduce-only - this is an entry
         console.log(`PositionManager: Entry order filled for ${symbol}`);
+
+        // Broadcast order filled event
+        if (this.statusBroadcaster) {
+          this.statusBroadcaster.broadcastOrderFilled({
+            symbol,
+            side,
+            orderType,
+            executedQty,
+            price: avgPrice,
+            orderId: orderId?.toString(),
+          });
+        }
+
         // Position will be updated via ACCOUNT_UPDATE event
         // Just wait for it and then place SL/TP
       } else if (orderType === 'STOP_MARKET' || orderType === 'STOP' ||
@@ -485,15 +501,36 @@ export class PositionManager extends EventEmitter {
           }
         }
 
-        // Broadcast position closure
+        const realizedPnl = parseFloat(order.rp || '0');
+
+        // Broadcast order filled event (SL/TP)
         if (this.statusBroadcaster) {
+          this.statusBroadcaster.broadcastOrderFilled({
+            symbol,
+            side,
+            orderType,
+            executedQty,
+            price: avgPrice,
+            orderId: orderId?.toString(),
+          });
+
+          // Also broadcast position closed event
+          this.statusBroadcaster.broadcastPositionClosed({
+            symbol,
+            side: side === 'BUY' ? 'SHORT' : 'LONG', // Opposite of closing order
+            quantity: executedQty,
+            pnl: realizedPnl,
+            reason: orderType.includes('STOP') ? 'Stop Loss' : 'Take Profit',
+          });
+
+          // Keep the existing position update for backward compatibility
           this.statusBroadcaster.broadcastPositionUpdate({
             symbol: symbol,
-            side: side === 'BUY' ? 'SHORT' : 'LONG', // Opposite of closing order
+            side: side === 'BUY' ? 'SHORT' : 'LONG',
             quantity: parseFloat(order.q),
             price: parseFloat(order.ap || '0'),
             type: 'closed',
-            pnl: parseFloat(order.rp || '0') // Realized profit
+            pnl: realizedPnl,
           });
         }
       }
@@ -572,6 +609,16 @@ export class PositionManager extends EventEmitter {
 
         orders.slOrderId = typeof slOrder.orderId === 'string' ? parseInt(slOrder.orderId) : slOrder.orderId;
         console.log(`PositionManager: Placed SL (STOP_MARKET) for ${symbol} at ${slPrice.toFixed(4)}, orderId: ${slOrder.orderId}`);
+
+        // Broadcast SL placed event
+        if (this.statusBroadcaster) {
+          this.statusBroadcaster.broadcastStopLossPlaced({
+            symbol,
+            price: slPrice,
+            quantity,
+            orderId: slOrder.orderId?.toString(),
+          });
+        }
       }
 
       // Place Take Profit
@@ -595,6 +642,16 @@ export class PositionManager extends EventEmitter {
 
         orders.tpOrderId = typeof tpOrder.orderId === 'string' ? parseInt(tpOrder.orderId) : tpOrder.orderId;
         console.log(`PositionManager: Placed TP (LIMIT) for ${symbol} at ${tpPrice.toFixed(4)}, orderId: ${tpOrder.orderId}`);
+
+        // Broadcast TP placed event
+        if (this.statusBroadcaster) {
+          this.statusBroadcaster.broadcastTakeProfitPlaced({
+            symbol,
+            price: tpPrice,
+            quantity,
+            orderId: tpOrder.orderId?.toString(),
+          });
+        }
       }
 
       this.positionOrders.set(key, orders);

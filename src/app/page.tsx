@@ -16,6 +16,7 @@ import LiquidationSidebar from '@/components/LiquidationSidebar';
 import PositionTable from '@/components/PositionTable';
 import { useConfig } from '@/components/ConfigProvider';
 import websocketService from '@/lib/services/websocketService';
+import { useOrderNotifications } from '@/hooks/useOrderNotifications';
 
 interface AccountInfo {
   totalBalance: number;
@@ -35,6 +36,9 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [positions, setPositions] = useState<any[]>([]);
   const [markPrices, setMarkPrices] = useState<Record<string, number>>({});
+
+  // Initialize order notifications
+  useOrderNotifications();
 
   useEffect(() => {
     // Load initial balance and positions

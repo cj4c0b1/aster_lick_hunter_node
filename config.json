@@ -14,6 +14,6 @@
   },
   "global": {
     "riskPercent": 75,
-    "paperMode": true
+    "paperMode": false
   }
 }

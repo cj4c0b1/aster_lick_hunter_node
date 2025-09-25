@@ -9,10 +9,16 @@ export class Hunter extends EventEmitter {
   private ws: WebSocket | null = null;
   private config: Config;
   private isRunning = false;
+  private statusBroadcaster: any; // Will be injected
 
   constructor(config: Config) {
     super();
     this.config = config;
+  }
+
+  // Set status broadcaster for order events
+  public setStatusBroadcaster(broadcaster: any): void {
+    this.statusBroadcaster = broadcaster;
   }
 
   start(): void {
@@ -239,6 +245,18 @@ export class Hunter extends EventEmitter {
       const displayPrice = orderType === 'LIMIT' ? ` at ${orderPrice}` : '';
       console.log(`Hunter: Placed ${orderType} ${side} order for ${symbol}${displayPrice}, orderId: ${order.orderId}`);
 
+      // Broadcast order placed event
+      if (this.statusBroadcaster) {
+        this.statusBroadcaster.broadcastOrderPlaced({
+          symbol,
+          side,
+          orderType,
+          quantity: symbolConfig.tradeSize,
+          price: orderType === 'LIMIT' ? orderPrice : undefined,
+          orderId: order.orderId?.toString(),
+        });
+      }
+
       this.emit('positionOpened', {
         symbol,
         side,
@@ -252,6 +270,15 @@ export class Hunter extends EventEmitter {
 
     } catch (error) {
       console.error(`Hunter: Place trade error for ${symbol}:`, error);
+
+      // Broadcast order failed event
+      if (this.statusBroadcaster) {
+        this.statusBroadcaster.broadcastOrderFailed({
+          symbol,
+          side,
+          reason: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
 
       // If limit order fails, try fallback to market order
       if (symbolConfig.orderType !== 'MARKET') {
@@ -269,6 +296,17 @@ export class Hunter extends EventEmitter {
 
           console.log(`Hunter: Fallback market order placed for ${symbol}, orderId: ${fallbackOrder.orderId}`);
 
+          // Broadcast fallback order placed event
+          if (this.statusBroadcaster) {
+            this.statusBroadcaster.broadcastOrderPlaced({
+              symbol,
+              side,
+              orderType: 'MARKET',
+              quantity: symbolConfig.tradeSize,
+              orderId: fallbackOrder.orderId?.toString(),
+            });
+          }
+
           this.emit('positionOpened', {
             symbol,
             side,
@@ -282,6 +320,14 @@ export class Hunter extends EventEmitter {
 
         } catch (fallbackError) {
           console.error(`Hunter: Fallback order also failed for ${symbol}:`, fallbackError);
+          // Broadcast fallback order failed event
+          if (this.statusBroadcaster) {
+            this.statusBroadcaster.broadcastOrderFailed({
+              symbol,
+              side,
+              reason: fallbackError instanceof Error ? fallbackError.message : 'Fallback order failed',
+            });
+          }
         }
       }
     }

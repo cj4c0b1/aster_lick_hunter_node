@@ -122,6 +122,9 @@ class AsterBot {
       // Initialize Hunter
       this.hunter = new Hunter(this.config);
 
+      // Inject status broadcaster for order events
+      this.hunter.setStatusBroadcaster(this.statusBroadcaster);
+
       // Connect hunter events to position manager and status broadcaster
       this.hunter.on('liquidationDetected', (liquidationEvent: any) => {
         console.log(`💥 Liquidation: ${liquidationEvent.symbol} ${liquidationEvent.side} ${liquidationEvent.quantity}`);
