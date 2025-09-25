@@ -8,13 +8,18 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, TrendingUp, Activity, Flame } from 'lucide-react';
 
 interface LiquidationEvent {
-  id: string;
   symbol: string;
   side: 'BUY' | 'SELL';
-  price: number;
+  orderType: string;
   quantity: number;
+  price: number;
+  averagePrice: number;
+  orderStatus: string;
+  eventTime: number;
+  timestamp: Date;
+
+  // Computed fields
   volume: number;
-  timestamp: number;
   isHighVolume: boolean;
 }
 
@@ -34,58 +39,87 @@ export default function LiquidationFeed({ volumeThresholds = {}, maxEvents = 50 
   });
 
   useEffect(() => {
-    // Simulate loading and then show mock events
-    setTimeout(() => {
-      const mockEvents: LiquidationEvent[] = [
-        {
-          id: '1',
-          symbol: 'BTCUSDT',
-          side: 'SELL',
-          price: 42000,
-          quantity: 2.5,
-          volume: 105000,
-          timestamp: Date.now() - 60000,
-          isHighVolume: true,
-        },
-        {
-          id: '2',
-          symbol: 'ETHUSDT',
-          side: 'BUY',
-          price: 2200,
-          quantity: 10,
-          volume: 22000,
-          timestamp: Date.now() - 30000,
-          isHighVolume: false,
-        },
-        {
-          id: '3',
-          symbol: 'BTCUSDT',
-          side: 'BUY',
-          price: 41800,
-          quantity: 1.2,
-          volume: 50160,
-          timestamp: Date.now() - 15000,
-          isHighVolume: false,
-        },
-      ];
+    let ws: WebSocket;
 
-      setEvents(mockEvents);
-      setIsConnected(true);
-      setIsLoading(false);
+    // Connect to bot WebSocket server
+    const connectWebSocket = () => {
+      ws = new WebSocket('ws://localhost:8081');
 
-      // Update stats
-      const totalVol = mockEvents.reduce((sum, e) => sum + e.volume, 0);
-      const maxVol = Math.max(...mockEvents.map(e => e.volume));
-      setStats({
-        totalVolume24h: totalVol,
-        largestLiquidation: maxVol,
-        totalEvents: mockEvents.length,
-      });
-    }, 1000);
-  }, []);
+      ws.onopen = () => {
+        console.log('LiquidationFeed: Connected to bot WebSocket');
+        setIsConnected(true);
+        setIsLoading(false);
+      };
 
-  const formatTime = (timestamp: number): string => {
-    const date = new Date(timestamp);
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+
+          if (message.type === 'liquidation') {
+            const liquidationData = message.data;
+
+            // Calculate volume and determine if high volume
+            const volume = liquidationData.quantity * liquidationData.price;
+            const threshold = volumeThresholds[liquidationData.symbol] || 10000; // Default $10k
+            const isHighVolume = volume >= threshold;
+
+            const liquidationEvent: LiquidationEvent = {
+              ...liquidationData,
+              volume,
+              isHighVolume,
+            };
+
+            setEvents(prev => {
+              const newEvents = [liquidationEvent, ...prev].slice(0, maxEvents);
+
+              // Update stats
+              const now = Date.now();
+              const last24h = newEvents.filter(e =>
+                (e.timestamp instanceof Date ? e.timestamp.getTime() : e.eventTime) > now - 24 * 60 * 60 * 1000
+              );
+
+              const totalVol = last24h.reduce((sum, e) => sum + e.volume, 0);
+              const maxVol = Math.max(...last24h.map(e => e.volume), 0);
+
+              setStats({
+                totalVolume24h: totalVol,
+                largestLiquidation: maxVol,
+                totalEvents: last24h.length,
+              });
+
+              return newEvents;
+            });
+          }
+        } catch (error) {
+          console.error('LiquidationFeed: Error parsing WebSocket message:', error);
+        }
+      };
+
+      ws.onclose = () => {
+        console.log('LiquidationFeed: Disconnected from bot WebSocket');
+        setIsConnected(false);
+
+        // Attempt to reconnect after 3 seconds
+        setTimeout(connectWebSocket, 3000);
+      };
+
+      ws.onerror = (error) => {
+        console.error('LiquidationFeed: WebSocket error:', error);
+        setIsConnected(false);
+      };
+    };
+
+    connectWebSocket();
+
+    return () => {
+      if (ws) {
+        ws.close();
+      }
+    };
+  }, [volumeThresholds, maxEvents]);
+
+  const formatTime = (timestamp: Date | number): string => {
+    const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
     return date.toLocaleTimeString();
   };
 
@@ -179,8 +213,8 @@ export default function LiquidationFeed({ volumeThresholds = {}, maxEvents = 50 
                   </TableRow>
                 ))
               ) : events.length > 0 ? (
-                events.slice(0, maxEvents).map((event) => (
-                  <TableRow key={event.id} className={event.isHighVolume ? 'bg-orange-50 dark:bg-orange-950/20' : ''}>
+                events.slice(0, maxEvents).map((event, index) => (
+                  <TableRow key={`${event.symbol}-${event.eventTime}-${index}`} className={event.isHighVolume ? 'bg-orange-50 dark:bg-orange-950/20' : ''}>
                     <TableCell className="font-mono text-sm text-muted-foreground">
                       {formatTime(event.timestamp)}
                     </TableCell>

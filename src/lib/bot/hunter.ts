@@ -71,10 +71,21 @@ export class Hunter extends EventEmitter {
     const liquidation: LiquidationEvent = {
       symbol: event.o.s,
       side: event.o.S,
-      qty: parseFloat(event.o.q),
+      orderType: event.o.o,
+      quantity: parseFloat(event.o.q),
       price: parseFloat(event.o.p),
-      time: event.E,
+      averagePrice: parseFloat(event.o.ap),
+      orderStatus: event.o.X,
+      orderLastFilledQuantity: parseFloat(event.o.l),
+      orderFilledAccumulatedQuantity: parseFloat(event.o.z),
+      orderTradeTime: event.o.T,
+      eventTime: event.E,
+      qty: parseFloat(event.o.q), // Keep for backward compatibility
+      time: event.E, // Keep for backward compatibility
     };
+
+    // Emit liquidation event to WebSocket clients (all liquidations)
+    this.emit('liquidationDetected', liquidation);
 
     const symbolConfig = this.config.symbols[liquidation.symbol];
     if (!symbolConfig) return; // Symbol not in config
@@ -99,13 +110,38 @@ export class Hunter extends EventEmitter {
 
       // Simple analysis: If SELL liquidation and price is > 0.99 * mark, buy
       // If BUY liquidation, sell
-      const triggerBuy = liquidation.side === 'SELL' && liquidation.price / markPrice < 1.01; // 1% below
-      const triggerSell = liquidation.side === 'BUY' && liquidation.price / markPrice > 0.99;  // 1% above
+      const priceRatio = liquidation.price / markPrice;
+      const triggerBuy = liquidation.side === 'SELL' && priceRatio < 1.01; // 1% below
+      const triggerSell = liquidation.side === 'BUY' && priceRatio > 0.99;  // 1% above
 
       if (triggerBuy) {
+        const volumeUSDT = liquidation.qty * liquidation.price;
+
+        // Emit trade opportunity
+        this.emit('tradeOpportunity', {
+          symbol: liquidation.symbol,
+          side: 'BUY',
+          reason: `SELL liquidation at ${((1 - priceRatio) * 100).toFixed(2)}% below mark price`,
+          liquidationVolume: volumeUSDT,
+          priceImpact: (1 - priceRatio) * 100,
+          confidence: Math.min(95, 50 + (volumeUSDT / 1000) * 10) // Higher confidence for larger volumes
+        });
+
         console.log(`Hunter: Triggering BUY for ${liquidation.symbol} at ${liquidation.price}`);
         await this.placeTrade(liquidation.symbol, 'BUY', symbolConfig, liquidation.price);
       } else if (triggerSell) {
+        const volumeUSDT = liquidation.qty * liquidation.price;
+
+        // Emit trade opportunity
+        this.emit('tradeOpportunity', {
+          symbol: liquidation.symbol,
+          side: 'SELL',
+          reason: `BUY liquidation at ${((priceRatio - 1) * 100).toFixed(2)}% above mark price`,
+          liquidationVolume: volumeUSDT,
+          priceImpact: (priceRatio - 1) * 100,
+          confidence: Math.min(95, 50 + (volumeUSDT / 1000) * 10)
+        });
+
         console.log(`Hunter: Triggering SELL for ${liquidation.symbol} at ${liquidation.price}`);
         await this.placeTrade(liquidation.symbol, 'SELL', symbolConfig, liquidation.price);
       }
@@ -118,7 +154,14 @@ export class Hunter extends EventEmitter {
     try {
       if (this.config.global.paperMode) {
         console.log(`Hunter: PAPER MODE - Would place ${side} order for ${symbol}, quantity: ${symbolConfig.tradeSize}, leverage: ${symbolConfig.leverage}`);
-        this.emit('new_position', { symbol, side, quantity: symbolConfig.tradeSize });
+        this.emit('positionOpened', {
+          symbol,
+          side,
+          quantity: symbolConfig.tradeSize,
+          price: entryPrice,
+          leverage: symbolConfig.leverage,
+          paperMode: true
+        });
         return;
       }
 
@@ -139,7 +182,15 @@ export class Hunter extends EventEmitter {
 
       console.log(`Hunter: Placed ${side} order for ${symbol}, orderId: ${order.orderId}`);
 
-      this.emit('new_position', { symbol, side, quantity: symbolConfig.tradeSize, orderId: order.orderId });
+      this.emit('positionOpened', {
+        symbol,
+        side,
+        quantity: symbolConfig.tradeSize,
+        price: entryPrice,
+        orderId: order.orderId,
+        leverage: symbolConfig.leverage,
+        paperMode: false
+      });
     } catch (error) {
       console.error(`Hunter: Place trade error for ${symbol}:`, error);
     }

@@ -81,9 +81,28 @@ class AsterBot {
       this.hunter = new Hunter(this.config);
 
       // Connect hunter events to position manager and status broadcaster
+      this.hunter.on('liquidationDetected', (liquidationEvent: any) => {
+        console.log(`💥 Liquidation: ${liquidationEvent.symbol} ${liquidationEvent.side} ${liquidationEvent.quantity}`);
+        this.statusBroadcaster.broadcastLiquidation(liquidationEvent);
+        this.statusBroadcaster.logActivity(`Liquidation: ${liquidationEvent.symbol} ${liquidationEvent.side} ${liquidationEvent.quantity}`);
+      });
+
+      this.hunter.on('tradeOpportunity', (data: any) => {
+        console.log(`🎯 Trade opportunity: ${data.symbol} ${data.side} (${data.reason})`);
+        this.statusBroadcaster.broadcastTradeOpportunity(data);
+        this.statusBroadcaster.logActivity(`Opportunity: ${data.symbol} ${data.side} - ${data.reason}`);
+      });
+
       this.hunter.on('positionOpened', (data: any) => {
         console.log(`📈 Position opened: ${data.symbol} ${data.side} qty=${data.quantity}`);
         this.positionManager?.onNewPosition(data);
+        this.statusBroadcaster.broadcastPositionUpdate({
+          symbol: data.symbol,
+          side: data.side,
+          quantity: data.quantity,
+          price: data.price,
+          type: 'opened'
+        });
         this.statusBroadcaster.logActivity(`Position opened: ${data.symbol} ${data.side}`);
         this.statusBroadcaster.updateStatus({
           positionsOpen: (this.statusBroadcaster as any).status.positionsOpen + 1,

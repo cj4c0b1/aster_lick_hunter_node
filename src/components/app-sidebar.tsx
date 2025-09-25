@@ -5,12 +5,8 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   Activity,
-  Bot,
-  ChartBar,
   Home,
   Settings,
-  TrendingUp,
-  AlertCircle,
   Zap,
 } from "lucide-react"
 
@@ -44,25 +40,6 @@ const navigation = [
   },
 ]
 
-const monitoring = [
-  {
-    title: "Liquidations",
-    icon: AlertCircle,
-    href: "#liquidations",
-    badge: "Live",
-    badgeVariant: "default" as const,
-  },
-  {
-    title: "Positions",
-    icon: ChartBar,
-    href: "#positions",
-  },
-  {
-    title: "Bot Status",
-    icon: Bot,
-    href: "#bot-status",
-  },
-]
 
 export function AppSidebar() {
   const pathname = usePathname()
@@ -107,30 +84,6 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <Separator />
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Monitoring</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {monitoring.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <a href={item.href}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                      {item.badge && (
-                        <Badge variant={item.badgeVariant} className="ml-auto">
-                          {item.badge}
-                        </Badge>
-                      )}
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
       </SidebarContent>
 
       <SidebarFooter>

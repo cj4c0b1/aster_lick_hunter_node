@@ -1,5 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { EventEmitter } from 'events';
+import { LiquidationEvent } from '../lib/types';
 
 export interface BotStatus {
   isRunning: boolean;
@@ -138,6 +139,54 @@ export class StatusBroadcaster extends EventEmitter {
     this.broadcast('activity', {
       message: activity,
       timestamp: this.status.lastActivity,
+    });
+  }
+
+  // Broadcast liquidation events to connected clients
+  broadcastLiquidation(liquidationEvent: LiquidationEvent): void {
+    this.broadcast('liquidation', {
+      symbol: liquidationEvent.symbol,
+      side: liquidationEvent.side,
+      orderType: liquidationEvent.orderType,
+      quantity: liquidationEvent.quantity,
+      price: liquidationEvent.price,
+      averagePrice: liquidationEvent.averagePrice,
+      orderStatus: liquidationEvent.orderStatus,
+      orderLastFilledQuantity: liquidationEvent.orderLastFilledQuantity,
+      orderFilledAccumulatedQuantity: liquidationEvent.orderFilledAccumulatedQuantity,
+      orderTradeTime: liquidationEvent.orderTradeTime,
+      eventTime: liquidationEvent.eventTime,
+      timestamp: new Date(),
+    });
+  }
+
+  // Broadcast trade opportunities detected by the hunter
+  broadcastTradeOpportunity(data: {
+    symbol: string;
+    side: string;
+    reason: string;
+    liquidationVolume: number;
+    priceImpact: number;
+    confidence: number;
+  }): void {
+    this.broadcast('trade_opportunity', {
+      ...data,
+      timestamp: new Date(),
+    });
+  }
+
+  // Broadcast when a position is actually opened
+  broadcastPositionUpdate(data: {
+    symbol: string;
+    side: string;
+    quantity: number;
+    price: number;
+    type: 'opened' | 'closed' | 'updated';
+    pnl?: number;
+  }): void {
+    this.broadcast('position_update', {
+      ...data,
+      timestamp: new Date(),
     });
   }
 }

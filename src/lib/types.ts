@@ -26,8 +26,18 @@ export interface Config {
 export interface LiquidationEvent {
   symbol: string;
   side: 'BUY' | 'SELL';
-  qty: number;
+  orderType: string;
+  quantity: number;
   price: number;
+  averagePrice: number;
+  orderStatus: string;
+  orderLastFilledQuantity: number;
+  orderFilledAccumulatedQuantity: number;
+  orderTradeTime: number;
+  eventTime: number;
+
+  // Keep for backward compatibility
+  qty: number;
   time: number;
 }
 
