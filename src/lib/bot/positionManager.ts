@@ -25,10 +25,16 @@ export class PositionManager extends EventEmitter {
   private keepaliveInterval?: NodeJS.Timeout;
   private riskCheckInterval?: NodeJS.Timeout;
   private isRunning = false;
+  private statusBroadcaster: any; // Will be injected
 
   constructor(config: Config) {
     super();
     this.config = config;
+  }
+
+  // Set status broadcaster for position updates
+  public setStatusBroadcaster(broadcaster: any): void {
+    this.statusBroadcaster = broadcaster;
   }
 
   async start(): Promise<void> {
@@ -140,7 +146,25 @@ export class PositionManager extends EventEmitter {
     // Update positions map (simplified)
     // In real: parse balances and positions
     console.log('PositionManager: Account update received');
-    // Emit updated positions or something
+
+    // Broadcast position updates to web UI
+    if (this.statusBroadcaster && event.a && event.a.P) {
+      // Parse positions from account update
+      const positions = event.a.P;
+      positions.forEach((pos: any) => {
+        const positionAmt = parseFloat(pos.pa);
+        if (Math.abs(positionAmt) > 0) {
+          this.statusBroadcaster.broadcastPositionUpdate({
+            symbol: pos.s,
+            side: positionAmt > 0 ? 'LONG' : 'SHORT',
+            quantity: Math.abs(positionAmt),
+            price: parseFloat(pos.ep),
+            type: 'updated',
+            pnl: parseFloat(pos.up)
+          });
+        }
+      });
+    }
   }
 
   private handleOrderUpdate(event: any): void {
@@ -169,8 +193,20 @@ export class PositionManager extends EventEmitter {
         this.placeSLTP(order.symbol, order.side);
       }
     } else if (order.type === 'STOP_MARKET' || order.type === 'TAKE_PROFIT_MARKET') {
-      // SL/TP filled, update position
+      // SL/TP filled, position closed
       console.log(`PositionManager: ${order.type} filled for ${order.symbol}`);
+
+      // Broadcast position closure
+      if (this.statusBroadcaster) {
+        this.statusBroadcaster.broadcastPositionUpdate({
+          symbol: order.symbol,
+          side: order.side === 'BUY' ? 'SHORT' : 'LONG', // Opposite of closing order
+          quantity: order.quantity,
+          price: order.price,
+          type: 'closed',
+          pnl: 0 // Will be calculated by account update
+        });
+      }
     }
   }
 
@@ -283,5 +319,17 @@ export class PositionManager extends EventEmitter {
 
     this.positions.delete(positionKey);
     console.log(`PositionManager: Closed position ${symbol} ${side}`);
+
+    // Broadcast position closure
+    if (this.statusBroadcaster) {
+      this.statusBroadcaster.broadcastPositionUpdate({
+        symbol,
+        side,
+        quantity: Math.abs(position.quantity),
+        price: 0, // Market close
+        type: 'closed',
+        pnl: 0 // Will be updated by account stream
+      });
+    }
   }
 }

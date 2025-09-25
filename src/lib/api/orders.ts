@@ -1,5 +1,5 @@
 import axios, { AxiosResponse } from 'axios';
-import { ApiCredentials, Order } from '../types';
+import { ApiCredentials, Order, Position } from '../types';
 import { getSignedParams, paramsToQuery } from './auth';
 
 const BASE_URL = 'https://fapi.asterdex.com';
@@ -148,6 +148,20 @@ export async function setLeverage(symbol: string, leverage: number, credentials:
     },
   });
 
+  return response.data;
+}
+
+// Get all positions
+export async function getPositions(credentials: ApiCredentials): Promise<any[]> {
+  const params = {}; // Empty params for positions endpoint
+  const signedParams = getSignedParams(params, credentials);
+  const query = paramsToQuery(signedParams);
+
+  const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v2/positionRisk?${query}`, {
+    headers: {
+      'X-MBX-APIKEY': credentials.apiKey
+    }
+  });
   return response.data;
 }
 

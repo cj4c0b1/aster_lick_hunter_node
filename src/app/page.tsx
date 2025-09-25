@@ -80,6 +80,36 @@ export default function DashboardPage() {
     return `${value >= 0 ? '+' : '-'}${formatted}%`;
   };
 
+  const handleClosePosition = async (symbol: string, side: 'LONG' | 'SHORT') => {
+    try {
+      console.log(`Closing ${side} position for ${symbol}`);
+      // TODO: Implement position closing API call
+      // For now, just log the action
+    } catch (error) {
+      console.error('Failed to close position:', error);
+    }
+  };
+
+  const handleUpdateSL = async (symbol: string, side: 'LONG' | 'SHORT', price: number) => {
+    try {
+      console.log(`Updating stop loss for ${symbol} ${side} to ${price}`);
+      // TODO: Implement stop loss update API call
+      // For now, just log the action
+    } catch (error) {
+      console.error('Failed to update stop loss:', error);
+    }
+  };
+
+  const handleUpdateTP = async (symbol: string, side: 'LONG' | 'SHORT', price: number) => {
+    try {
+      console.log(`Updating take profit for ${symbol} ${side} to ${price}`);
+      // TODO: Implement take profit update API call
+      // For now, just log the action
+    } catch (error) {
+      console.error('Failed to update take profit:', error);
+    }
+  };
+
   return (
     <DashboardLayout>
       {/* Minimal Bot Status Bar */}
@@ -193,7 +223,11 @@ export default function DashboardPage() {
           </TabsContent>
 
           <TabsContent value="positions" className="space-y-4">
-            <PositionTable />
+            <PositionTable
+              onClosePosition={handleClosePosition}
+              onUpdateSL={handleUpdateSL}
+              onUpdateTP={handleUpdateTP}
+            />
           </TabsContent>
         </Tabs>
       </div>

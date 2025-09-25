@@ -79,6 +79,10 @@ class AsterBot {
 
       // Initialize Position Manager
       this.positionManager = new PositionManager(this.config);
+
+      // Inject status broadcaster for real-time position updates
+      this.positionManager.setStatusBroadcaster(this.statusBroadcaster);
+
       try {
         await this.positionManager.start();
         console.log('✅ Position Manager started');
