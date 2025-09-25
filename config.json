@@ -4,20 +4,6 @@
     "secretKey": "0a5b3a7e36c7990e3faa773a192c4bc281f7f19f34d58dffbbc590ba64cf4ce9"
   },
   "symbols": {
-    "BTCUSDT": {
-      "volumeThresholdUSDT": 10000,
-      "tradeSize": 0.001,
-      "leverage": 5,
-      "tpPercent": 5,
-      "slPercent": 2
-    },
-    "ETHUSDT": {
-      "volumeThresholdUSDT": 5000,
-      "tradeSize": 0.01,
-      "leverage": 10,
-      "tpPercent": 4,
-      "slPercent": 1.5
-    },
     "ASTERUSDT": {
       "volumeThresholdUSDT": 1000,
       "tradeSize": 1,
