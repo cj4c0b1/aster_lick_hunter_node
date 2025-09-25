@@ -1,0 +1,70 @@
+export interface SymbolConfig {
+  volumeThresholdUSDT: number; // e.g., 10000 - minimum liquidation volume to trigger trade
+  tradeSize: number;           // Base quantity for trades (adjusted by leverage)
+  leverage: number;            // Leverage (1-125)
+  tpPercent: number;           // Take profit as percentage (e.g., 5 for 5%)
+  slPercent: number;           // Stop loss as percentage (e.g., 2 for 2%)
+}
+
+export interface ApiCredentials {
+  apiKey: string;          // API Key from Aster Finance exchange
+  secretKey: string;       // Secret Key from Aster Finance exchange
+}
+
+export interface GlobalConfig {
+  riskPercent: number;     // Max risk per trade as % of account balance
+  paperMode: boolean;      // If true, simulate trades without executing
+}
+
+export interface Config {
+  api: ApiCredentials;
+  symbols: Record<string, SymbolConfig>; // key: symbol like "BTCUSDT"
+  global: GlobalConfig;
+}
+
+// API response types
+export interface LiquidationEvent {
+  symbol: string;
+  side: 'BUY' | 'SELL';
+  qty: number;
+  price: number;
+  time: number;
+}
+
+export interface Order {
+  symbol: string;
+  orderId: string;
+  clientOrderId?: string;
+  side: 'BUY' | 'SELL';
+  type: string;
+  quantity: number;
+  price: number;
+  status: string;
+  updateTime: number;
+}
+
+export interface Position {
+  symbol: string;
+  positionAmt: number;
+  entryPrice: number;
+  markPrice: number;
+  unrealizedProfit: number;
+  liquidationPrice?: number;
+  leverage: number;
+}
+
+// Other types as needed
+export interface Kline {
+  openTime: number;
+  open: string;
+  high: string;
+  low: string;
+  close: string;
+  volume: string;
+}
+
+export interface MarkPrice {
+  symbol: string;
+  markPrice: string;
+  indexPrice: string;
+};

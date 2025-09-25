@@ -1,0 +1,27 @@
+{
+  "api": {
+    "apiKey": "your64characterapikeyherexxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "secretKey": "your64charactersecretkeyherexxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  },
+  "symbols": {
+    "BTCUSDT": {
+      "volumeThresholdUSDT": 10000,
+      "tradeSize": 0.001,
+      "leverage": 5,
+      "tpPercent": 5,
+      "slPercent": 2
+    },
+    "ETHUSDT": {
+      "volumeThresholdUSDT": 5000,
+      "tradeSize": 0.01,
+      "leverage": 10,
+      "tpPercent": 4,
+      "slPercent": 1.5
+    }
+  },
+  "global": {
+    "riskPercent": 5,
+    "paperMode": true
+  }
+}
+[Response interrupted by a tool use result. Only one tool may be used at a time and should be placed at the end of the message.]
