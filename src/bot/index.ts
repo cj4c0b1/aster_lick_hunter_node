@@ -5,6 +5,7 @@ import { PositionManager } from '../lib/bot/positionManager';
 import { loadConfig } from '../lib/bot/config';
 import { Config } from '../lib/types';
 import { StatusBroadcaster } from './websocketServer';
+import { initializeBalanceService, stopBalanceService } from '../lib/services/balanceService';
 
 class AsterBot {
   private hunter: Hunter | null = null;
@@ -50,6 +51,15 @@ class AsterBot {
         if (!this.config.global.paperMode) {
           console.error('❌ Cannot run in LIVE mode without API keys!');
           throw new Error('API keys required for live trading');
+        }
+      } else {
+        // Initialize real-time balance service if API keys are available
+        try {
+          await initializeBalanceService(this.config.api);
+          console.log('✅ Real-time balance service started');
+        } catch (error: any) {
+          console.error('⚠️  Balance service failed to start:', error.message);
+          this.statusBroadcaster.addError(`Balance Service: ${error.message}`);
         }
       }
 
@@ -119,6 +129,9 @@ class AsterBot {
         await this.positionManager.stop();
         console.log('✅ Position Manager stopped');
       }
+
+      await stopBalanceService();
+      console.log('✅ Balance service stopped');
 
       this.statusBroadcaster.stop();
       console.log('✅ WebSocket server stopped');

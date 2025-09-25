@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getBalance, getAccountInfo } from '@/lib/api/market';
 import { loadConfig } from '@/lib/bot/config';
+import { getBalanceService } from '@/lib/services/balanceService';
 
 export async function GET() {
   try {
@@ -16,7 +17,19 @@ export async function GET() {
       });
     }
 
-    // Try account info first (better for multi-asset mode)
+    // Try to use WebSocket balance service first (real-time data)
+    const balanceService = getBalanceService();
+    if (balanceService && balanceService.isInitialized()) {
+      const balanceData = balanceService.getCurrentBalance();
+      return NextResponse.json({
+        totalBalance: balanceData.totalBalance,
+        availableBalance: balanceData.availableBalance,
+        totalPositionValue: balanceData.totalPositionValue,
+        totalPnL: balanceData.totalPnL,
+      });
+    }
+
+    // Fallback to REST API if WebSocket service is not available
     try {
       const accountData = await getAccountInfo(config.api);
 
@@ -41,7 +54,7 @@ export async function GET() {
       console.error('Account API failed, falling back to balance API:', accountError);
     }
 
-    // Fallback to balance API
+    // Final fallback to balance API
     const balanceData = await getBalance(config.api);
 
     let totalBalance = 0;
