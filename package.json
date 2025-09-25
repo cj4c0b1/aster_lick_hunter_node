@@ -13,7 +13,11 @@
     "setup": "npm install && npm run build",
     "lint": "eslint",
     "bot": "tsx src/bot/index.ts",
-    "bot:dev": "tsx watch src/bot/index.ts"
+    "bot:dev": "tsx watch src/bot/index.ts",
+    "test": "tsx tests/test-limit-orders.ts",
+    "test:simulation": "tsx tests/test-bot-simulation.ts",
+    "test:flow": "tsx tests/test-limit-order-flow.ts",
+    "test:all": "npm run test && npm run test:flow && npm run test:simulation"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

@@ -1,8 +1,8 @@
 #!/usr/bin/env tsx
 
-import { getBookTicker } from './src/lib/api/market';
-import { calculateOptimalPrice, validateOrderParams } from './src/lib/api/pricing';
-import { loadConfig } from './src/lib/bot/config';
+import { getBookTicker } from '../src/lib/api/market';
+import { calculateOptimalPrice, validateOrderParams } from '../src/lib/api/pricing';
+import { loadConfig } from '../src/lib/bot/config';
 
 // Terminal colors
 const colors = {

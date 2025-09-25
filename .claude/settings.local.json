@@ -9,7 +9,9 @@
       "Bash(npx shadcn@latest add:*)",
       "Bash(taskkill:*)",
       "Bash(npm run lint:*)",
-      "Bash(npx tsx:*)"
+      "Bash(npx tsx:*)",
+      "Bash(npm run test:*)",
+      "Bash(npm run test:flow:*)"
     ],
     "deny": [],
     "ask": []

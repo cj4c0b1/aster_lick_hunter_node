@@ -1,8 +1,8 @@
 #!/usr/bin/env tsx
 
-import { Hunter } from './src/lib/bot/hunter';
-import { loadConfig } from './src/lib/bot/config';
-import { getMarkPrice } from './src/lib/api/market';
+import { Hunter } from '../src/lib/bot/hunter';
+import { loadConfig } from '../src/lib/bot/config';
+import { getMarkPrice } from '../src/lib/api/market';
 
 // Terminal colors
 const colors = {
