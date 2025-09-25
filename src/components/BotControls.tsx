@@ -38,7 +38,7 @@ export default function BotControls() {
     );
   };
 
-  const formatTime = (date: Date | null | string) => {
+  const formatTime = (date: Date | null | string | undefined) => {
     if (!date) return 'N/A';
     const d = typeof date === 'string' ? new Date(date) : date;
     const now = new Date();

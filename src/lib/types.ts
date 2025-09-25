@@ -4,6 +4,12 @@ export interface SymbolConfig {
   leverage: number;            // Leverage (1-125)
   tpPercent: number;           // Take profit as percentage (e.g., 5 for 5%)
   slPercent: number;           // Stop loss as percentage (e.g., 2 for 2%)
+
+  // Limit order specific settings
+  priceOffsetBps?: number;     // Price offset in basis points from best bid/ask (default: 1)
+  usePostOnly?: boolean;       // Use post-only orders to guarantee maker fees (default: false)
+  maxSlippageBps?: number;     // Maximum acceptable slippage in basis points (default: 50)
+  orderType?: 'LIMIT' | 'MARKET'; // Order type preference (default: 'LIMIT')
 }
 
 export interface ApiCredentials {

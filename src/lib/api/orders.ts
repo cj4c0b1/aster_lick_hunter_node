@@ -14,12 +14,19 @@ export async function placeOrder(params: {
   stopPrice?: number;
   reduceOnly?: boolean;
   positionSide?: 'BOTH' | 'LONG' | 'SHORT';
+  timeInForce?: 'GTC' | 'IOC' | 'FOK' | 'GTX';
 }, credentials: ApiCredentials): Promise<Order> {
   const orderParams = {
     timestamp: Date.now(),
     recvWindow: 50000,
     ...params,
   };
+
+  // Add timeInForce for limit orders if not specified
+  if (params.type === 'LIMIT' && !params.timeInForce) {
+    orderParams.timeInForce = 'GTC';
+  }
+
   const signedParams = getSignedParams(orderParams, credentials);
   const query = paramsToQuery(signedParams);
   // For Aster, POST with form data (application/x-www-form-urlencoded)
@@ -29,6 +36,7 @@ export async function placeOrder(params: {
   const response: AxiosResponse = await axios.post(`${BASE_URL}/fapi/v1/order`, formData, {
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
+      'X-MBX-APIKEY': credentials.apiKey
     },
   });
 
@@ -45,6 +53,7 @@ type OrderParams = {
   stopPrice?: number;
   reduceOnly?: boolean;
   positionSide?: 'BOTH' | 'LONG' | 'SHORT';
+  timeInForce?: 'GTC' | 'IOC' | 'FOK' | 'GTX';
 };
 
 // Place multiple orders (batch)

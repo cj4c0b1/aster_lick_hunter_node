@@ -23,7 +23,7 @@ export function getSignedParams(params: Record<string, any>, credentials: ApiCre
   // Create query string from sorted params for signing
   const queryString = Object.keys(finalParams)
     .sort()
-    .map(key => `${key}=${finalParams[key]}`)
+    .map(key => `${key}=${finalParams[key as keyof typeof finalParams]}`)
     .join('&');
 
   // Sign the query string with secret key

@@ -3,6 +3,7 @@ import { EventEmitter } from 'events';
 import { Config, LiquidationEvent, SymbolConfig } from '../types';
 import { getExchangeInfo, getMarkPrice, getKlines } from '../api/market';
 import { placeOrder, setLeverage } from '../api/orders';
+import { calculateOptimalPrice, validateOrderParams, analyzeOrderBookDepth } from '../api/pricing';
 
 export class Hunter extends EventEmitter {
   private ws: WebSocket | null = null;
@@ -165,34 +166,124 @@ export class Hunter extends EventEmitter {
         return;
       }
 
-      // Get current balance or available
-      // Assume can place - in real, check balance
+      // Determine order type from config (default to LIMIT for better fills)
+      let orderType = symbolConfig.orderType || 'LIMIT';
+      let orderPrice = entryPrice;
 
-      // Set leverage if needed (assuming not set)
+      if (orderType === 'LIMIT') {
+        // Calculate optimal limit order price
+        const priceOffsetBps = symbolConfig.priceOffsetBps || 1;
+        const usePostOnly = symbolConfig.usePostOnly || false;
+
+        const optimalPrice = await calculateOptimalPrice(symbol, side, priceOffsetBps, usePostOnly);
+        if (optimalPrice) {
+          orderPrice = optimalPrice;
+
+          // Analyze liquidity at this price level
+          const targetNotional = symbolConfig.tradeSize * orderPrice;
+          const liquidityAnalysis = await analyzeOrderBookDepth(symbol, side, targetNotional);
+
+          if (!liquidityAnalysis.liquidityOk) {
+            console.log(`Hunter: Limited liquidity for ${symbol} ${side} - may use market order instead`);
+          }
+
+          // Check if optimal price is within acceptable slippage
+          const maxSlippageBps = symbolConfig.maxSlippageBps || 50;
+          const slippageBps = Math.abs((orderPrice - entryPrice) / entryPrice) * 10000;
+
+          if (slippageBps > maxSlippageBps) {
+            console.log(`Hunter: Slippage ${slippageBps.toFixed(1)}bp exceeds max ${maxSlippageBps}bp for ${symbol} - using market order`);
+            orderPrice = entryPrice;
+            orderType = 'MARKET';
+          }
+        } else {
+          console.log(`Hunter: Could not calculate optimal price for ${symbol} - falling back to market order`);
+          orderType = 'MARKET';
+        }
+      }
+
+      // Validate order parameters
+      if (orderType === 'LIMIT') {
+        const validation = await validateOrderParams(symbol, side, orderPrice, symbolConfig.tradeSize);
+        if (!validation.valid) {
+          console.error(`Hunter: Order validation failed for ${symbol}: ${validation.error}`);
+          return;
+        }
+
+        // Use adjusted values if provided
+        if (validation.adjustedPrice) orderPrice = validation.adjustedPrice;
+        if (validation.adjustedQuantity) symbolConfig.tradeSize = validation.adjustedQuantity;
+      }
+
+      // Set leverage if needed
       await setLeverage(symbol, symbolConfig.leverage, this.config.api);
 
-      // Place market order
-      const order = await placeOrder({
+      // Prepare order parameters
+      const orderParams: any = {
         symbol,
         side,
-        type: 'MARKET',
+        type: orderType,
         quantity: symbolConfig.tradeSize,
         positionSide: 'BOTH', // Adjust for hedge if needed
-      }, this.config.api);
+      };
 
-      console.log(`Hunter: Placed ${side} order for ${symbol}, orderId: ${order.orderId}`);
+      // Add price for limit orders
+      if (orderType === 'LIMIT') {
+        orderParams.price = orderPrice;
+        orderParams.timeInForce = symbolConfig.usePostOnly ? 'GTX' : 'GTC';
+      }
+
+      // Place the order
+      const order = await placeOrder(orderParams, this.config.api);
+
+      const displayPrice = orderType === 'LIMIT' ? ` at ${orderPrice}` : '';
+      console.log(`Hunter: Placed ${orderType} ${side} order for ${symbol}${displayPrice}, orderId: ${order.orderId}`);
 
       this.emit('positionOpened', {
         symbol,
         side,
         quantity: symbolConfig.tradeSize,
-        price: entryPrice,
+        price: orderType === 'LIMIT' ? orderPrice : entryPrice,
         orderId: order.orderId,
         leverage: symbolConfig.leverage,
+        orderType,
         paperMode: false
       });
+
     } catch (error) {
       console.error(`Hunter: Place trade error for ${symbol}:`, error);
+
+      // If limit order fails, try fallback to market order
+      if (symbolConfig.orderType !== 'MARKET') {
+        console.log(`Hunter: Retrying with market order for ${symbol}`);
+        try {
+          await setLeverage(symbol, symbolConfig.leverage, this.config.api);
+
+          const fallbackOrder = await placeOrder({
+            symbol,
+            side,
+            type: 'MARKET',
+            quantity: symbolConfig.tradeSize,
+            positionSide: 'BOTH',
+          }, this.config.api);
+
+          console.log(`Hunter: Fallback market order placed for ${symbol}, orderId: ${fallbackOrder.orderId}`);
+
+          this.emit('positionOpened', {
+            symbol,
+            side,
+            quantity: symbolConfig.tradeSize,
+            price: entryPrice,
+            orderId: fallbackOrder.orderId,
+            leverage: symbolConfig.leverage,
+            orderType: 'MARKET',
+            paperMode: false
+          });
+
+        } catch (fallbackError) {
+          console.error(`Hunter: Fallback order also failed for ${symbol}:`, fallbackError);
+        }
+      }
     }
   }
 

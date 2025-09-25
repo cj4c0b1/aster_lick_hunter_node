@@ -119,3 +119,27 @@ export async function getOpenOrders(symbol: string, credentials: ApiCredentials)
   });
   return response.data;
 }
+
+// Get order book depth for optimal pricing
+export async function getOrderBook(symbol: string, limit: number = 5): Promise<any> {
+  const params = { symbol, limit };
+  const query = paramsToQuery(params);
+  const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v1/depth?${query}`);
+  return response.data;
+}
+
+// Get symbol price ticker for current price
+export async function getSymbolPrice(symbol: string): Promise<any> {
+  const params = { symbol };
+  const query = paramsToQuery(params);
+  const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v1/ticker/price?${query}`);
+  return response.data;
+}
+
+// Get best bid/ask prices from book ticker
+export async function getBookTicker(symbol: string): Promise<any> {
+  const params = { symbol };
+  const query = paramsToQuery(params);
+  const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v1/ticker/bookTicker?${query}`);
+  return response.data;
+}

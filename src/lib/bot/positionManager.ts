@@ -127,7 +127,7 @@ export class PositionManager extends EventEmitter {
       const headers = {
         'X-MBX-APIKEY': this.config.api.apiKey
       };
-      await axios.delete(`${BASE_URL}/fapi/v1/listenKey`, null, { headers });
+      await axios.delete(`${BASE_URL}/fapi/v1/listenKey`, { headers });
       console.log('PositionManager: User data stream closed');
     } catch (error) {
       console.error('PositionManager: Close stream error:', error);
