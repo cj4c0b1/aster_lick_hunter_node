@@ -1,4 +1,4 @@
-import { UserDataStream, AccountUpdate, BalanceUpdate, PositionUpdate } from '../api/userDataStream';
+import { UserDataStream, AccountUpdate } from '../api/userDataStream';
 import { getAccountInfo } from '../api/market';
 import { ApiCredentials } from '../types';
 import { EventEmitter } from 'events';
@@ -71,7 +71,7 @@ export class BalanceService extends EventEmitter {
         const availableBalance = parseFloat(accountData.availableBalance || '0');
         const totalPnL = parseFloat(accountData.totalUnrealizedProfit || '0');
         const totalPositionValue = parseFloat(accountData.totalPositionInitialMargin || '0');
-        const totalBalance = totalPositionValue + availableBalance;
+        const _totalBalance = totalPositionValue + availableBalance;
 
         this.currentBalance = {
           totalBalance: availableBalance + totalPositionValue,
@@ -112,7 +112,7 @@ export class BalanceService extends EventEmitter {
     if (usdtBalance) {
       // Note: For multi-asset mode, we might need to sum all assets
       // For now, we'll use USDT as the primary reference
-      const walletBalance = parseFloat(usdtBalance.walletBalance);
+      const _walletBalance = parseFloat(usdtBalance.walletBalance);
       const crossWalletBalance = parseFloat(usdtBalance.crossWalletBalance);
 
       // Update available balance (this might need refinement based on actual data structure)

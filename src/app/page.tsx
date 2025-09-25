@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   DollarSign,
@@ -26,7 +26,7 @@ interface AccountInfo {
 }
 
 export default function DashboardPage() {
-  const { config, loading: configLoading } = useConfig();
+  const { config } = useConfig();
   const [accountInfo, setAccountInfo] = useState<AccountInfo>({
     totalBalance: 10000,
     availableBalance: 8500,
@@ -79,7 +79,7 @@ export default function DashboardPage() {
         const data = await response.json();
         setPositions(data);
       }
-    } catch (error) {
+    } catch (_error) {
     }
   };
 
@@ -90,7 +90,7 @@ export default function DashboardPage() {
         const data = await response.json();
         setAccountInfo(data);
       }
-    } catch (error) {
+    } catch (_error) {
     } finally {
       setIsLoading(false);
     }
@@ -151,27 +151,27 @@ export default function DashboardPage() {
     return accountInfo;
   }, [accountInfo, positions, markPrices]);
 
-  const handleClosePosition = async (symbol: string, side: 'LONG' | 'SHORT') => {
+  const handleClosePosition = async (_symbol: string, _side: 'LONG' | 'SHORT') => {
     try {
       // TODO: Implement position closing API call
       // For now, just log the action
-    } catch (error) {
+    } catch (_error) {
     }
   };
 
-  const handleUpdateSL = async (symbol: string, side: 'LONG' | 'SHORT', price: number) => {
+  const handleUpdateSL = async (_symbol: string, _side: 'LONG' | 'SHORT', _price: number) => {
     try {
       // TODO: Implement stop loss update API call
       // For now, just log the action
-    } catch (error) {
+    } catch (_error) {
     }
   };
 
-  const handleUpdateTP = async (symbol: string, side: 'LONG' | 'SHORT', price: number) => {
+  const handleUpdateTP = async (_symbol: string, _side: 'LONG' | 'SHORT', _price: number) => {
     try {
       // TODO: Implement take profit update API call
       // For now, just log the action
-    } catch (error) {
+    } catch (_error) {
     }
   };
 

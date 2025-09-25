@@ -19,7 +19,7 @@ function killAllProcesses() {
       // On Unix-like systems, kill the process group
       process.kill(-process.pid, 'SIGKILL');
     }
-  } catch (e) {
+  } catch (_e) {
     // Ignore errors, process might already be dead
   }
 }
@@ -237,27 +237,15 @@ class AsterBot {
     }, 5000); // 5 second timeout
 
     try {
-      // Stop services in parallel where possible
-      const stopPromises = [];
-
       if (this.hunter) {
-        stopPromises.push(
-          this.hunter.stop()
-            .then(() => console.log('✅ Hunter stopped'))
-            .catch(err => console.error('⚠️  Hunter stop error:', err))
-        );
+        this.hunter.stop();
+        console.log('✅ Hunter stopped');
       }
 
       if (this.positionManager) {
-        stopPromises.push(
-          this.positionManager.stop()
-            .then(() => console.log('✅ Position Manager stopped'))
-            .catch(err => console.error('⚠️  Position Manager stop error:', err))
-        );
+        this.positionManager.stop();
+        console.log('✅ Position Manager stopped');
       }
-
-      // Wait for hunter and position manager to stop
-      await Promise.allSettled(stopPromises);
 
       // Stop other services
       await stopBalanceService().catch(err =>

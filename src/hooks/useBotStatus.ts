@@ -19,18 +19,6 @@ export interface UseBotStatusReturn {
   reconnect: () => void;
 }
 
-const INITIAL_STATUS: BotStatus = {
-  isRunning: false,
-  paperMode: true,
-  uptime: 0,
-  startTime: null,
-  lastActivity: null,
-  symbols: [],
-  positionsOpen: 0,
-  totalPnL: 0,
-  errors: [],
-};
-
 export function useBotStatus(url: string = 'ws://localhost:8081'): UseBotStatusReturn {
   const [status, setStatus] = useState<BotStatus | null>(null);
   const [isConnected, setIsConnected] = useState(false);

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { Config, ApiCredentials, SymbolConfig, GlobalConfig } from '../types';
+import { Config, SymbolConfig, GlobalConfig } from '../types';
 
 // Zod schemas
 export const symbolConfigSchema = z.object({

@@ -15,7 +15,8 @@
       "Bash(tasklist)",
       "Bash(findstr:*)",
       "Bash(powershell:*)",
-      "Bash(netstat:*)"
+      "Bash(netstat:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []

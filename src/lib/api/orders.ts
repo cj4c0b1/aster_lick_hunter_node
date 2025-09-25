@@ -1,6 +1,6 @@
 import axios, { AxiosResponse } from 'axios';
-import { ApiCredentials, Order, Position } from '../types';
-import { getSignedParams, paramsToQuery, buildSignedForm, buildSignedQuery } from './auth';
+import { ApiCredentials, Order } from '../types';
+import { buildSignedForm, buildSignedQuery } from './auth';
 
 const BASE_URL = 'https://fapi.asterdex.com';
 

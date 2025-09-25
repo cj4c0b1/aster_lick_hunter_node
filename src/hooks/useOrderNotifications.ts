@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
 
 interface OrderEvent {
@@ -33,7 +33,7 @@ export function useOrderNotifications(wsUrl: string = 'ws://localhost:8081') {
     return pnl >= 0 ? `+${formatted}` : `-${formatted.replace('-', '')}`;
   };
 
-  const connect = () => {
+  const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       return;
     }
@@ -48,7 +48,7 @@ export function useOrderNotifications(wsUrl: string = 'ws://localhost:8081') {
 
           switch (message.type) {
             case 'order_placed': {
-              const { symbol, side, orderType, quantity, price, orderId } = message.data;
+              const { symbol, side, orderType, quantity, price } = message.data;
               const priceStr = price ? ` at $${formatPrice(price)}` : '';
               const orderTypeStr = orderType === 'MARKET' ? 'Market' : 'Limit';
 
@@ -63,7 +63,7 @@ export function useOrderNotifications(wsUrl: string = 'ws://localhost:8081') {
             }
 
             case 'order_filled': {
-              const { symbol, side, executedQty, price, orderId, orderType } = message.data;
+              const { symbol, side, executedQty, price, orderType } = message.data;
               const priceStr = price ? ` at $${formatPrice(price)}` : '';
 
               if (orderType === 'STOP_MARKET' || orderType === 'STOP') {
@@ -119,7 +119,7 @@ export function useOrderNotifications(wsUrl: string = 'ws://localhost:8081') {
             }
 
             case 'position_closed': {
-              const { symbol, side, quantity, pnl, reason } = message.data;
+              const { symbol, side, quantity, pnl } = message.data;
               const pnlStr = pnl !== undefined ? ` • PnL: ${formatPnL(pnl)}` : '';
               const variant = pnl >= 0 ? 'success' : 'warning';
 
@@ -196,7 +196,7 @@ export function useOrderNotifications(wsUrl: string = 'ws://localhost:8081') {
         connect();
       }, 3000);
     }
-  };
+  }, [wsUrl]);
 
   useEffect(() => {
     connect();
@@ -209,5 +209,5 @@ export function useOrderNotifications(wsUrl: string = 'ws://localhost:8081') {
         wsRef.current.close();
       }
     };
-  }, [wsUrl]);
+  }, [connect]);
 }

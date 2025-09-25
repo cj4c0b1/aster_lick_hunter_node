@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getPositions } from '@/lib/api/orders';
 import { loadConfig } from '@/lib/bot/config';
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const config = await loadConfig();
 

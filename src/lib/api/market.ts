@@ -1,5 +1,5 @@
 import axios, { AxiosResponse } from 'axios';
-import { ApiCredentials, MarkPrice, Kline, LiquidationEvent } from '../types';
+import { ApiCredentials, MarkPrice, Kline } from '../types';
 import { getSignedParams, paramsToQuery } from './auth';
 
 const BASE_URL = 'https://fapi.asterdex.com';

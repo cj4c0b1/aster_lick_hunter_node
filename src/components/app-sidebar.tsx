@@ -24,7 +24,6 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
 import { useConfig } from "@/components/ConfigProvider"
 
 const navigation = [

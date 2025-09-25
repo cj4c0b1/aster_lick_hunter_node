@@ -1,7 +1,7 @@
 import WebSocket from 'ws';
 import { EventEmitter } from 'events';
 import { Config, LiquidationEvent, SymbolConfig } from '../types';
-import { getExchangeInfo, getMarkPrice, getKlines } from '../api/market';
+import { getMarkPrice } from '../api/market';
 import { placeOrder, setLeverage } from '../api/orders';
 import { calculateOptimalPrice, validateOrderParams, analyzeOrderBookDepth } from '../api/pricing';
 

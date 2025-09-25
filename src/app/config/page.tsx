@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import SymbolConfigForm from '@/components/SymbolConfigForm';
 import { useConfig } from '@/components/ConfigProvider';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, CheckCircle2, Settings } from 'lucide-react';

@@ -1,9 +1,9 @@
 import WebSocket from 'ws';
 import { EventEmitter } from 'events';
 import axios, { AxiosResponse } from 'axios';
-import { Config, Position, Order } from '../types';
+import { Config } from '../types';
 import { getSignedParams, paramsToQuery } from '../api/auth';
-import { getPositionRisk, getExchangeInfo } from '../api/market';
+import { getExchangeInfo } from '../api/market';
 import { placeOrder, cancelOrder } from '../api/orders';
 import { symbolPrecision } from '../utils/symbolPrecision';
 
@@ -438,14 +438,14 @@ export class PositionManager extends EventEmitter {
     const symbol = order.s;
     const orderType = order.o;
     const orderStatus = order.X;
-    const positionSide = order.ps || 'BOTH';
+    const _positionSide = order.ps || 'BOTH';
     const side = order.S;
     const orderId = order.i;
 
     // Track our SL/TP order IDs when they're placed
     if (orderStatus === 'NEW' && (orderType === 'STOP_MARKET' || orderType === 'TAKE_PROFIT_MARKET')) {
-      const executedQty = parseFloat(order.z || '0');
-      const origQty = parseFloat(order.q);
+      const _executedQty = parseFloat(order.z || '0');
+      const _origQty = parseFloat(order.q);
 
       // Find the matching position
       for (const [key, position] of this.currentPositions.entries()) {
@@ -694,7 +694,7 @@ export class PositionManager extends EventEmitter {
 
   private async checkRisk(): Promise<void> {
     // Check total PnL
-    const riskPercent = this.config.global.riskPercent / 100;
+    const _riskPercent = this.config.global.riskPercent / 100;
     // Simplified: assume some PnL calculation
     // If unrealized PnL < -risk * balance, close all positions
     // Implementation depends on balance query
