@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   DollarSign,
@@ -13,7 +12,7 @@ import {
   Activity
 } from 'lucide-react';
 import MinimalBotStatus from '@/components/MinimalBotStatus';
-import LiquidationFeed from '@/components/LiquidationFeed';
+import LiquidationSidebar from '@/components/LiquidationSidebar';
 import PositionTable from '@/components/PositionTable';
 import { useConfig } from '@/components/ConfigProvider';
 import websocketService from '@/lib/services/websocketService';
@@ -177,121 +176,114 @@ export default function DashboardPage() {
       {/* Minimal Bot Status Bar */}
       <MinimalBotStatus />
 
-      <div className="p-6 space-y-6">
-        {/* Account Summary Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
-              <Wallet className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <Skeleton className="h-8 w-24" />
-              ) : (
-                <>
-                  <div className="text-2xl font-bold">{formatCurrency(liveAccountInfo.totalBalance)}</div>
-                  <p className="text-xs text-muted-foreground">
-                    +20.1% from last month
-                  </p>
-                </>
-              )}
-            </CardContent>
-          </Card>
+      <div className="flex h-full">
+        {/* Main Content */}
+        <div className="flex-1 p-6 space-y-6">
+          {/* Account Summary Cards */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
+                <Wallet className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <Skeleton className="h-8 w-24" />
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">{formatCurrency(liveAccountInfo.totalBalance)}</div>
+                    <p className="text-xs text-muted-foreground">
+                      +20.1% from last month
+                    </p>
+                  </>
+                )}
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Available Balance</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <Skeleton className="h-8 w-24" />
-              ) : (
-                <>
-                  <div className="text-2xl font-bold">{formatCurrency(liveAccountInfo.availableBalance)}</div>
-                  <p className="text-xs text-muted-foreground">
-                    Ready for trading
-                  </p>
-                </>
-              )}
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Available Balance</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <Skeleton className="h-8 w-24" />
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">{formatCurrency(liveAccountInfo.availableBalance)}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Ready for trading
+                    </p>
+                  </>
+                )}
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Position Value</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <Skeleton className="h-8 w-24" />
-              ) : (
-                <>
-                  <div className="text-2xl font-bold">{formatCurrency(liveAccountInfo.totalPositionValue)}</div>
-                  <p className="text-xs text-muted-foreground">
-                    Across all positions
-                  </p>
-                </>
-              )}
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Position Value</CardTitle>
+                <Activity className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <Skeleton className="h-8 w-24" />
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">{formatCurrency(liveAccountInfo.totalPositionValue)}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Across all positions
+                    </p>
+                  </>
+                )}
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Unrealized PnL</CardTitle>
-              {liveAccountInfo.totalPnL >= 0 ? (
-                <TrendingUp className="h-4 w-4 text-green-600" />
-              ) : (
-                <TrendingDown className="h-4 w-4 text-red-600" />
-              )}
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <Skeleton className="h-8 w-24" />
-              ) : (
-                <>
-                  <div className={`text-2xl font-bold ${
-                    liveAccountInfo.totalPnL >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                  }`}>
-                    {formatCurrency(liveAccountInfo.totalPnL)}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {formatPercentage(liveAccountInfo.totalPnL / liveAccountInfo.totalBalance * 100)} of balance
-                  </p>
-                </>
-              )}
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Unrealized PnL</CardTitle>
+                {liveAccountInfo.totalPnL >= 0 ? (
+                  <TrendingUp className="h-4 w-4 text-green-600" />
+                ) : (
+                  <TrendingDown className="h-4 w-4 text-red-600" />
+                )}
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <Skeleton className="h-8 w-24" />
+                ) : (
+                  <>
+                    <div className={`text-2xl font-bold ${
+                      liveAccountInfo.totalPnL >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                    }`}>
+                      {formatCurrency(liveAccountInfo.totalPnL)}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {formatPercentage(liveAccountInfo.totalPnL / liveAccountInfo.totalBalance * 100)} of balance
+                    </p>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Positions Table */}
+          <PositionTable
+            onClosePosition={handleClosePosition}
+            onUpdateSL={handleUpdateSL}
+            onUpdateTP={handleUpdateTP}
+          />
         </div>
 
-        {/* Main Content Tabs */}
-        <Tabs defaultValue="positions" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2 lg:w-[300px]">
-            <TabsTrigger value="positions">Positions</TabsTrigger>
-            <TabsTrigger value="liquidations">Liquidations</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="liquidations" className="space-y-4">
-            <LiquidationFeed
-              volumeThresholds={config?.symbols ?
-                Object.entries(config.symbols).reduce((acc, [symbol, cfg]) => ({
-                  ...acc,
-                  [symbol]: cfg.volumeThresholdUSDT
-                }), {}) : {}
-              }
-              maxEvents={20}
-            />
-          </TabsContent>
-
-          <TabsContent value="positions" className="space-y-4">
-            <PositionTable
-              onClosePosition={handleClosePosition}
-              onUpdateSL={handleUpdateSL}
-              onUpdateTP={handleUpdateTP}
-            />
-          </TabsContent>
-        </Tabs>
+        {/* Liquidation Sidebar */}
+        <LiquidationSidebar
+          volumeThresholds={config?.symbols ?
+            Object.entries(config.symbols).reduce((acc, [symbol, cfg]) => ({
+              ...acc,
+              [symbol]: cfg.volumeThresholdUSDT
+            }), {}) : {}
+          }
+          maxEvents={10}
+        />
       </div>
     </DashboardLayout>
   );
