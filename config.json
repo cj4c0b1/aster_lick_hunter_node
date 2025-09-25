@@ -1,7 +1,7 @@
 {
   "api": {
-    "apiKey": "your64characterapikeyherexxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-    "secretKey": "your64charactersecretkeyherexxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    "apiKey": "",
+    "secretKey": ""
   },
   "symbols": {
     "BTCUSDT": {
@@ -24,4 +24,3 @@
     "paperMode": true
   }
 }
-[Response interrupted by a tool use result. Only one tool may be used at a time and should be placed at the end of the message.]

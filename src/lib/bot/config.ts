@@ -13,8 +13,8 @@ export const symbolConfigSchema = z.object({
 });
 
 export const apiCredentialsSchema = z.object({
-  apiKey: z.string().length(64, 'API Key must be 64 characters'), // Assuming 64-char key
-  secretKey: z.string().length(64, 'Secret Key must be 64 characters'),
+  apiKey: z.string(),  // Can be empty for paper mode
+  secretKey: z.string(),  // Can be empty for paper mode
 });
 
 export const globalConfigSchema = z.object({
@@ -37,6 +37,14 @@ export async function loadConfig(): Promise<Config> {
     const parsed = JSON.parse(data);
 
     const validated = configSchema.parse(parsed);
+
+    // Validate API keys only if not in paper mode
+    if (!validated.global.paperMode) {
+      if (validated.api.apiKey.length !== 64 || validated.api.secretKey.length !== 64) {
+        throw new Error('API keys must be 64 characters when not in paper mode');
+      }
+    }
+
     return validated;
   } catch (error) {
     if (error instanceof z.ZodError) {

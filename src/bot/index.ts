@@ -1,63 +1,142 @@
 #!/usr/bin/env node
-import { loadConfig } from '../lib/bot/config';
+
 import { Hunter } from '../lib/bot/hunter';
 import { PositionManager } from '../lib/bot/positionManager';
+import { loadConfig } from '../lib/bot/config';
+import { Config } from '../lib/types';
 
-async function main(): Promise<void> {
-  console.log('Aster Liquidation Hunter Bot starting...');
+class AsterBot {
+  private hunter: Hunter | null = null;
+  private positionManager: PositionManager | null = null;
+  private config: Config | null = null;
+  private isRunning = false;
 
-  try {
-    // Load configuration
-    const config = await loadConfig();
-    console.log('Config loaded for symbols:', Object.keys(config.symbols));
-
-    // Initialize modules
-    const hunter = new Hunter(config);
-    const positionManager = new PositionManager(config);
-
-    // Connect Hunter to Position Manager
-    hunter.on('new_position', (data) => {
-      console.log('New position event:', data);
-      positionManager.onNewPosition(data);
-    });
-
-    // Start modules
-    await positionManager.start();
-    hunter.start();
-
-    console.log('Bot modules started. Press Ctrl+C to stop.');
-
-    // Handle graceful shutdown
-    process.on('SIGINT', async () => {
-      console.log('\nShutting down bot...');
-      hunter.stop();
-      await positionManager.stop();
-      process.exit(0);
-    });
-
-    // Keep running
-    while (true) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+  async start(): Promise<void> {
+    if (this.isRunning) {
+      console.log('Bot is already running');
+      return;
     }
 
-  } catch (error) {
-    console.error('Bot startup error:', error);
-    process.exit(1);
+    try {
+      console.log('🚀 Starting Aster Liquidation Hunter Bot...');
+
+      // Load configuration
+      this.config = await loadConfig();
+      console.log('✅ Configuration loaded');
+      console.log(`📝 Paper Mode: ${this.config.global.paperMode ? 'ENABLED' : 'DISABLED'}`);
+      console.log(`💰 Risk Percent: ${this.config.global.riskPercent}%`);
+      console.log(`📊 Symbols configured: ${Object.keys(this.config.symbols).join(', ')}`);
+
+      // Check API keys
+      if (!this.config.api.apiKey || !this.config.api.secretKey) {
+        console.log('⚠️  WARNING: No API keys configured. Running in PAPER MODE only.');
+        console.log('   Please configure your API keys via the web interface at http://localhost:3000/config');
+        if (!this.config.global.paperMode) {
+          console.error('❌ Cannot run in LIVE mode without API keys!');
+          throw new Error('API keys required for live trading');
+        }
+      }
+
+      // Initialize Position Manager
+      this.positionManager = new PositionManager(this.config);
+      await this.positionManager.start();
+      console.log('✅ Position Manager started');
+
+      // Initialize Hunter
+      this.hunter = new Hunter(this.config);
+
+      // Connect hunter events to position manager
+      this.hunter.on('positionOpened', (data: any) => {
+        console.log(`📈 Position opened: ${data.symbol} ${data.side} qty=${data.quantity}`);
+        this.positionManager?.onNewPosition(data);
+      });
+
+      this.hunter.on('error', (error: any) => {
+        console.error('❌ Hunter error:', error);
+      });
+
+      await this.hunter.start();
+      console.log('✅ Liquidation Hunter started');
+
+      this.isRunning = true;
+      console.log('🟢 Bot is now running. Press Ctrl+C to stop.');
+
+      // Handle graceful shutdown
+      process.on('SIGINT', () => this.stop());
+      process.on('SIGTERM', () => this.stop());
+
+    } catch (error) {
+      console.error('❌ Failed to start bot:', error);
+      process.exit(1);
+    }
+  }
+
+  async stop(): Promise<void> {
+    if (!this.isRunning) return;
+
+    console.log('\n🛑 Stopping bot...');
+    this.isRunning = false;
+
+    try {
+      if (this.hunter) {
+        await this.hunter.stop();
+        console.log('✅ Hunter stopped');
+      }
+
+      if (this.positionManager) {
+        await this.positionManager.stop();
+        console.log('✅ Position Manager stopped');
+      }
+
+      console.log('👋 Bot stopped successfully');
+      process.exit(0);
+    } catch (error) {
+      console.error('❌ Error while stopping:', error);
+      process.exit(1);
+    }
+  }
+
+  async status(): Promise<void> {
+    if (!this.isRunning) {
+      console.log('⚠️  Bot is not running');
+      return;
+    }
+
+    console.log('🟢 Bot Status:');
+    console.log(`  Running: ${this.isRunning}`);
+    console.log(`  Paper Mode: ${this.config?.global.paperMode}`);
+    console.log(`  Symbols: ${this.config ? Object.keys(this.config.symbols).join(', ') : 'N/A'}`);
   }
 }
 
-// Handle uncaught exceptions
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught exception:', error);
-  process.exit(1);
-});
+// Main execution
+async function main() {
+  const bot = new AsterBot();
 
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled rejection at:', promise, 'reason:', reason);
-  process.exit(1);
-});
+  const args = process.argv.slice(2);
+  const command = args[0] || 'start';
 
-// Run the bot
-if (require.main === module) {
-  main().catch(console.error);
+  switch (command) {
+    case 'start':
+      await bot.start();
+      break;
+    case 'status':
+      await bot.status();
+      break;
+    default:
+      console.log('Usage: node src/bot/index.js [start|status]');
+      console.log('  start  - Start the bot');
+      console.log('  status - Show bot status');
+      process.exit(1);
+  }
 }
+
+// Run if this is the main module
+if (require.main === module) {
+  main().catch((error) => {
+    console.error('Fatal error:', error);
+    process.exit(1);
+  });
+}
+
+export { AsterBot };

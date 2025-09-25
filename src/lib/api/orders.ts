@@ -113,7 +113,7 @@ export async function queryOrder(params: {
 }
 
 // Get all orders
-export async function getAllOrders(symbol: string, startTime?: number, endTime?: number, limit: number = 500, credentials: ApiCredentials): Promise<Order[]> {
+export async function getAllOrders(symbol: string, credentials: ApiCredentials, startTime?: number, endTime?: number, limit: number = 500): Promise<Order[]> {
   const params: Record<string, any> = {
     symbol,
     limit,

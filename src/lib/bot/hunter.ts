@@ -17,7 +17,14 @@ export class Hunter extends EventEmitter {
   start(): void {
     if (this.isRunning) return;
     this.isRunning = true;
-    this.connectWebSocket();
+
+    // In paper mode with no API keys, simulate liquidation events
+    if (this.config.global.paperMode && (!this.config.api.apiKey || !this.config.api.secretKey)) {
+      console.log('Hunter: Running in paper mode without API keys - simulating liquidations');
+      this.simulateLiquidations();
+    } else {
+      this.connectWebSocket();
+    }
   }
 
   stop(): void {
@@ -136,5 +143,44 @@ export class Hunter extends EventEmitter {
     } catch (error) {
       console.error(`Hunter: Place trade error for ${symbol}:`, error);
     }
+  }
+
+  private simulateLiquidations(): void {
+    // Simulate liquidation events for paper mode testing
+    const symbols = Object.keys(this.config.symbols);
+    if (symbols.length === 0) {
+      console.log('Hunter: No symbols configured for simulation');
+      return;
+    }
+
+    // Generate random liquidation events every 5-10 seconds
+    const generateEvent = () => {
+      if (!this.isRunning) return;
+
+      const symbol = symbols[Math.floor(Math.random() * symbols.length)];
+      const side = Math.random() > 0.5 ? 'SELL' : 'BUY';
+      const price = symbol === 'BTCUSDT' ? 40000 + Math.random() * 5000 : 2000 + Math.random() * 500;
+      const qty = Math.random() * 10;
+
+      const mockEvent = {
+        o: {
+          s: symbol,
+          S: side,
+          p: price.toString(),
+          q: qty.toString(),
+          T: Date.now()
+        }
+      };
+
+      console.log(`Hunter: Simulated liquidation - ${symbol} ${side} ${qty.toFixed(4)} @ $${price.toFixed(2)}`);
+      this.handleLiquidationEvent(mockEvent);
+
+      // Schedule next event
+      const delay = 5000 + Math.random() * 5000; // 5-10 seconds
+      setTimeout(generateEvent, delay);
+    };
+
+    // Start generating events after 2 seconds
+    setTimeout(generateEvent, 2000);
   }
 }

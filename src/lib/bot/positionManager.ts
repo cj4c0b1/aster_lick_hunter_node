@@ -36,6 +36,12 @@ export class PositionManager extends EventEmitter {
     this.isRunning = true;
     console.log('PositionManager: Starting...');
 
+    // Skip user data stream in paper mode with no API keys
+    if (this.config.global.paperMode && (!this.config.api.apiKey || !this.config.api.secretKey)) {
+      console.log('PositionManager: Running in paper mode without API keys - simulating streams');
+      return;
+    }
+
     try {
       await this.startUserDataStream();
     } catch (error) {
@@ -55,8 +61,10 @@ export class PositionManager extends EventEmitter {
   }
 
   private async startUserDataStream(): Promise<void> {
-    // Start stream: POST /fapi/v1/listenKey
-    const response: AxiosResponse = await axios.post(`${BASE_URL}/fapi/v1/listenKey`);
+    // Start stream: POST /fapi/v1/listenKey (requires signature)
+    const params = getSignedParams({}, this.config.api);
+    const url = `${BASE_URL}/fapi/v1/listenKey?${paramsToQuery(params)}`;
+    const response: AxiosResponse = await axios.post(url);
     this.listenKey = response.data.listenKey;
     console.log('PositionManager: Got listenKey:', this.listenKey);
 
@@ -95,7 +103,9 @@ export class PositionManager extends EventEmitter {
   private async keepalive(): Promise<void> {
     if (!this.listenKey) return;
     try {
-      await axios.put(`${BASE_URL}/fapi/v1/listenKey`);
+      const params = getSignedParams({}, this.config.api);
+      const url = `${BASE_URL}/fapi/v1/listenKey?${paramsToQuery(params)}`;
+      await axios.put(url);
       console.log('PositionManager: Keepalive sent');
     } catch (error) {
       console.error('PositionManager: Keepalive error:', error);
@@ -105,7 +115,9 @@ export class PositionManager extends EventEmitter {
   private async closeUserDataStream(): Promise<void> {
     if (!this.listenKey) return;
     try {
-      await axios.delete(`${BASE_URL}/fapi/v1/listenKey`);
+      const params = getSignedParams({}, this.config.api);
+      const url = `${BASE_URL}/fapi/v1/listenKey?${paramsToQuery(params)}`;
+      await axios.delete(url);
       console.log('PositionManager: User data stream closed');
     } catch (error) {
       console.error('PositionManager: Close stream error:', error);

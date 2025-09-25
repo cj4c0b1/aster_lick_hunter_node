@@ -1,103 +1,92 @@
-import Image from "next/image";
+import Link from 'next/link';
 
 export default function Home() {
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+      <div className="max-w-4xl mx-auto px-4 py-16 sm:px-6 lg:px-8">
+        <div className="text-center">
+          <h1 className="text-5xl font-bold text-gray-900 mb-4">
+            Aster Liquidation Hunter Bot
+          </h1>
+          <p className="text-xl text-gray-600 mb-8">
+            Advanced cryptocurrency futures trading bot that monitors and capitalizes on liquidation events
+          </p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+        <div className="grid md:grid-cols-2 gap-8 mt-12">
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <h2 className="text-2xl font-semibold mb-4">🎯 Key Features</h2>
+            <ul className="space-y-3 text-gray-700">
+              <li className="flex items-start">
+                <span className="text-green-500 mr-2">✓</span>
+                Real-time liquidation monitoring via WebSocket
+              </li>
+              <li className="flex items-start">
+                <span className="text-green-500 mr-2">✓</span>
+                Automated counter-trading with configurable thresholds
+              </li>
+              <li className="flex items-start">
+                <span className="text-green-500 mr-2">✓</span>
+                Built-in position management with SL/TP orders
+              </li>
+              <li className="flex items-start">
+                <span className="text-green-500 mr-2">✓</span>
+                Paper trading mode for risk-free testing
+              </li>
+              <li className="flex items-start">
+                <span className="text-green-500 mr-2">✓</span>
+                Multi-symbol support with individual configurations
+              </li>
+            </ul>
+          </div>
+
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <h2 className="text-2xl font-semibold mb-4">⚙️ How It Works</h2>
+            <ol className="space-y-3 text-gray-700 list-decimal list-inside">
+              <li>Configure API credentials and trading parameters</li>
+              <li>Set volume thresholds for each trading symbol</li>
+              <li>Bot monitors liquidation events in real-time</li>
+              <li>Analyzes market conditions when thresholds are met</li>
+              <li>Executes counter-trades automatically</li>
+              <li>Manages positions with stop-loss and take-profit</li>
+            </ol>
+          </div>
+        </div>
+
+        <div className="mt-12 bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+          <h2 className="text-xl font-semibold text-yellow-800 mb-3">⚠️ Risk Warning</h2>
+          <p className="text-yellow-700">
+            Trading cryptocurrency futures involves substantial risk of loss and is not suitable for all investors.
+            Past performance is not indicative of future results. Always start with paper trading mode and use
+            proper risk management. Never risk more than you can afford to lose.
+          </p>
+        </div>
+
+        <div className="mt-12 flex flex-col sm:flex-row gap-4 justify-center">
+          <Link
+            href="/config"
+            className="px-8 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition text-center"
+          >
+            Configure Bot
+          </Link>
+          <Link
+            href="/dashboard"
+            className="px-8 py-3 bg-gray-800 text-white font-semibold rounded-lg hover:bg-gray-900 transition text-center"
+          >
+            View Dashboard
+          </Link>
+        </div>
+
+        <div className="mt-16 text-center text-gray-600">
+          <h3 className="text-lg font-semibold mb-3">Getting Started</h3>
+          <div className="space-y-2">
+            <p>1. Configure your API credentials in the Configuration page</p>
+            <p>2. Add symbols and set trading parameters</p>
+            <p>3. Run the bot locally with: <code className="bg-gray-100 px-2 py-1 rounded">npm run bot</code></p>
+            <p>4. Monitor positions and performance in the Dashboard</p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
