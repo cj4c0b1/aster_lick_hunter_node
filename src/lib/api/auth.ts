@@ -1,22 +1,6 @@
 import crypto from 'crypto';
 import { ApiCredentials } from '../types';
 
-// Standard HMAC SHA256 signing for API key/secret authentication
-export function generateSignature(params: Record<string, any>, secretKey: string, timestamp: number): string {
-  // Create query string from sorted params
-  const sortedParams = Object.keys(params)
-    .sort()
-    .map(key => `${key}=${params[key]}`)
-    .join('&');
-
-  // For GET requests or signed query, combine timestamp if needed
-  // Standard: secretKey + method + path + queryString + timestamp, but Aster may vary
-  // Assuming basic: HMAC_SHA256(secret, queryString)
-  const message = sortedParams;
-  const hmac = crypto.createHmac('sha256', secretKey);
-  hmac.update(message);
-  return hmac.digest('hex');
-}
 
 // Generate timestamp (milliseconds)
 export function getTimestamp(): number {
@@ -27,9 +11,23 @@ export function getTimestamp(): number {
 export function getSignedHeaders(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, params: Record<string, any>, credentials: ApiCredentials): Record<string, string> {
   const timestamp = getTimestamp();
 
-  // Prepare params with timestamp for signing (if needed)
-  const signingParams = { ...params }; // include timestamp if required
-  const signature = generateSignature(signingParams, credentials.secretKey, timestamp);
+  // Prepare params with apiKey and timestamp for signing
+  const signingParams = {
+    ...params,
+    apiKey: credentials.apiKey,
+    timestamp
+  };
+
+  // Create query string from sorted params
+  const queryString = Object.keys(signingParams)
+    .sort()
+    .map(key => `${key}=${signingParams[key]}`)
+    .join('&');
+
+  // Sign the query string
+  const hmac = crypto.createHmac('sha256', credentials.secretKey);
+  hmac.update(queryString);
+  const signature = hmac.digest('hex');
 
   return {
     'X-API-Key': credentials.apiKey,
@@ -41,14 +39,30 @@ export function getSignedHeaders(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path
 }
 
 // For Aster specifically, if they use timestamp in query
-// Adjust params to include timestamp
-export function getSignedParams(params: Record<string, any>, credentials: ApiCredentials): Record<string, any> & { timestamp: number; signature: string } {
+// Adjust params to include timestamp and apiKey
+export function getSignedParams(params: Record<string, any>, credentials: ApiCredentials): Record<string, any> & { timestamp: number; signature: string; apiKey: string } {
   const timestamp = getTimestamp();
-  const signingParams = { ...params }; // or include timestamp
-  const signature = generateSignature(signingParams, credentials.secretKey, timestamp);
+  // Include timestamp and apiKey in params for signing
+  const signingParams = {
+    ...params,
+    apiKey: credentials.apiKey,
+    timestamp
+  };
+
+  // Create query string from sorted params
+  const queryString = Object.keys(signingParams)
+    .sort()
+    .map(key => `${key}=${signingParams[key]}`)
+    .join('&');
+
+  // Sign the query string
+  const hmac = crypto.createHmac('sha256', credentials.secretKey);
+  hmac.update(queryString);
+  const signature = hmac.digest('hex');
 
   return {
     ...params,
+    apiKey: credentials.apiKey,
     timestamp,
     signature,
   };

@@ -1,120 +1,95 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { DashboardLayout } from '@/components/dashboard-layout';
 import SymbolConfigForm from '@/components/SymbolConfigForm';
-import { Config } from '@/lib/types';
-import Link from 'next/link';
+import { useConfig } from '@/components/ConfigProvider';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
+import { AlertCircle, CheckCircle2, Settings } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { toast } from 'sonner';
 
 export default function ConfigPage() {
-  const [config, setConfig] = useState<Config | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { config, loading, updateConfig } = useConfig();
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
-  useEffect(() => {
-    loadConfig();
-  }, []);
-
-  const loadConfig = async () => {
-    try {
-      const response = await fetch('/api/config');
-      if (response.ok) {
-        const data = await response.json();
-        setConfig(data);
-      } else {
-        // Initialize with default config if none exists
-        setConfig({
-          api: {
-            apiKey: '',
-            secretKey: '',
-          },
-          global: {
-            riskPercent: 2,
-            paperMode: true,
-          },
-          symbols: {},
-        });
-      }
-    } catch (error) {
-      console.error('Failed to load config:', error);
-      // Initialize with default config on error
-      setConfig({
-        api: {
-          apiKey: '',
-          secretKey: '',
-        },
-        global: {
-          riskPercent: 2,
-          paperMode: true,
-        },
-        symbols: {},
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSave = async (newConfig: Config) => {
+  const handleSave = async (newConfig: any) => {
     setSaveStatus('saving');
     try {
-      const response = await fetch('/api/config', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newConfig),
-      });
-
-      if (response.ok) {
-        setConfig(newConfig);
-        setSaveStatus('saved');
-        setTimeout(() => setSaveStatus('idle'), 3000);
-      } else {
-        throw new Error('Failed to save config');
-      }
+      await updateConfig(newConfig);
+      setSaveStatus('saved');
+      toast.success('Configuration saved successfully');
+      setTimeout(() => setSaveStatus('idle'), 3000);
     } catch (error) {
       console.error('Failed to save config:', error);
       setSaveStatus('error');
+      toast.error('Failed to save configuration');
       setTimeout(() => setSaveStatus('idle'), 3000);
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading configuration...</p>
+      <DashboardLayout>
+        <div className="p-6 space-y-6">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-32" />
+              <Skeleton className="h-4 w-48" />
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </CardContent>
+          </Card>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4">
-        <div className="mb-6">
-          <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-bold text-gray-900">Bot Configuration</h1>
-            <div className="flex items-center gap-4">
-              {saveStatus === 'saved' && (
-                <span className="text-green-600 font-medium">✓ Configuration saved</span>
-              )}
-              {saveStatus === 'error' && (
-                <span className="text-red-600 font-medium">✗ Failed to save</span>
-              )}
-              <Link
-                href="/dashboard"
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Go to Dashboard
-              </Link>
+    <DashboardLayout>
+      <div className="p-6 space-y-6">
+        {/* Page Header */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+                <Settings className="h-8 w-8" />
+                Bot Configuration
+              </h1>
+              <p className="text-muted-foreground">
+                Configure your API credentials and trading parameters for each symbol
+              </p>
             </div>
+            {saveStatus === 'saved' && (
+              <Badge variant="default" className="flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3" />
+                Saved
+              </Badge>
+            )}
           </div>
-          <p className="mt-2 text-gray-600">
-            Configure your API credentials and trading parameters for each symbol.
-          </p>
         </div>
 
+        {/* Status Alert */}
+        {config?.global?.paperMode && (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Paper Mode Active:</strong> The bot is currently in simulation mode.
+              No real trades will be executed. Disable paper mode in the settings below to start live trading.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Configuration Form */}
         {config && (
           <SymbolConfigForm
             onSave={handleSave}
@@ -122,17 +97,26 @@ export default function ConfigPage() {
           />
         )}
 
-        <div className="mt-8 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <h3 className="font-semibold text-yellow-800 mb-2">⚠️ Important Notes:</h3>
-          <ul className="list-disc list-inside text-sm text-yellow-700 space-y-1">
-            <li>Keep your API credentials secure and never share them</li>
-            <li>Start with Paper Mode enabled to test your configuration</li>
-            <li>Use conservative stop-loss percentages to limit risk</li>
-            <li>Monitor your positions regularly when running in live mode</li>
-            <li>The bot must be running locally for trading to occur</li>
-          </ul>
-        </div>
+        {/* Important Notes */}
+        <Card className="border-yellow-200 bg-yellow-50 dark:border-yellow-900 dark:bg-yellow-950/20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-yellow-800 dark:text-yellow-400">
+              <AlertCircle className="h-5 w-5" />
+              Important Notes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="list-disc list-inside text-sm text-yellow-700 dark:text-yellow-500 space-y-2">
+              <li>Keep your API credentials secure and never share them with anyone</li>
+              <li>Always start with Paper Mode enabled to test your configuration</li>
+              <li>Use conservative stop-loss percentages to limit risk (recommended: 1-2%)</li>
+              <li>Monitor your positions regularly when running in live mode</li>
+              <li>The bot must be running locally (npm run bot) for trading to occur</li>
+              <li>Ensure you have sufficient balance before enabling live trading</li>
+            </ul>
+          </CardContent>
+        </Card>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }

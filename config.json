@@ -1,7 +1,7 @@
 {
   "api": {
-    "apiKey": "",
-    "secretKey": ""
+    "apiKey": "36048c3ce36689d16f1a799702430823d619a6cb07ff04e4bad19737aae4710b",
+    "secretKey": "0a5b3a7e36c7990e3faa773a192c4bc281f7f19f34d58dffbbc590ba64cf4ce9"
   },
   "symbols": {
     "BTCUSDT": {
@@ -17,10 +17,17 @@
       "leverage": 10,
       "tpPercent": 4,
       "slPercent": 1.5
+    },
+    "ASTERUSDT": {
+      "volumeThresholdUSDT": 1000,
+      "tradeSize": 1,
+      "leverage": 10,
+      "tpPercent": 0.1,
+      "slPercent": 20
     }
   },
   "global": {
-    "riskPercent": 5,
-    "paperMode": true
+    "riskPercent": 75,
+    "paperMode": false
   }
 }

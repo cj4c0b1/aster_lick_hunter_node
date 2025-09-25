@@ -4,12 +4,18 @@ import { Hunter } from '../lib/bot/hunter';
 import { PositionManager } from '../lib/bot/positionManager';
 import { loadConfig } from '../lib/bot/config';
 import { Config } from '../lib/types';
+import { StatusBroadcaster } from './websocketServer';
 
 class AsterBot {
   private hunter: Hunter | null = null;
   private positionManager: PositionManager | null = null;
   private config: Config | null = null;
   private isRunning = false;
+  private statusBroadcaster: StatusBroadcaster;
+
+  constructor() {
+    this.statusBroadcaster = new StatusBroadcaster();
+  }
 
   async start(): Promise<void> {
     if (this.isRunning) {
@@ -20,12 +26,22 @@ class AsterBot {
     try {
       console.log('🚀 Starting Aster Liquidation Hunter Bot...');
 
+      // Start WebSocket server for status broadcasting
+      await this.statusBroadcaster.start();
+      console.log('✅ WebSocket status server started');
+
       // Load configuration
       this.config = await loadConfig();
       console.log('✅ Configuration loaded');
       console.log(`📝 Paper Mode: ${this.config.global.paperMode ? 'ENABLED' : 'DISABLED'}`);
       console.log(`💰 Risk Percent: ${this.config.global.riskPercent}%`);
       console.log(`📊 Symbols configured: ${Object.keys(this.config.symbols).join(', ')}`);
+
+      // Update status broadcaster with config info
+      this.statusBroadcaster.updateStatus({
+        paperMode: this.config.global.paperMode,
+        symbols: Object.keys(this.config.symbols),
+      });
 
       // Check API keys
       if (!this.config.api.apiKey || !this.config.api.secretKey) {
@@ -39,26 +55,41 @@ class AsterBot {
 
       // Initialize Position Manager
       this.positionManager = new PositionManager(this.config);
-      await this.positionManager.start();
-      console.log('✅ Position Manager started');
+      try {
+        await this.positionManager.start();
+        console.log('✅ Position Manager started');
+      } catch (error: any) {
+        console.error('⚠️  Position Manager failed to start:', error.message);
+        this.statusBroadcaster.addError(`Position Manager: ${error.message}`);
+        // Continue running in paper mode without position manager
+        if (!this.config.global.paperMode) {
+          throw new Error('Cannot run in LIVE mode without Position Manager');
+        }
+      }
 
       // Initialize Hunter
       this.hunter = new Hunter(this.config);
 
-      // Connect hunter events to position manager
+      // Connect hunter events to position manager and status broadcaster
       this.hunter.on('positionOpened', (data: any) => {
         console.log(`📈 Position opened: ${data.symbol} ${data.side} qty=${data.quantity}`);
         this.positionManager?.onNewPosition(data);
+        this.statusBroadcaster.logActivity(`Position opened: ${data.symbol} ${data.side}`);
+        this.statusBroadcaster.updateStatus({
+          positionsOpen: (this.statusBroadcaster as any).status.positionsOpen + 1,
+        });
       });
 
       this.hunter.on('error', (error: any) => {
         console.error('❌ Hunter error:', error);
+        this.statusBroadcaster.addError(error.toString());
       });
 
       await this.hunter.start();
       console.log('✅ Liquidation Hunter started');
 
       this.isRunning = true;
+      this.statusBroadcaster.setRunning(true);
       console.log('🟢 Bot is now running. Press Ctrl+C to stop.');
 
       // Handle graceful shutdown
@@ -76,6 +107,7 @@ class AsterBot {
 
     console.log('\n🛑 Stopping bot...');
     this.isRunning = false;
+    this.statusBroadcaster.setRunning(false);
 
     try {
       if (this.hunter) {
@@ -87,6 +119,9 @@ class AsterBot {
         await this.positionManager.stop();
         console.log('✅ Position Manager stopped');
       }
+
+      this.statusBroadcaster.stop();
+      console.log('✅ WebSocket server stopped');
 
       console.log('👋 Bot stopped successfully');
       process.exit(0);

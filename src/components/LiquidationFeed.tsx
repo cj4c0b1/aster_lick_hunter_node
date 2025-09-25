@@ -1,6 +1,11 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Skeleton } from '@/components/ui/skeleton';
+import { AlertCircle, TrendingUp, Activity, Flame } from 'lucide-react';
 
 interface LiquidationEvent {
   id: string;
@@ -21,6 +26,7 @@ interface LiquidationFeedProps {
 export default function LiquidationFeed({ volumeThresholds = {}, maxEvents = 50 }: LiquidationFeedProps) {
   const [events, setEvents] = useState<LiquidationEvent[]>([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState({
     totalVolume24h: 0,
     largestLiquidation: 0,
@@ -28,42 +34,54 @@ export default function LiquidationFeed({ volumeThresholds = {}, maxEvents = 50 
   });
 
   useEffect(() => {
-    // In production, this would connect to the WebSocket
-    // For now, simulate some events for demonstration
-    const mockEvents: LiquidationEvent[] = [
-      {
-        id: '1',
-        symbol: 'BTCUSDT',
-        side: 'SELL',
-        price: 42000,
-        quantity: 2.5,
-        volume: 105000,
-        timestamp: Date.now() - 60000,
-        isHighVolume: true,
-      },
-      {
-        id: '2',
-        symbol: 'ETHUSDT',
-        side: 'BUY',
-        price: 2200,
-        quantity: 10,
-        volume: 22000,
-        timestamp: Date.now() - 30000,
-        isHighVolume: false,
-      },
-    ];
+    // Simulate loading and then show mock events
+    setTimeout(() => {
+      const mockEvents: LiquidationEvent[] = [
+        {
+          id: '1',
+          symbol: 'BTCUSDT',
+          side: 'SELL',
+          price: 42000,
+          quantity: 2.5,
+          volume: 105000,
+          timestamp: Date.now() - 60000,
+          isHighVolume: true,
+        },
+        {
+          id: '2',
+          symbol: 'ETHUSDT',
+          side: 'BUY',
+          price: 2200,
+          quantity: 10,
+          volume: 22000,
+          timestamp: Date.now() - 30000,
+          isHighVolume: false,
+        },
+        {
+          id: '3',
+          symbol: 'BTCUSDT',
+          side: 'BUY',
+          price: 41800,
+          quantity: 1.2,
+          volume: 50160,
+          timestamp: Date.now() - 15000,
+          isHighVolume: false,
+        },
+      ];
 
-    setEvents(mockEvents);
-    setIsConnected(true);
+      setEvents(mockEvents);
+      setIsConnected(true);
+      setIsLoading(false);
 
-    // Update stats
-    const totalVol = mockEvents.reduce((sum, e) => sum + e.volume, 0);
-    const maxVol = Math.max(...mockEvents.map(e => e.volume));
-    setStats({
-      totalVolume24h: totalVol,
-      largestLiquidation: maxVol,
-      totalEvents: mockEvents.length,
-    });
+      // Update stats
+      const totalVol = mockEvents.reduce((sum, e) => sum + e.volume, 0);
+      const maxVol = Math.max(...mockEvents.map(e => e.volume));
+      setStats({
+        totalVolume24h: totalVol,
+        largestLiquidation: maxVol,
+        totalEvents: mockEvents.length,
+      });
+    }, 1000);
   }, []);
 
   const formatTime = (timestamp: number): string => {
@@ -81,88 +99,127 @@ export default function LiquidationFeed({ volumeThresholds = {}, maxEvents = 50 
     return `$${volume.toFixed(0)}`;
   };
 
-  const getSideColor = (side: 'BUY' | 'SELL'): string => {
-    return side === 'BUY' ? 'text-green-600' : 'text-red-600';
-  };
-
-  const getSideBgColor = (side: 'BUY' | 'SELL'): string => {
-    return side === 'BUY' ? 'bg-green-50' : 'bg-red-50';
-  };
-
   return (
-    <div className="space-y-4">
-      <div className="bg-white rounded-lg shadow p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold">Liquidation Feed</h2>
-          <div className="flex items-center gap-2">
-            <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-            <span className="text-sm text-gray-600">
-              {isConnected ? 'Connected' : 'Disconnected'}
-            </span>
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Live Liquidation Feed</CardTitle>
+            <CardDescription>Real-time liquidation events from the market</CardDescription>
+          </div>
+          <Badge variant={isConnected ? "default" : "secondary"} className="flex items-center gap-1">
+            <Activity className={`h-3 w-3 ${isConnected ? 'animate-pulse' : ''}`} />
+            {isConnected ? 'Connected' : 'Disconnected'}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-3 gap-4">
+          <div className="rounded-lg border p-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-muted-foreground">24h Volume</p>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </div>
+            {isLoading ? (
+              <Skeleton className="h-6 w-20 mt-1" />
+            ) : (
+              <p className="text-xl font-bold">{formatVolume(stats.totalVolume24h)}</p>
+            )}
+          </div>
+
+          <div className="rounded-lg border p-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-muted-foreground">Largest</p>
+              <Flame className="h-4 w-4 text-orange-500" />
+            </div>
+            {isLoading ? (
+              <Skeleton className="h-6 w-20 mt-1" />
+            ) : (
+              <p className="text-xl font-bold">{formatVolume(stats.largestLiquidation)}</p>
+            )}
+          </div>
+
+          <div className="rounded-lg border p-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-muted-foreground">Total Events</p>
+              <AlertCircle className="h-4 w-4 text-muted-foreground" />
+            </div>
+            {isLoading ? (
+              <Skeleton className="h-6 w-12 mt-1" />
+            ) : (
+              <p className="text-xl font-bold">{stats.totalEvents}</p>
+            )}
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 mb-4">
-          <div className="bg-gray-50 p-3 rounded">
-            <p className="text-sm text-gray-600">Total Volume (24h)</p>
-            <p className="text-lg font-semibold">{formatVolume(stats.totalVolume24h)}</p>
-          </div>
-          <div className="bg-gray-50 p-3 rounded">
-            <p className="text-sm text-gray-600">Largest Liquidation</p>
-            <p className="text-lg font-semibold">{formatVolume(stats.largestLiquidation)}</p>
-          </div>
-          <div className="bg-gray-50 p-3 rounded">
-            <p className="text-sm text-gray-600">Total Events</p>
-            <p className="text-lg font-semibold">{stats.totalEvents}</p>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b">
-                <th className="text-left py-2 px-3 text-sm font-medium text-gray-700">Time</th>
-                <th className="text-left py-2 px-3 text-sm font-medium text-gray-700">Symbol</th>
-                <th className="text-left py-2 px-3 text-sm font-medium text-gray-700">Side</th>
-                <th className="text-right py-2 px-3 text-sm font-medium text-gray-700">Price</th>
-                <th className="text-right py-2 px-3 text-sm font-medium text-gray-700">Quantity</th>
-                <th className="text-right py-2 px-3 text-sm font-medium text-gray-700">Volume</th>
-              </tr>
-            </thead>
-            <tbody>
-              {events.slice(0, maxEvents).map((event) => (
-                <tr
-                  key={event.id}
-                  className={`border-b hover:bg-gray-50 ${event.isHighVolume ? 'font-semibold' : ''}`}
-                >
-                  <td className="py-2 px-3 text-sm">{formatTime(event.timestamp)}</td>
-                  <td className="py-2 px-3 text-sm">{event.symbol}</td>
-                  <td className="py-2 px-3">
-                    <span className={`text-sm px-2 py-1 rounded ${getSideBgColor(event.side)} ${getSideColor(event.side)}`}>
-                      {event.side}
-                    </span>
-                  </td>
-                  <td className="py-2 px-3 text-sm text-right">${event.price.toLocaleString()}</td>
-                  <td className="py-2 px-3 text-sm text-right">{event.quantity.toFixed(4)}</td>
-                  <td className={`py-2 px-3 text-sm text-right ${event.isHighVolume ? 'text-orange-600' : ''}`}>
-                    {formatVolume(event.volume)}
-                    {event.isHighVolume && (
-                      <span className="ml-1 text-orange-500">🔥</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {events.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="text-center py-8 text-gray-500">
+        {/* Events Table */}
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[100px]">Time</TableHead>
+                <TableHead>Symbol</TableHead>
+                <TableHead>Side</TableHead>
+                <TableHead className="text-right">Price</TableHead>
+                <TableHead className="text-right">Quantity</TableHead>
+                <TableHead className="text-right">Volume</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-12" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
+                  </TableRow>
+                ))
+              ) : events.length > 0 ? (
+                events.slice(0, maxEvents).map((event) => (
+                  <TableRow key={event.id} className={event.isHighVolume ? 'bg-orange-50 dark:bg-orange-950/20' : ''}>
+                    <TableCell className="font-mono text-sm text-muted-foreground">
+                      {formatTime(event.timestamp)}
+                    </TableCell>
+                    <TableCell className="font-medium">{event.symbol}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={event.side === 'BUY' ? 'default' : 'destructive'}
+                        className="w-14 justify-center"
+                      >
+                        {event.side}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      ${event.price.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {event.quantity.toFixed(4)}
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      <div className="flex items-center justify-end gap-1">
+                        {formatVolume(event.volume)}
+                        {event.isHighVolume && (
+                          <Flame className="h-4 w-4 text-orange-500" />
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     No liquidation events yet...
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
