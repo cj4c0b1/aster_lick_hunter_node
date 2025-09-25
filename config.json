@@ -5,15 +5,11 @@
   },
   "symbols": {
     "ASTERUSDT": {
-      "volumeThresholdUSDT": 1000,
+      "volumeThresholdUSDT": 5000,
       "tradeSize": 3,
       "leverage": 10,
       "tpPercent": 0.1,
-      "slPercent": 20,
-      "priceOffsetBps": 2,
-      "usePostOnly": false,
-      "maxSlippageBps": 50,
-      "orderType": "LIMIT"
+      "slPercent": 20
     }
   },
   "global": {

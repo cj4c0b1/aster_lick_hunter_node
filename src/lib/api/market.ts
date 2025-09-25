@@ -92,13 +92,19 @@ export async function getAccountInfo(credentials: ApiCredentials): Promise<any> 
   }
 }
 
-export async function getPositionRisk(symbol: string, credentials: ApiCredentials): Promise<any> {
-  const params = {
-    symbol
-  };
+export async function getPositionRisk(symbol?: string, credentials?: ApiCredentials): Promise<any> {
+  // If no credentials provided, this is likely being called incorrectly
+  if (!credentials) {
+    throw new Error('Credentials required for getPositionRisk');
+  }
+
+  const params: Record<string, any> = {};
+  if (symbol) {
+    params.symbol = symbol;
+  }
   const signedParams = getSignedParams(params, credentials);
   const query = paramsToQuery(signedParams);
-  const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v1/positionRisk?${query}`, {
+  const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v2/positionRisk?${query}`, {
     headers: {
       'X-MBX-APIKEY': credentials.apiKey
     }
@@ -106,10 +112,16 @@ export async function getPositionRisk(symbol: string, credentials: ApiCredential
   return response.data;
 }
 
-export async function getOpenOrders(symbol: string, credentials: ApiCredentials): Promise<any[]> {
-  const params = {
-    symbol
-  };
+export async function getOpenOrders(symbol?: string, credentials?: ApiCredentials): Promise<any[]> {
+  // If no credentials provided, this is likely being called incorrectly
+  if (!credentials) {
+    throw new Error('Credentials required for getOpenOrders');
+  }
+
+  const params: Record<string, any> = {};
+  if (symbol) {
+    params.symbol = symbol;
+  }
   const signedParams = getSignedParams(params, credentials);
   const query = paramsToQuery(signedParams);
   const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v1/openOrders?${query}`, {

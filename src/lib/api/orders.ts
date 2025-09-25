@@ -85,7 +85,11 @@ export async function cancelOrder(params: {
   const signedParams = getSignedParams(cancelParams, credentials);
   const query = paramsToQuery(signedParams);
 
-  const response: AxiosResponse = await axios.delete(`${BASE_URL}/fapi/v1/order?${query}`);
+  const response: AxiosResponse = await axios.delete(`${BASE_URL}/fapi/v1/order?${query}`, {
+    headers: {
+      'X-MBX-APIKEY': credentials.apiKey
+    }
+  });
   return response.data;
 }
 
@@ -99,7 +103,11 @@ export async function cancelAllOrders(symbol: string, credentials: ApiCredential
   const signedParams = getSignedParams(params, credentials);
   const query = paramsToQuery(signedParams);
 
-  const response: AxiosResponse = await axios.delete(`${BASE_URL}/fapi/v1/allOpenOrders?${query}`);
+  const response: AxiosResponse = await axios.delete(`${BASE_URL}/fapi/v1/allOpenOrders?${query}`, {
+    headers: {
+      'X-MBX-APIKEY': credentials.apiKey
+    }
+  });
   return response.data;
 }
 
@@ -117,7 +125,11 @@ export async function queryOrder(params: {
   const signedParams = getSignedParams(queryParams, credentials);
   const query = paramsToQuery(signedParams);
 
-  const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v1/order?${query}`);
+  const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v1/order?${query}`, {
+    headers: {
+      'X-MBX-APIKEY': credentials.apiKey
+    }
+  });
   return response.data;
 }
 
@@ -135,7 +147,11 @@ export async function getAllOrders(symbol: string, credentials: ApiCredentials, 
   const signedParams = getSignedParams(params, credentials);
   const query = paramsToQuery(signedParams);
 
-  const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v1/allOrders?${query}`);
+  const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v1/allOrders?${query}`, {
+    headers: {
+      'X-MBX-APIKEY': credentials.apiKey
+    }
+  });
   return response.data;
 }
 
@@ -154,6 +170,7 @@ export async function setLeverage(symbol: string, leverage: number, credentials:
   const response: AxiosResponse = await axios.post(`${BASE_URL}/fapi/v1/leverage`, formData, {
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
+      'X-MBX-APIKEY': credentials.apiKey
     },
   });
 
