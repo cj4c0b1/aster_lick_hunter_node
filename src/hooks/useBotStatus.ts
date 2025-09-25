@@ -45,12 +45,10 @@ export function useBotStatus(url: string = 'ws://localhost:8081'): UseBotStatusR
     }
 
     try {
-      console.log('Connecting to bot WebSocket...');
       const ws = new WebSocket(url);
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('Connected to bot WebSocket');
         setIsConnected(true);
 
         // Setup ping interval for keep-alive
@@ -76,8 +74,18 @@ export function useBotStatus(url: string = 'ws://localhost:8081'): UseBotStatusR
                 lastActivity: new Date(message.data.timestamp),
               } : null);
               break;
+            case 'mark_price_update':
+            case 'balance_update':
+            case 'position_update':
+            case 'liquidation':
+            case 'trade_opportunity':
+              // These messages are handled by other components, ignore silently
+              break;
             default:
-              console.log('Unknown message type:', message.type);
+              // Only log truly unknown message types, not common ones
+              if (!['ping', 'pong'].includes(message.type)) {
+                console.log('Unknown message type:', message.type);
+              }
           }
         } catch (error) {
           console.error('Failed to parse WebSocket message:', error);

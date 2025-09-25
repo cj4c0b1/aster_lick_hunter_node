@@ -74,7 +74,7 @@ export class BalanceService extends EventEmitter {
         const totalBalance = totalPositionValue + availableBalance;
 
         this.currentBalance = {
-          totalBalance,
+          totalBalance: availableBalance + totalPositionValue,
           availableBalance,
           totalPositionValue,
           totalPnL,
@@ -139,7 +139,7 @@ export class BalanceService extends EventEmitter {
 
     this.currentBalance.totalPnL = totalUnrealizedPnL;
     this.currentBalance.totalPositionValue = totalPositionMargin;
-    this.currentBalance.totalBalance = this.currentBalance.totalPositionValue + this.currentBalance.availableBalance;
+    this.currentBalance.totalBalance = this.currentBalance.availableBalance + this.currentBalance.totalPositionValue;
   }
 }
 

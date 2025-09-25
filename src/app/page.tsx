@@ -44,13 +44,10 @@ export default function DashboardPage() {
 
     // Set up WebSocket listener for real-time updates
     const handleMessage = (message: any) => {
-      console.log('📨 Dashboard received WebSocket message:', message.type);
       if (message.type === 'balance_update') {
-        console.log('💰 Updating balance with:', message.data);
         setAccountInfo(message.data);
         setIsLoading(false);
       } else if (message.type === 'position_update') {
-        console.log('🔄 Position changed, refreshing balance and positions...');
         loadPositions();
         setTimeout(() => loadAccountInfo(), 500);
       } else if (message.type === 'mark_price_update') {
@@ -80,7 +77,6 @@ export default function DashboardPage() {
         setPositions(data);
       }
     } catch (error) {
-      console.error('Failed to load positions:', error);
     }
   };
 
@@ -92,7 +88,6 @@ export default function DashboardPage() {
         setAccountInfo(data);
       }
     } catch (error) {
-      console.error('Failed to load account info:', error);
     } finally {
       setIsLoading(false);
     }
@@ -145,7 +140,7 @@ export default function DashboardPage() {
       return {
         ...accountInfo,
         totalPnL: liveTotalPnL,
-        totalBalance: accountInfo.availableBalance + accountInfo.totalPositionValue + liveTotalPnL
+        totalBalance: accountInfo.availableBalance + accountInfo.totalPositionValue
       };
     }
 
@@ -155,31 +150,25 @@ export default function DashboardPage() {
 
   const handleClosePosition = async (symbol: string, side: 'LONG' | 'SHORT') => {
     try {
-      console.log(`Closing ${side} position for ${symbol}`);
       // TODO: Implement position closing API call
       // For now, just log the action
     } catch (error) {
-      console.error('Failed to close position:', error);
     }
   };
 
   const handleUpdateSL = async (symbol: string, side: 'LONG' | 'SHORT', price: number) => {
     try {
-      console.log(`Updating stop loss for ${symbol} ${side} to ${price}`);
       // TODO: Implement stop loss update API call
       // For now, just log the action
     } catch (error) {
-      console.error('Failed to update stop loss:', error);
     }
   };
 
   const handleUpdateTP = async (symbol: string, side: 'LONG' | 'SHORT', price: number) => {
     try {
-      console.log(`Updating take profit for ${symbol} ${side} to ${price}`);
       // TODO: Implement take profit update API call
       // For now, just log the action
     } catch (error) {
-      console.error('Failed to update take profit:', error);
     }
   };
 
