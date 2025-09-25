@@ -10,29 +10,40 @@ export function getTimestamp(): number {
 // Generate signature for Aster Finance API using HMAC-SHA256
 export function getSignedParams(params: Record<string, any>, credentials: ApiCredentials): Record<string, any> {
   const timestamp = getTimestamp();
-  const nonce = Math.trunc(timestamp * 1000); // Convert to microseconds
 
-  // Add required parameters
-  const finalParams = {
+  // Add required parameters - DO NOT add nonce (not mentioned in Aster docs)
+  const finalParams: Record<string, any> = {
     ...params,
     timestamp,
-    nonce,
     recvWindow: 5000
   };
 
+  // Convert all values to strings as they will be in the form data
+  // This ensures signature matches what we actually send
+  const stringParams: Record<string, string> = {};
+  Object.keys(finalParams).forEach(key => {
+    stringParams[key] = String(finalParams[key]);
+  });
+
   // Create query string from sorted params for signing
-  const queryString = Object.keys(finalParams)
+  const queryString = Object.keys(stringParams)
     .sort()
-    .map(key => `${key}=${finalParams[key as keyof typeof finalParams]}`)
+    .map(key => `${key}=${stringParams[key]}`)
     .join('&');
+
+  // Debug logging
+  console.log('[AUTH DEBUG] Query string for signature:', queryString);
+  console.log('[AUTH DEBUG] String params:', stringParams);
 
   // Sign the query string with secret key
   const hmac = crypto.createHmac('sha256', credentials.secretKey);
   hmac.update(queryString);
   const signature = hmac.digest('hex');
 
+  console.log('[AUTH DEBUG] Generated signature:', signature);
+
   return {
-    ...finalParams,
+    ...stringParams,
     signature
   };
 }

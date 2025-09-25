@@ -3,8 +3,9 @@ import { EventEmitter } from 'events';
 import axios, { AxiosResponse } from 'axios';
 import { Config, Position, Order } from '../types';
 import { getSignedParams, paramsToQuery } from '../api/auth';
-import { getPositionRisk } from '../api/market';
+import { getPositionRisk, getExchangeInfo } from '../api/market';
 import { placeOrder, cancelOrder } from '../api/orders';
+import { symbolPrecision } from '../utils/symbolPrecision';
 
 // Minimal local state - only track order IDs linked to positions
 interface PositionOrders {
@@ -75,6 +76,16 @@ export class PositionManager extends EventEmitter {
     if (this.isRunning) return;
     this.isRunning = true;
     console.log('PositionManager: Starting...');
+
+    // Fetch exchange info to get symbol precision
+    try {
+      console.log('PositionManager: Fetching exchange info for symbol precision...');
+      const exchangeInfo = await getExchangeInfo();
+      symbolPrecision.parseExchangeInfo(exchangeInfo);
+    } catch (error: any) {
+      console.error('PositionManager: Failed to fetch exchange info:', error.message);
+      // Continue anyway - will use raw values
+    }
 
     // Skip user data stream in paper mode with no API keys
     if (this.config.global.paperMode && (!this.config.api.apiKey || !this.config.api.secretKey)) {
@@ -593,19 +604,30 @@ export class PositionManager extends EventEmitter {
     try {
       // Place Stop Loss
       if (placeSL) {
-        const slPrice = isLong
+        const rawSlPrice = isLong
           ? entryPrice * (1 - symbolConfig.slPercent / 100)
           : entryPrice * (1 + symbolConfig.slPercent / 100);
 
-        const slOrder = await placeOrder({
+        // Format price and quantity according to symbol precision
+        const slPrice = symbolPrecision.formatPrice(symbol, rawSlPrice);
+        const formattedQuantity = symbolPrecision.formatQuantity(symbol, quantity);
+
+        // In Hedge Mode (positionSide != BOTH), we cannot use reduceOnly
+        const orderParams: any = {
           symbol,
           side: isLong ? 'SELL' : 'BUY', // Opposite side to close
           type: 'STOP_MARKET',
-          quantity: quantity,
+          quantity: formattedQuantity,
           stopPrice: slPrice,
-          reduceOnly: true,
           positionSide: (position.positionSide || 'BOTH') as 'BOTH' | 'LONG' | 'SHORT',
-        }, this.config.api);
+        };
+
+        // Only add reduceOnly in One-way mode (positionSide == BOTH)
+        if (!position.positionSide || position.positionSide === 'BOTH') {
+          orderParams.reduceOnly = true;
+        }
+
+        const slOrder = await placeOrder(orderParams, this.config.api);
 
         orders.slOrderId = typeof slOrder.orderId === 'string' ? parseInt(slOrder.orderId) : slOrder.orderId;
         console.log(`PositionManager: Placed SL (STOP_MARKET) for ${symbol} at ${slPrice.toFixed(4)}, orderId: ${slOrder.orderId}`);
@@ -623,22 +645,32 @@ export class PositionManager extends EventEmitter {
 
       // Place Take Profit
       if (placeTP) {
-        const tpPrice = isLong
+        const rawTpPrice = isLong
           ? entryPrice * (1 + symbolConfig.tpPercent / 100)
           : entryPrice * (1 - symbolConfig.tpPercent / 100);
 
+        // Format price and quantity according to symbol precision
+        const tpPrice = symbolPrecision.formatPrice(symbol, rawTpPrice);
+        const formattedQuantity = symbolPrecision.formatQuantity(symbol, quantity);
+
         // Use LIMIT order for take profit (more control, better fills)
-        // This matches what you already have in your exchange
-        const tpOrder = await placeOrder({
+        // In Hedge Mode (positionSide != BOTH), we cannot use reduceOnly
+        const tpParams: any = {
           symbol,
           side: isLong ? 'SELL' : 'BUY',
           type: 'LIMIT',
-          quantity: quantity,
+          quantity: formattedQuantity,
           price: tpPrice,
-          reduceOnly: true,
           timeInForce: 'GTC',
           positionSide: (position.positionSide || 'BOTH') as 'BOTH' | 'LONG' | 'SHORT',
-        }, this.config.api);
+        };
+
+        // Only add reduceOnly in One-way mode (positionSide == BOTH)
+        if (!position.positionSide || position.positionSide === 'BOTH') {
+          tpParams.reduceOnly = true;
+        }
+
+        const tpOrder = await placeOrder(tpParams, this.config.api);
 
         orders.tpOrderId = typeof tpOrder.orderId === 'string' ? parseInt(tpOrder.orderId) : tpOrder.orderId;
         console.log(`PositionManager: Placed TP (LIMIT) for ${symbol} at ${tpPrice.toFixed(4)}, orderId: ${tpOrder.orderId}`);

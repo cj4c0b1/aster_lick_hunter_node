@@ -17,8 +17,6 @@ export async function placeOrder(params: {
   timeInForce?: 'GTC' | 'IOC' | 'FOK' | 'GTX';
 }, credentials: ApiCredentials): Promise<Order> {
   const orderParams = {
-    timestamp: Date.now(),
-    recvWindow: 50000,
     ...params,
   };
 
@@ -28,10 +26,12 @@ export async function placeOrder(params: {
   }
 
   const signedParams = getSignedParams(orderParams, credentials);
-  const query = paramsToQuery(signedParams);
   // For Aster, POST with form data (application/x-www-form-urlencoded)
   const formData = new URLSearchParams();
   Object.entries(signedParams).forEach(([key, value]) => formData.append(key, String(value)));
+
+  // Debug: log what we're actually sending
+  console.log('[ORDER DEBUG] Form data being sent:', formData.toString());
 
   const response: AxiosResponse = await axios.post(`${BASE_URL}/fapi/v1/order`, formData, {
     headers: {
@@ -78,8 +78,6 @@ export async function cancelOrder(params: {
   origClientOrderId?: string;
 }, credentials: ApiCredentials): Promise<any> {
   const cancelParams = {
-    timestamp: Date.now(),
-    recvWindow: 50000,
     ...params,
   };
   const signedParams = getSignedParams(cancelParams, credentials);
@@ -96,8 +94,6 @@ export async function cancelOrder(params: {
 // Cancel all open orders for a symbol
 export async function cancelAllOrders(symbol: string, credentials: ApiCredentials): Promise<any> {
   const params = {
-    timestamp: Date.now(),
-    recvWindow: 50000,
     symbol,
   };
   const signedParams = getSignedParams(params, credentials);
@@ -118,8 +114,6 @@ export async function queryOrder(params: {
   origClientOrderId?: string;
 }, credentials: ApiCredentials): Promise<Order> {
   const queryParams = {
-    timestamp: Date.now(),
-    recvWindow: 50000,
     ...params,
   };
   const signedParams = getSignedParams(queryParams, credentials);
@@ -138,8 +132,6 @@ export async function getAllOrders(symbol: string, credentials: ApiCredentials, 
   const params: Record<string, any> = {
     symbol,
     limit,
-    timestamp: Date.now(),
-    recvWindow: 50000,
   };
   if (startTime) params.startTime = startTime;
   if (endTime) params.endTime = endTime;
@@ -160,8 +152,6 @@ export async function setLeverage(symbol: string, leverage: number, credentials:
   const params = {
     symbol,
     leverage,
-    timestamp: Date.now(),
-    recvWindow: 50000,
   };
   const signedParams = getSignedParams(params, credentials);
   const formData = new URLSearchParams();
