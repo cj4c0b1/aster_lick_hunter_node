@@ -34,7 +34,6 @@ export class BalanceService extends EventEmitter {
   }
 
   async initialize(credentials: ApiCredentials): Promise<void> {
-    console.log('[BalanceService] Starting initialization...');
 
     // Validate credentials
     if (!credentials.apiKey || !credentials.secretKey) {
@@ -47,19 +46,14 @@ export class BalanceService extends EventEmitter {
 
     try {
       // Get initial balance data from REST API
-      console.log('[BalanceService] Fetching initial balance from REST API...');
       await this.fetchInitialBalance();
-      console.log('[BalanceService] Initial balance fetched successfully:', this.currentBalance);
 
       // Start WebSocket stream for real-time updates
-      console.log('[BalanceService] Starting WebSocket user data stream...');
       this.userDataStream = new UserDataStream(credentials);
       await this.userDataStream.start(this.handleAccountUpdate.bind(this));
-      console.log('[BalanceService] WebSocket stream started successfully');
 
       this.initialized = true;
       this.lastSuccessfulUpdate = Date.now();
-      console.log('[BalanceService] Balance service fully initialized');
 
       // Start health check
       this.startHealthCheck();
@@ -68,17 +62,14 @@ export class BalanceService extends EventEmitter {
       this.emit('balanceUpdate', this.currentBalance);
     } catch (error) {
       this.connectionError = error instanceof Error ? error.message : 'Unknown error during initialization';
-      console.error('[BalanceService] Initialization failed:', this.connectionError);
 
       // Try to at least get initial balance if WebSocket fails
       if (!this.currentBalance.lastUpdate) {
-        console.log('[BalanceService] Attempting REST-only fallback...');
         try {
           await this.fetchInitialBalance();
           this.initialized = true; // Partially initialized (REST only)
           this.emit('balanceUpdate', this.currentBalance);
         } catch (fallbackError) {
-          console.error('[BalanceService] REST fallback also failed:', fallbackError);
           throw error; // Throw original error
         }
       }
@@ -98,7 +89,6 @@ export class BalanceService extends EventEmitter {
       this.userDataStream = null;
     }
     this.initialized = false;
-    console.log('[BalanceService] Balance service stopped');
   }
 
   getCurrentBalance(): BalanceData {
@@ -147,18 +137,15 @@ export class BalanceService extends EventEmitter {
           this.connectionError = null;
           this.retryCount = 0; // Reset retry count on success
 
-          console.log('[BalanceService] Balance fetched:', `$${totalBalance.toFixed(2)} total, $${availableBalance.toFixed(2)} available`);
         } else {
           throw new Error('No account data received from API');
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        console.error(`[BalanceService] Failed to fetch balance (attempt ${this.retryCount + 1}):`, errorMessage);
 
         if (this.retryCount < this.maxRetries) {
           this.retryCount++;
           const delay = this.retryDelay * Math.pow(2, this.retryCount - 1); // Exponential backoff
-          console.log(`[BalanceService] Retrying in ${delay}ms...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           return attemptFetch(); // Recursive retry
         }
@@ -172,7 +159,6 @@ export class BalanceService extends EventEmitter {
   }
 
   private handleAccountUpdate(update: AccountUpdate): void {
-    console.log('[BalanceService] Received WebSocket account update');
 
     try {
       // Update balance data based on WebSocket update
@@ -183,12 +169,10 @@ export class BalanceService extends EventEmitter {
       this.lastSuccessfulUpdate = Date.now();
       this.connectionError = null;
 
-      console.log('[BalanceService] Balance updated from WebSocket:', this.currentBalance);
 
       // Emit balance update event
       this.emit('balanceUpdate', this.currentBalance);
     } catch (error) {
-      console.error('[BalanceService] Error processing account update:', error);
       this.connectionError = error instanceof Error ? error.message : 'Error processing update';
     }
   }
@@ -244,22 +228,18 @@ export class BalanceService extends EventEmitter {
       const timeSinceLastUpdate = Date.now() - this.lastSuccessfulUpdate;
 
       if (timeSinceLastUpdate > 120000) { // No updates for 2 minutes
-        console.warn('[BalanceService] No balance updates for 2 minutes, checking connection...');
 
         // Check if WebSocket is healthy
         if (this.userDataStream && !this.userDataStream.isHealthy()) {
-          console.warn('[BalanceService] WebSocket unhealthy, attempting REST API refresh...');
           try {
             await this.fetchInitialBalance();
             this.emit('balanceUpdate', this.currentBalance);
           } catch (error) {
-            console.error('[BalanceService] Health check REST API failed:', error);
           }
         }
 
         // If still no recent updates after 5 minutes, try to restart connection
         if (timeSinceLastUpdate > 300000) {
-          console.error('[BalanceService] No updates for 5 minutes, attempting full reconnection...');
           this.attemptFullReconnection();
         }
       }
@@ -270,7 +250,6 @@ export class BalanceService extends EventEmitter {
     if (!this.credentials) return;
 
     try {
-      console.log('[BalanceService] Attempting full reconnection...');
 
       // Stop existing connection
       if (this.userDataStream) {
@@ -285,11 +264,9 @@ export class BalanceService extends EventEmitter {
       this.userDataStream = new UserDataStream(this.credentials);
       await this.userDataStream.start(this.handleAccountUpdate.bind(this));
 
-      console.log('[BalanceService] Reconnection successful');
       this.connectionError = null;
       this.emit('balanceUpdate', this.currentBalance);
     } catch (error) {
-      console.error('[BalanceService] Full reconnection failed:', error);
       this.connectionError = error instanceof Error ? error.message : 'Reconnection failed';
     }
   }
@@ -303,12 +280,10 @@ export function getBalanceService(): BalanceService | null {
 }
 
 export async function initializeBalanceService(credentials: ApiCredentials): Promise<void> {
-  console.log('[BalanceService] Creating new balance service instance...');
   balanceService = new BalanceService();
   try {
     await balanceService.initialize(credentials);
   } catch (error) {
-    console.error('[BalanceService] Failed to initialize balance service:', error);
     // Keep the service instance even if initialization fails
     // so we can try to get balance via REST API fallback
     throw error;

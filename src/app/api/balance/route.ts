@@ -24,7 +24,6 @@ export async function GET(request: NextRequest) {
   if (!forceRefresh) {
     const cached = cache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-      console.log('[Balance API] Returning cached data');
       return NextResponse.json({
         ...cached.data,
         cached: true,
@@ -35,11 +34,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const config = await loadConfig();
-    console.log('[Balance API] Loading config completed');
 
     // If no API key is configured, return mock data
     if (!config.api.apiKey || !config.api.secretKey) {
-      console.log('[Balance API] No API credentials, returning mock data');
       return NextResponse.json({
         totalBalance: 10000,
         availableBalance: 8500,
@@ -55,12 +52,6 @@ export async function GET(request: NextRequest) {
 
     if (balanceService) {
       const status = balanceService.getConnectionStatus();
-      console.log('[Balance API] Balance service status:', {
-        initialized: balanceService.isInitialized(),
-        connected: status.connected,
-        error: status.error,
-        lastUpdate: status.lastUpdate ? new Date(status.lastUpdate).toISOString() : 'never'
-      });
 
       if (balanceService.isInitialized()) {
         const balanceData = balanceService.getCurrentBalance();
@@ -69,7 +60,6 @@ export async function GET(request: NextRequest) {
         const isStale = balanceData.lastUpdate && (Date.now() - balanceData.lastUpdate) > 5 * 60 * 1000;
 
         if (!isStale && (balanceData.totalBalance > 0 || balanceData.availableBalance > 0)) {
-          console.log('[Balance API] Returning WebSocket balance data:', balanceData);
           const response = {
             totalBalance: balanceData.totalBalance,
             availableBalance: balanceData.availableBalance,
@@ -90,15 +80,12 @@ export async function GET(request: NextRequest) {
             responseTime: Date.now() - startTime,
           });
         } else {
-          console.log('[Balance API] WebSocket data is stale or empty, falling back to REST');
         }
       }
     } else {
-      console.log('[Balance API] Balance service not available');
     }
 
     // Fallback to REST API if WebSocket service is not available or data is stale
-    console.log('[Balance API] Attempting REST API fallback - getAccountInfo');
     try {
       const accountData = await getAccountInfo(config.api);
 
@@ -112,12 +99,6 @@ export async function GET(request: NextRequest) {
         // This represents your total trading equity/buying power
         const totalBalance = totalPositionMargin + availableBalance;
 
-        console.log('[Balance API] Successfully fetched from account API:', {
-          totalBalance,
-          availableBalance,
-          totalPositionValue: totalPositionMargin,
-          totalPnL
-        });
 
         const response = {
           totalBalance,
@@ -140,11 +121,9 @@ export async function GET(request: NextRequest) {
         });
       }
     } catch (accountError) {
-      console.error('[Balance API] Account API failed:', accountError instanceof Error ? accountError.message : accountError);
     }
 
     // Final fallback to balance API
-    console.log('[Balance API] Attempting final fallback - getBalance');
     const balanceData = await getBalance(config.api);
 
     let totalBalance = 0;
@@ -164,17 +143,9 @@ export async function GET(request: NextRequest) {
         // Position value should be the margin used (total - available)
         totalPositionValue = Math.max(0, totalBalance - availableBalance);
 
-        console.log('[Balance API] Successfully fetched from balance API:', {
-          totalBalance,
-          availableBalance,
-          totalPositionValue,
-          totalPnL
-        });
       } else {
-        console.log('[Balance API] No USDT asset found in balance data');
       }
     } else {
-      console.log('[Balance API] Invalid balance data format:', balanceData);
     }
 
     const response = {
@@ -197,8 +168,6 @@ export async function GET(request: NextRequest) {
       responseTime: Date.now() - startTime,
     });
   } catch (error: any) {
-    console.error('[Balance API] Critical error:', error instanceof Error ? error.message : error);
-    console.error('[Balance API] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
 
     // Return error response with details
     return NextResponse.json({
