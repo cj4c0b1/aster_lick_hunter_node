@@ -269,17 +269,7 @@ export class VWAPStreamer extends EventEmitter {
         const currentPrice = buffer[buffer.length - 1].close;
         const position = currentPrice > vwap ? 'above' : 'below';
 
-        // Log VWAP calculation details for debugging
-        if (symbol === 'PUMPUSDT') {
-          console.log(`📊 VWAP Debug for ${symbol}:`, {
-            vwap: vwap.toFixed(6),
-            currentPrice: currentPrice.toFixed(6),
-            periodsUsed: periodsToUse,
-            bufferLength: buffer.length,
-            timeframe: config.timeframe,
-            totalVolume: sumVolume.toFixed(2)
-          });
-        }
+
 
         const vwapData: VWAPData = {
           symbol,
