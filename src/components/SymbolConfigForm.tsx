@@ -331,8 +331,11 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                   <Input
                     id="riskPercent"
                     type="number"
-                    value={config.global.riskPercent}
-                    onChange={(e) => handleGlobalChange('riskPercent', parseFloat(e.target.value))}
+                    value={config.global.riskPercent || 0}
+                    onChange={(e) => {
+                      const value = parseFloat(e.target.value);
+                      handleGlobalChange('riskPercent', isNaN(value) ? 0 : value);
+                    }}
                     className="w-24"
                     min="0.1"
                     max="100"
@@ -397,7 +400,10 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                     id="maxOpenPositions"
                     type="number"
                     value={config.global.maxOpenPositions || 10}
-                    onChange={(e) => handleGlobalChange('maxOpenPositions', parseInt(e.target.value))}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value);
+                      handleGlobalChange('maxOpenPositions', isNaN(value) ? 10 : value);
+                    }}
                     className="w-24"
                     min="1"
                     max="50"
@@ -446,10 +452,13 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                     id="dashboardPort"
                     type="number"
                     value={config.global.server?.dashboardPort || 3000}
-                    onChange={(e) => handleGlobalChange('server', {
-                      ...config.global.server,
-                      dashboardPort: parseInt(e.target.value)
-                    })}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value);
+                      handleGlobalChange('server', {
+                        ...config.global.server,
+                        dashboardPort: isNaN(value) ? 3000 : value
+                      });
+                    }}
                     className="w-24"
                     min="1024"
                     max="65535"
@@ -467,10 +476,13 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                     id="websocketPort"
                     type="number"
                     value={config.global.server?.websocketPort || 8080}
-                    onChange={(e) => handleGlobalChange('server', {
-                      ...config.global.server,
-                      websocketPort: parseInt(e.target.value)
-                    })}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value);
+                      handleGlobalChange('server', {
+                        ...config.global.server,
+                        websocketPort: isNaN(value) ? 8080 : value
+                      });
+                    }}
                     className="w-24"
                     min="1024"
                     max="65535"
@@ -625,7 +637,10 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                           <Input
                             type="number"
                             value={config.symbols[selectedSymbol].longVolumeThresholdUSDT || config.symbols[selectedSymbol].volumeThresholdUSDT || 0}
-                            onChange={(e) => handleSymbolChange(selectedSymbol, 'longVolumeThresholdUSDT', parseFloat(e.target.value))}
+                            onChange={(e) => {
+                              const value = parseFloat(e.target.value);
+                              handleSymbolChange(selectedSymbol, 'longVolumeThresholdUSDT', isNaN(value) ? 0 : value);
+                            }}
                             min="0"
                           />
                           <p className="text-xs text-muted-foreground">
@@ -638,7 +653,10 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                           <Input
                             type="number"
                             value={config.symbols[selectedSymbol].shortVolumeThresholdUSDT || config.symbols[selectedSymbol].volumeThresholdUSDT || 0}
-                            onChange={(e) => handleSymbolChange(selectedSymbol, 'shortVolumeThresholdUSDT', parseFloat(e.target.value))}
+                            onChange={(e) => {
+                              const value = parseFloat(e.target.value);
+                              handleSymbolChange(selectedSymbol, 'shortVolumeThresholdUSDT', isNaN(value) ? 0 : value);
+                            }}
                             min="0"
                           />
                           <p className="text-xs text-muted-foreground">
@@ -650,8 +668,11 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                           <Label>Leverage</Label>
                           <Input
                             type="number"
-                            value={config.symbols[selectedSymbol].leverage}
-                            onChange={(e) => handleSymbolChange(selectedSymbol, 'leverage', parseInt(e.target.value))}
+                            value={config.symbols[selectedSymbol].leverage || 1}
+                            onChange={(e) => {
+                              const value = parseInt(e.target.value);
+                              handleSymbolChange(selectedSymbol, 'leverage', isNaN(value) ? 1 : value);
+                            }}
                             min="1"
                             max="125"
                           />
@@ -701,8 +722,11 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                               <Label>Trade Size (USDT)</Label>
                               <Input
                                 type="number"
-                                value={config.symbols[selectedSymbol].tradeSize}
-                                onChange={(e) => handleSymbolChange(selectedSymbol, 'tradeSize', parseFloat(e.target.value))}
+                                value={config.symbols[selectedSymbol].tradeSize || 0}
+                                onChange={(e) => {
+                                  const value = parseFloat(e.target.value);
+                                  handleSymbolChange(selectedSymbol, 'tradeSize', isNaN(value) ? 0 : value);
+                                }}
                                 min="0"
                                 step="0.01"
                               />
@@ -856,7 +880,10 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                           <Input
                             type="number"
                             value={config.symbols[selectedSymbol].maxPositionMarginUSDT || 0}
-                            onChange={(e) => handleSymbolChange(selectedSymbol, 'maxPositionMarginUSDT', parseFloat(e.target.value))}
+                            onChange={(e) => {
+                              const value = parseFloat(e.target.value);
+                              handleSymbolChange(selectedSymbol, 'maxPositionMarginUSDT', isNaN(value) ? 0 : value);
+                            }}
                             min="0"
                           />
                           <p className="text-xs text-muted-foreground">
@@ -868,8 +895,11 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                           <Label>Stop Loss (%)</Label>
                           <Input
                             type="number"
-                            value={config.symbols[selectedSymbol].slPercent}
-                            onChange={(e) => handleSymbolChange(selectedSymbol, 'slPercent', parseFloat(e.target.value))}
+                            value={config.symbols[selectedSymbol].slPercent || 0}
+                            onChange={(e) => {
+                              const value = parseFloat(e.target.value);
+                              handleSymbolChange(selectedSymbol, 'slPercent', isNaN(value) ? 0 : value);
+                            }}
                             min="0.1"
                             step="0.1"
                           />
@@ -882,8 +912,11 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                           <Label>Take Profit (%)</Label>
                           <Input
                             type="number"
-                            value={config.symbols[selectedSymbol].tpPercent}
-                            onChange={(e) => handleSymbolChange(selectedSymbol, 'tpPercent', parseFloat(e.target.value))}
+                            value={config.symbols[selectedSymbol].tpPercent || 0}
+                            onChange={(e) => {
+                              const value = parseFloat(e.target.value);
+                              handleSymbolChange(selectedSymbol, 'tpPercent', isNaN(value) ? 0 : value);
+                            }}
                             min="0.1"
                             step="0.1"
                           />
@@ -945,13 +978,14 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                                   <Input
                                     type="number"
                                     value={config.symbols[selectedSymbol].vwapLookback || 100}
-                                    onChange={(e) =>
+                                    onChange={(e) => {
+                                      const value = parseInt(e.target.value);
                                       handleSymbolChange(
                                         selectedSymbol,
                                         'vwapLookback',
-                                        parseInt(e.target.value)
-                                      )
-                                    }
+                                        isNaN(value) ? 100 : value
+                                      );
+                                    }}
                                     min="10"
                                     max="500"
                                   />
