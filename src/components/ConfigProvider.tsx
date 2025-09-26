@@ -41,19 +41,33 @@ export default function ConfigProvider({ children }: { children: React.ReactNode
           apiKey: '',
           secretKey: '',
         },
-        global: {
-          riskPercent: 2,
-          paperMode: true,
-        },
         symbols: {
-          BTCUSDT: {
-            volumeThresholdUSDT: 10000,
-            tradeSize: 0.001,
-            leverage: 5,
-            tpPercent: 5,
-            slPercent: 2,
+          ASTERUSDT: {
+            longVolumeThresholdUSDT: 1000,
+            shortVolumeThresholdUSDT: 2500,
+            tradeSize: 0.69,
+            shortTradeSize: 0.69,
+            maxPositionMarginUSDT: 200,
+            leverage: 10,
+            tpPercent: 1,
+            slPercent: 20,
+            vwapProtection: true,
+            vwapTimeframe: "5m",
+            vwapLookback: 200
           },
         },
+        global: {
+          riskPercent: 90,
+          paperMode: true,
+          positionMode: "HEDGE",
+          maxOpenPositions: 5,
+          server: {
+            dashboardPassword: "",
+            dashboardPort: 3000,
+            websocketPort: 8080
+          }
+        },
+        version: "1.1.0"
       };
       setConfig(defaultConfig);
     } finally {
