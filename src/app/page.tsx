@@ -138,12 +138,14 @@ export default function DashboardPage() {
       }
     });
 
-    // If we have live prices, update the PnL and total balance
+    // If we have live prices, update the PnL only
+    // Total balance should remain consistent (available + margin)
     if (hasLivePrices) {
       return {
         ...accountInfo,
         totalPnL: liveTotalPnL,
-        totalBalance: accountInfo.availableBalance + accountInfo.totalPositionValue
+        // Don't recalculate total balance - it's already correct
+        totalBalance: accountInfo.totalBalance
       };
     }
 
@@ -262,7 +264,10 @@ export default function DashboardPage() {
                       {formatCurrency(liveAccountInfo.totalPnL)}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {formatPercentage(liveAccountInfo.totalPnL / liveAccountInfo.totalBalance * 100)} of balance
+                      {liveAccountInfo.totalBalance > 0 ?
+                        formatPercentage(liveAccountInfo.totalPnL / liveAccountInfo.totalBalance * 100) :
+                        '0.00%'
+                      } of balance
                     </p>
                   </>
                 )}

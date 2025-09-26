@@ -61,22 +61,26 @@ export class BalanceService extends EventEmitter {
     return this.initialized;
   }
 
-  private async fetchInitialBalance(): Promise<void> {
+  public async fetchInitialBalance(): Promise<void> {
     if (!this.credentials) throw new Error('No credentials available');
 
     try {
       const accountData = await getAccountInfo(this.credentials);
 
       if (accountData) {
+        // availableBalance is the free balance available for trading
         const availableBalance = parseFloat(accountData.availableBalance || '0');
+        // totalUnrealizedProfit is the sum of all unrealized PnL
         const totalPnL = parseFloat(accountData.totalUnrealizedProfit || '0');
-        const totalPositionValue = parseFloat(accountData.totalPositionInitialMargin || '0');
-        const _totalBalance = totalPositionValue + availableBalance;
+        // totalPositionInitialMargin is the total margin used in positions
+        const totalPositionMargin = parseFloat(accountData.totalPositionInitialMargin || '0');
+        // Total wallet balance = available + margin used
+        const totalBalance = availableBalance + totalPositionMargin;
 
         this.currentBalance = {
-          totalBalance: availableBalance + totalPositionValue,
+          totalBalance,
           availableBalance,
-          totalPositionValue,
+          totalPositionValue: totalPositionMargin, // This is actually margin, not notional value
           totalPnL,
           lastUpdate: Date.now()
         };
@@ -104,17 +108,17 @@ export class BalanceService extends EventEmitter {
     // Find USDT balance update
     const usdtBalance = balances.find(b => b.asset === 'USDT');
     if (usdtBalance) {
-      // Note: For multi-asset mode, we might need to sum all assets
-      // For now, we'll use USDT as the primary reference
-      const _walletBalance = parseFloat(usdtBalance.walletBalance);
+      // walletBalance is the total balance in the account
+      // crossWalletBalance is the balance across all margin assets (usually same as wallet for single asset mode)
+      const walletBalance = parseFloat(usdtBalance.walletBalance);
       const crossWalletBalance = parseFloat(usdtBalance.crossWalletBalance);
 
-      // Update available balance (this might need refinement based on actual data structure)
-      // We'll estimate based on cross wallet balance for now
-      this.currentBalance.availableBalance = crossWalletBalance;
+      // Calculate available balance (wallet balance minus margin used in positions)
+      // We'll calculate margin from positions below, then derive available
+      this.currentBalance.totalBalance = walletBalance;
     }
 
-    // Calculate total unrealized PnL from all positions
+    // Calculate total unrealized PnL and margin from all positions
     let totalUnrealizedPnL = 0;
     let totalPositionMargin = 0;
 
@@ -125,15 +129,22 @@ export class BalanceService extends EventEmitter {
 
       totalUnrealizedPnL += unrealizedPnL;
 
-      // Estimate position margin (this is simplified)
+      // Calculate actual margin used (notional / leverage)
+      // For futures, margin = (position size * entry price) / leverage
+      // We need to get leverage from position or config
       if (positionAmount !== 0) {
-        totalPositionMargin += Math.abs(positionAmount * entryPrice);
+        const notional = Math.abs(positionAmount * entryPrice);
+        // Default to 10x leverage if not specified (will be refined based on actual data)
+        const leverage = 10; // TODO: Get actual leverage from position data or config
+        totalPositionMargin += notional / leverage;
       }
     });
 
     this.currentBalance.totalPnL = totalUnrealizedPnL;
     this.currentBalance.totalPositionValue = totalPositionMargin;
-    this.currentBalance.totalBalance = this.currentBalance.availableBalance + this.currentBalance.totalPositionValue;
+
+    // Available balance = Total balance - margin used in positions
+    this.currentBalance.availableBalance = Math.max(0, this.currentBalance.totalBalance - totalPositionMargin);
   }
 }
 

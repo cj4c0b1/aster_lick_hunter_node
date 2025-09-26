@@ -6,6 +6,7 @@ import { getSignedParams, paramsToQuery } from '../api/auth';
 import { getExchangeInfo } from '../api/market';
 import { placeOrder, cancelOrder } from '../api/orders';
 import { symbolPrecision } from '../utils/symbolPrecision';
+import { getBalanceService } from '../services/balanceService';
 
 // Minimal local state - only track order IDs linked to positions
 interface PositionOrders {
@@ -570,6 +571,11 @@ export class PositionManager extends EventEmitter implements PositionTracker {
               pnl: parseFloat(pos.up)
             });
           }
+
+          // Trigger balance refresh if position size changed
+          if (sizeChanged) {
+            this.refreshBalance();
+          }
         }
       });
 
@@ -582,6 +588,9 @@ export class PositionManager extends EventEmitter implements PositionTracker {
           this.previousPositionSizes.delete(key);
           // Cancel any remaining SL/TP orders if they exist
           this.cancelProtectiveOrders(key, orders);
+
+          // Trigger balance refresh after position closure
+          this.refreshBalance();
         }
       }
     }
@@ -595,6 +604,13 @@ export class PositionManager extends EventEmitter implements PositionTracker {
     const _positionSide = order.ps || 'BOTH';
     const side = order.S;
     const orderId = order.i;
+
+    // Check if this is a filled order that affects positions (SL/TP fills)
+    if (orderStatus === 'FILLED' && order.rp) { // rp = reduce only
+      console.log(`PositionManager: Reduce-only order filled for ${symbol}`);
+      // Trigger balance refresh after SL/TP execution
+      this.refreshBalance();
+    }
 
     // Track our SL/TP order IDs when they're placed
     if (orderStatus === 'NEW' && (orderType === 'STOP_MARKET' || orderType === 'TAKE_PROFIT_MARKET')) {
@@ -1120,6 +1136,9 @@ export class PositionManager extends EventEmitter implements PositionTracker {
         pnl: 0 // Will be updated by account stream
       });
     }
+
+    // Trigger balance refresh after position close
+    this.refreshBalance();
   }
 
   // Get current positions for API/UI
@@ -1183,6 +1202,21 @@ export class PositionManager extends EventEmitter implements PositionTracker {
       }
     }
     return count;
+  }
+
+  // Refresh balance from the exchange
+  private async refreshBalance(): Promise<void> {
+    try {
+      const balanceService = getBalanceService();
+      if (balanceService && balanceService.isInitialized()) {
+        // The balance service will automatically update via its WebSocket stream
+        // We just need to trigger a manual fetch to ensure consistency
+        await (balanceService as any).fetchInitialBalance();
+        console.log('PositionManager: Triggered balance refresh after position change');
+      }
+    } catch (error) {
+      console.error('PositionManager: Failed to refresh balance:', error);
+    }
   }
 
   // Get unique position count (hedge mode: long+short on same symbol = 1 position)

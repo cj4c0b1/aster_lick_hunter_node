@@ -278,6 +278,21 @@ class AsterBot {
           priceService.subscribeToSymbols([data.symbol]);
           console.log(`📊 Added price streaming for new position: ${data.symbol}`);
         }
+
+        // Trigger balance refresh after position open
+        const balanceService = getBalanceService();
+        if (balanceService && balanceService.isInitialized()) {
+          setTimeout(() => {
+            // Small delay to ensure exchange has processed the order
+            const currentBalance = balanceService.getCurrentBalance();
+            this.statusBroadcaster.broadcastBalance({
+              totalBalance: currentBalance.totalBalance,
+              availableBalance: currentBalance.availableBalance,
+              totalPositionValue: currentBalance.totalPositionValue,
+              totalPnL: currentBalance.totalPnL,
+            });
+          }, 1000);
+        }
       });
 
       this.hunter.on('error', (error: any) => {

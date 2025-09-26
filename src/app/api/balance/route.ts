@@ -37,16 +37,16 @@ export async function GET() {
         // Use pre-calculated USDT-equivalent totals from account endpoint
         const availableBalance = parseFloat(accountData.availableBalance || '0');
         const totalPnL = parseFloat(accountData.totalUnrealizedProfit || '0');
-        const totalPositionValue = parseFloat(accountData.totalPositionInitialMargin || '0');
+        const totalPositionMargin = parseFloat(accountData.totalPositionInitialMargin || '0');
 
         // Total balance = margin used in positions + available balance
         // This represents your total trading equity/buying power
-        const totalBalance = totalPositionValue + availableBalance;
+        const totalBalance = totalPositionMargin + availableBalance;
 
         return NextResponse.json({
           totalBalance,
           availableBalance,
-          totalPositionValue,
+          totalPositionValue: totalPositionMargin,
           totalPnL,
         });
       }
@@ -65,10 +65,14 @@ export async function GET() {
     if (balanceData && Array.isArray(balanceData)) {
       const usdtAsset = balanceData.find((a: any) => a.asset === 'USDT');
       if (usdtAsset) {
+        // balance is the wallet balance
         totalBalance = parseFloat(usdtAsset.balance || '0');
+        // availableBalance is free balance for trading
         availableBalance = parseFloat(usdtAsset.availableBalance || '0');
+        // crossUnPnl is unrealized PnL
         totalPnL = parseFloat(usdtAsset.crossUnPnl || '0');
-        totalPositionValue = Math.abs(totalPnL);
+        // Position value should be the margin used (total - available)
+        totalPositionValue = Math.max(0, totalBalance - availableBalance);
       }
     }
 
