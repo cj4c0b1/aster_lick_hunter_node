@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { liquidationStorage } from '@/lib/services/liquidationStorage';
+import { ensureDbInitialized } from '@/lib/db/initDb';
 
 export async function GET(request: NextRequest) {
   try {
+    // Ensure database is initialized
+    await ensureDbInitialized();
+
     const searchParams = request.nextUrl.searchParams;
 
     const params = {

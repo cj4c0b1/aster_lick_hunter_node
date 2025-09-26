@@ -109,6 +109,19 @@ export class Database {
       }
     });
   }
+
+  async initialize(): Promise<void> {
+    // Force initialization if not already done
+    return new Promise((resolve) => {
+      // Check if database is already open
+      if (this.db) {
+        resolve();
+      } else {
+        // Wait a bit for async initialization to complete
+        setTimeout(() => resolve(), 100);
+      }
+    });
+  }
 }
 
 export const db = Database.getInstance();

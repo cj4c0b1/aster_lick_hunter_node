@@ -64,6 +64,7 @@ export default function LiquidationFeed({ volumeThresholds = {}, maxEvents = 50 
                 isHighVolume: volume >= threshold,
               };
             });
+            console.log(`Loaded ${historicalEvents.length} historical liquidations`);
             setEvents(historicalEvents);
 
             // Calculate initial stats from historical data
@@ -89,12 +90,10 @@ export default function LiquidationFeed({ volumeThresholds = {}, maxEvents = 50 
     };
 
     loadHistoricalLiquidations();
-  }, [maxEvents, volumeThresholds]);
+  }, []); // Only run once on mount
 
   // Handle WebSocket messages
   useEffect(() => {
-
-    // Handle WebSocket messages
     const handleMessage = (message: any) => {
       if (message.type === 'liquidation') {
         const liquidationData = message.data;

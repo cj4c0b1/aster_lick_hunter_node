@@ -18,7 +18,8 @@
       "Bash(netstat:*)",
       "Bash(npm run build:*)",
       "Bash(python:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

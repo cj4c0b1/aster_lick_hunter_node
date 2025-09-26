@@ -1,10 +1,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Activity, Flame } from 'lucide-react';
+import { Activity, Flame, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react';
 import websocketService from '@/lib/services/websocketService';
 
 interface LiquidationEvent {
@@ -33,10 +32,47 @@ export default function LiquidationSidebar({ volumeThresholds = {}, maxEvents = 
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Load historical liquidations on mount
   useEffect(() => {
-    setIsLoading(false);
+    const loadHistoricalLiquidations = async () => {
+      try {
+        const response = await fetch(`/api/liquidations?limit=${maxEvents}`);
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data) {
+            const historicalEvents = result.data.map((liq: any) => {
+              const volume = liq.volume_usdt || (liq.quantity * liq.price);
+              const threshold = volumeThresholds[liq.symbol] || 10000;
+              return {
+                symbol: liq.symbol,
+                side: liq.side,
+                orderType: liq.order_type,
+                quantity: liq.quantity,
+                price: liq.price,
+                averagePrice: liq.average_price || liq.price,
+                orderStatus: liq.order_status,
+                eventTime: liq.event_time,
+                timestamp: new Date(liq.event_time),
+                volume,
+                isHighVolume: volume >= threshold,
+              };
+            });
+            console.log(`Loaded ${historicalEvents.length} historical liquidations`);
+            setEvents(historicalEvents);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load historical liquidations:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-    // Handle WebSocket messages
+    loadHistoricalLiquidations();
+  }, []); // Only run once on mount
+
+  // Handle WebSocket messages for real-time updates
+  useEffect(() => {
     const handleMessage = (message: any) => {
       if (message.type === 'liquidation') {
         const liquidationData = message.data;
@@ -86,7 +122,7 @@ export default function LiquidationSidebar({ volumeThresholds = {}, maxEvents = 
 
   const formatVolume = (volume: number): string => {
     if (volume >= 1000000) {
-      return `$${(volume / 1000000).toFixed(2)}M`;
+      return `$${(volume / 1000000).toFixed(1)}M`;
     }
     if (volume >= 1000) {
       return `$${(volume / 1000).toFixed(1)}K`;
@@ -95,77 +131,96 @@ export default function LiquidationSidebar({ volumeThresholds = {}, maxEvents = 
   };
 
   const formatPrice = (price: number): string => {
-    return price.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    if (price >= 1000) {
+      return price.toLocaleString(undefined, { maximumFractionDigits: 0 });
+    }
+    return price.toLocaleString(undefined, { maximumFractionDigits: 1 });
+  };
+
+  const getVolumeColor = (volume: number): string => {
+    if (volume >= 5000000) return 'bg-green-500 text-white'; // $5M+
+    if (volume >= 1000000) return 'bg-green-600/90 text-white'; // $1M+
+    if (volume >= 500000) return 'bg-emerald-600/80 text-white'; // $500K+
+    if (volume >= 250000) return 'bg-red-500 text-white'; // $250K+
+    if (volume >= 100000) return 'bg-red-600/90 text-white'; // $100K+
+    if (volume >= 50000) return 'bg-orange-600/80 text-white'; // $50K+
+    return 'bg-gray-600/60 text-white'; // < $50K
   };
 
   return (
-    <div className="w-80 border-l bg-background hidden lg:block">
-      <Card className="border-0 rounded-none h-full">
-        <CardHeader className="pb-3">
+    <div className="w-72 border-l bg-black/95 hidden lg:block">
+      <div className="h-full">
+        <div className="border-b border-gray-800 p-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Liquidations</CardTitle>
-            <Badge variant={isConnected ? "default" : "secondary"} className="flex items-center gap-1 text-xs">
+            <h3 className="text-sm font-medium text-gray-200">Liquidations</h3>
+            <Badge variant={isConnected ? "default" : "secondary"} className="flex items-center gap-1 text-xs h-5">
               <Activity className={`h-2 w-2 ${isConnected ? 'animate-pulse' : ''}`} />
               {isConnected ? 'Live' : 'Offline'}
             </Badge>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-2 px-4 max-h-[calc(100vh-200px)] overflow-y-auto">
+        </div>
+        <div className="overflow-y-auto max-h-[calc(100vh-120px)] scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
           {isLoading ? (
-            Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="space-y-1 p-2 rounded border">
-                <div className="flex justify-between items-center">
-                  <Skeleton className="h-4 w-16" />
-                  <Skeleton className="h-4 w-12" />
-                </div>
-                <div className="flex justify-between items-center">
-                  <Skeleton className="h-3 w-20" />
-                  <Skeleton className="h-3 w-8" />
-                </div>
+            Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex items-center justify-between px-3 py-1.5 border-b border-gray-900">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-16" />
               </div>
             ))
           ) : events.length > 0 ? (
-            events.map((event, index) => (
-              <div
-                key={`${event.symbol}-${event.eventTime}-${index}`}
-                className={`p-2 rounded border transition-colors ${
-                  event.isHighVolume
-                    ? 'bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800'
-                    : 'hover:bg-muted/50'
-                }`}
-              >
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm">{event.symbol}</span>
-                    {event.isHighVolume && (
-                      <Flame className="h-3 w-3 text-orange-500" />
+            events.map((event, index) => {
+              const volumeColor = getVolumeColor(event.volume);
+              // SELL liquidation = Longs getting liquidated (red background)
+              // BUY liquidation = Shorts getting liquidated (green background)
+              const isLongLiquidation = event.side === 'SELL';
+              const positionType = isLongLiquidation ? 'LONG' : 'SHORT';
+              const bgColor = isLongLiquidation
+                ? 'bg-red-900/20 hover:bg-red-900/30'
+                : 'bg-green-900/20 hover:bg-green-900/30';
+              const textColor = isLongLiquidation ? 'text-red-400' : 'text-green-400';
+
+              return (
+                <div
+                  key={`${event.symbol}-${event.eventTime}-${index}`}
+                  className={`flex items-center justify-between px-3 py-1 border-b border-gray-900 transition-colors ${bgColor} cursor-default`}
+                >
+                  <div className="flex items-center gap-1.5 flex-1">
+                    {event.volume >= 1000000 && (
+                      <Flame className="h-3 w-3 text-orange-400 animate-pulse" />
                     )}
+                    {event.volume >= 500000 && event.volume < 1000000 && (
+                      <AlertTriangle className="h-3 w-3 text-yellow-400" />
+                    )}
+                    {isLongLiquidation ? (
+                      <TrendingDown className={`h-3 w-3 ${textColor}`} />
+                    ) : (
+                      <TrendingUp className={`h-3 w-3 ${textColor}`} />
+                    )}
+                    <div className={`text-xs font-semibold ${textColor} w-10`}>
+                      {positionType}
+                    </div>
+                    <div className="text-xs text-gray-300 font-medium">
+                      {event.symbol.replace('USDT', '')}
+                    </div>
                   </div>
-                  <Badge
-                    variant={event.side === 'BUY' ? 'default' : 'destructive'}
-                    className="text-xs px-2 py-0"
-                  >
-                    {event.side}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <div className={`text-xs font-bold px-1.5 py-0.5 rounded ${volumeColor}`}>
+                      {formatVolume(event.volume)}
+                    </div>
+                    <div className="text-[10px] text-gray-500 w-8 text-right">
+                      {formatTime(event.timestamp)}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center mt-1">
-                  <div className="text-xs text-muted-foreground">
-                    ${formatPrice(event.price)}
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs font-medium">{formatVolume(event.volume)}</div>
-                    <div className="text-xs text-muted-foreground">{formatTime(event.timestamp)}</div>
-                  </div>
-                </div>
-              </div>
-            ))
+              );
+            })
           ) : (
-            <div className="text-center py-8 text-muted-foreground text-sm">
+            <div className="text-center py-8 text-gray-500 text-xs">
               No liquidations yet...
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

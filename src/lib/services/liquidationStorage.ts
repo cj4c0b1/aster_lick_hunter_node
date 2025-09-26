@@ -140,50 +140,62 @@ export class LiquidationStorage {
   }
 
   async getStatistics(timeWindowSeconds: number = 86400): Promise<LiquidationStats> {
-    const since = Math.floor(Date.now() / 1000) - timeWindowSeconds;
+    try {
+      const since = Math.floor(Date.now() / 1000) - timeWindowSeconds;
 
-    const statsSql = `
-      SELECT
-        COUNT(*) as total_count,
-        SUM(volume_usdt) as total_volume_usdt,
-        AVG(volume_usdt) as avg_volume_usdt,
-        MAX(volume_usdt) as max_volume_usdt
-      FROM liquidations
-      WHERE created_at >= ?
-    `;
+      const statsSql = `
+        SELECT
+          COUNT(*) as total_count,
+          SUM(volume_usdt) as total_volume_usdt,
+          AVG(volume_usdt) as avg_volume_usdt,
+          MAX(volume_usdt) as max_volume_usdt
+        FROM liquidations
+        WHERE created_at >= ?
+      `;
 
-    const stats = await db.get<{
-      total_count: number;
-      total_volume_usdt: number;
-      avg_volume_usdt: number;
-      max_volume_usdt: number;
-    }>(statsSql, [since]);
+      const stats = await db.get<{
+        total_count: number;
+        total_volume_usdt: number;
+        avg_volume_usdt: number;
+        max_volume_usdt: number;
+      }>(statsSql, [since]);
 
-    const symbolsSql = `
-      SELECT
-        symbol,
-        COUNT(*) as count,
-        SUM(volume_usdt) as volume_usdt
-      FROM liquidations
-      WHERE created_at >= ?
-      GROUP BY symbol
-      ORDER BY volume_usdt DESC
-      LIMIT 10
-    `;
+      const symbolsSql = `
+        SELECT
+          symbol,
+          COUNT(*) as count,
+          SUM(volume_usdt) as volume_usdt
+        FROM liquidations
+        WHERE created_at >= ?
+        GROUP BY symbol
+        ORDER BY volume_usdt DESC
+        LIMIT 10
+      `;
 
-    const symbols = await db.all<{
-      symbol: string;
-      count: number;
-      volume_usdt: number;
-    }>(symbolsSql, [since]);
+      const symbols = await db.all<{
+        symbol: string;
+        count: number;
+        volume_usdt: number;
+      }>(symbolsSql, [since]);
 
-    return {
-      total_count: stats?.total_count || 0,
-      total_volume_usdt: stats?.total_volume_usdt || 0,
-      avg_volume_usdt: stats?.avg_volume_usdt || 0,
-      max_volume_usdt: stats?.max_volume_usdt || 0,
-      symbols: symbols || []
-    };
+      return {
+        total_count: stats?.total_count || 0,
+        total_volume_usdt: stats?.total_volume_usdt || 0,
+        avg_volume_usdt: stats?.avg_volume_usdt || 0,
+        max_volume_usdt: stats?.max_volume_usdt || 0,
+        symbols: symbols || []
+      };
+    } catch (error) {
+      console.error('Error getting liquidation statistics:', error);
+      // Return empty stats on error
+      return {
+        total_count: 0,
+        total_volume_usdt: 0,
+        avg_volume_usdt: 0,
+        max_volume_usdt: 0,
+        symbols: []
+      };
+    }
   }
 
   async getRecentLiquidations(limit: number = 50): Promise<StoredLiquidation[]> {

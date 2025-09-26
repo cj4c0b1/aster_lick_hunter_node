@@ -10,6 +10,7 @@ import { initializePriceService, stopPriceService, getPriceService } from '../li
 import { getPositionMode, setPositionMode } from '../lib/api/positionMode';
 import { execSync } from 'child_process';
 import { cleanupScheduler } from '../lib/services/cleanupScheduler';
+import { db } from '../lib/db/database';
 
 // Helper function to kill all child processes (synchronous for exit handler)
 function killAllProcesses() {
@@ -46,6 +47,10 @@ class AsterBot {
 
     try {
       console.log('🚀 Starting Aster Liquidation Hunter Bot...');
+
+      // Initialize database first (ensures schema is created)
+      await db.initialize();
+      console.log('✅ Database initialized');
 
       // Start WebSocket server for status broadcasting
       await this.statusBroadcaster.start();
