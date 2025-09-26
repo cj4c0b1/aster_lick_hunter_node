@@ -9,6 +9,9 @@ import {
   Settings,
   Zap,
   Circle,
+  BookOpen,
+  HelpCircle,
+  RefreshCw,
 } from "lucide-react"
 
 import {
@@ -26,6 +29,7 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { useConfig } from "@/components/ConfigProvider"
 import { useBotStatus } from "@/hooks/useBotStatus"
 import websocketService from '@/lib/services/websocketService'
@@ -41,6 +45,11 @@ const navigation = [
     title: "Configuration",
     icon: Settings,
     href: "/config",
+  },
+  {
+    title: "Wiki & Help",
+    icon: BookOpen,
+    href: "/wiki",
   },
 ]
 
@@ -169,6 +178,42 @@ export function AppSidebar() {
                   </div>
                 </>
               )}
+            </div>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+
+      <SidebarSeparator />
+
+      {/* Help Section */}
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Help & Resources</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <div className="space-y-2 px-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start"
+                onClick={() => {
+                  // Trigger tutorial restart
+                  const event = new CustomEvent('restart-tutorial');
+                  window.dispatchEvent(event);
+                }}
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Restart Tutorial
+              </Button>
+              <Link href="/wiki/getting-started">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start"
+                >
+                  <HelpCircle className="mr-2 h-4 w-4" />
+                  Getting Started
+                </Button>
+              </Link>
             </div>
           </SidebarGroupContent>
         </SidebarGroup>

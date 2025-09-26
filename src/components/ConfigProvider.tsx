@@ -2,7 +2,10 @@
 
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { Config } from '@/lib/types';
-import ApiKeyModal from './ApiKeyModal';
+import { OnboardingProvider } from './onboarding/OnboardingProvider';
+import { OnboardingModal } from './onboarding/OnboardingModal';
+import { TutorialOverlay } from './onboarding/TutorialOverlay';
+import { HelpButton } from './HelpButton';
 
 interface ConfigContextType {
   config: Config | null;
@@ -23,7 +26,6 @@ export const useConfig = () => useContext(ConfigContext);
 export default function ConfigProvider({ children }: { children: React.ReactNode }) {
   const [config, setConfig] = useState<Config | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
 
   const loadConfig = async () => {
     try {
@@ -31,14 +33,6 @@ export default function ConfigProvider({ children }: { children: React.ReactNode
       if (response.ok) {
         const data = await response.json();
         setConfig(data);
-
-        // Check if this is first time setup (no API keys and not explicitly set to paper mode)
-        const isFirstTime = !data.api.apiKey && !data.api.secretKey &&
-                           localStorage.getItem('aster_setup_complete') !== 'true';
-
-        if (isFirstTime) {
-          setShowApiKeyModal(true);
-        }
       }
     } catch (error) {
       console.error('Failed to load config:', error);
@@ -63,7 +57,6 @@ export default function ConfigProvider({ children }: { children: React.ReactNode
         },
       };
       setConfig(defaultConfig);
-      setShowApiKeyModal(true);
     } finally {
       setLoading(false);
     }
@@ -81,7 +74,6 @@ export default function ConfigProvider({ children }: { children: React.ReactNode
 
       if (response.ok) {
         setConfig(newConfig);
-        localStorage.setItem('aster_setup_complete', 'true');
       } else {
         throw new Error('Failed to save config');
       }
@@ -91,22 +83,19 @@ export default function ConfigProvider({ children }: { children: React.ReactNode
     }
   };
 
-  const handleApiKeySave = async (apiKey: string, secretKey: string) => {
-    if (config) {
-      const updatedConfig = {
-        ...config,
-        api: {
-          apiKey,
-          secretKey,
-        },
-      };
-      await updateConfig(updatedConfig);
-      localStorage.setItem('aster_setup_complete', 'true');
-    }
-  };
-
   useEffect(() => {
     loadConfig();
+  }, []);
+
+  // Listen for tutorial restart event
+  useEffect(() => {
+    const handleRestartTutorial = () => {
+      const event = new CustomEvent('restart-onboarding');
+      window.dispatchEvent(event);
+    };
+
+    window.addEventListener('restart-tutorial', handleRestartTutorial);
+    return () => window.removeEventListener('restart-tutorial', handleRestartTutorial);
   }, []);
 
   return (
@@ -118,12 +107,12 @@ export default function ConfigProvider({ children }: { children: React.ReactNode
         reloadConfig: loadConfig,
       }}
     >
-      {children}
-      <ApiKeyModal
-        isOpen={showApiKeyModal}
-        onClose={() => setShowApiKeyModal(false)}
-        onSave={handleApiKeySave}
-      />
+      <OnboardingProvider>
+        {children}
+        <OnboardingModal />
+        <TutorialOverlay />
+        <HelpButton />
+      </OnboardingProvider>
     </ConfigContext.Provider>
   );
 }
