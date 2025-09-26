@@ -5,6 +5,7 @@ import { Config } from '../types';
 import { getSignedParams, paramsToQuery } from '../api/auth';
 import { getExchangeInfo } from '../api/market';
 import { placeOrder, cancelOrder } from '../api/orders';
+import { placeStopLossAndTakeProfit } from '../api/batchOrders';
 import { symbolPrecision } from '../utils/symbolPrecision';
 import { getBalanceService } from '../services/balanceService';
 
@@ -1046,8 +1047,98 @@ export class PositionManager extends EventEmitter implements PositionTracker {
     }
 
     try {
-      // Place Stop Loss
-      if (placeSL) {
+      // Use batch orders when placing both SL and TP to save API calls
+      if (placeSL && placeTP) {
+        // Get current market price to validate stop loss placement
+        const ticker = await axios.get(`https://fapi.asterdex.com/fapi/v1/ticker/price?symbol=${symbol}`);
+        const currentPrice = parseFloat(ticker.data.price);
+
+        // Calculate SL price
+        const rawSlPrice = isLong
+          ? entryPrice * (1 - symbolConfig.slPercent / 100)
+          : entryPrice * (1 + symbolConfig.slPercent / 100);
+
+        // Check if stop loss would be triggered immediately
+        let adjustedSlPrice = rawSlPrice;
+        if ((isLong && rawSlPrice >= currentPrice) || (!isLong && rawSlPrice <= currentPrice)) {
+          // Position is already at a loss beyond the intended stop
+          const bufferPercent = 0.1; // 0.1% buffer
+          adjustedSlPrice = isLong
+            ? currentPrice * (1 - bufferPercent / 100)
+            : currentPrice * (1 + bufferPercent / 100);
+
+          console.log(`PositionManager: Position ${symbol} is underwater. Adjusting SL from ${rawSlPrice.toFixed(4)} to ${adjustedSlPrice.toFixed(4)} (current: ${currentPrice.toFixed(4)})`);
+        }
+
+        // Calculate TP price
+        const rawTpPrice = isLong
+          ? entryPrice * (1 + symbolConfig.tpPercent / 100)
+          : entryPrice * (1 - symbolConfig.tpPercent / 100);
+
+        // Format prices and quantity
+        const slPrice = symbolPrecision.formatPrice(symbol, adjustedSlPrice);
+        const tpPrice = symbolPrecision.formatPrice(symbol, rawTpPrice);
+        const formattedQuantity = symbolPrecision.formatQuantity(symbol, quantity);
+
+        const orderPositionSide = position.positionSide || 'BOTH';
+        const side = isLong ? 'SELL' : 'BUY';
+
+        console.log(`PositionManager: Placing SL/TP batch for ${symbol}:`);
+        console.log(`  Quantity: ${formattedQuantity}`);
+        console.log(`  SL price: ${slPrice.toFixed(4)}`);
+        console.log(`  TP price: ${tpPrice.toFixed(4)}`);
+        console.log(`  Side: ${side}`);
+        console.log(`  Position Side: ${orderPositionSide}`);
+
+        // Place both orders in a single batch request (saves 1 API call)
+        const batchResult = await placeStopLossAndTakeProfit({
+          symbol,
+          side: side as 'BUY' | 'SELL',
+          quantity: formattedQuantity,
+          stopLossPrice: slPrice,
+          takeProfitPrice: tpPrice,
+          positionSide: orderPositionSide as 'BOTH' | 'LONG' | 'SHORT',
+          reduceOnly: orderPositionSide === 'BOTH',
+        }, this.config.api);
+
+        // Handle results
+        if (batchResult.stopLoss) {
+          orders.slOrderId = typeof batchResult.stopLoss.orderId === 'string' ?
+            parseInt(batchResult.stopLoss.orderId) : batchResult.stopLoss.orderId;
+          console.log(`PositionManager: Placed SL for ${symbol} at ${slPrice.toFixed(4)}, orderId: ${batchResult.stopLoss.orderId}`);
+
+          if (this.statusBroadcaster) {
+            this.statusBroadcaster.broadcastStopLossPlaced({
+              symbol,
+              price: slPrice,
+              quantity,
+              orderId: batchResult.stopLoss.orderId?.toString(),
+            });
+          }
+        }
+
+        if (batchResult.takeProfit) {
+          orders.tpOrderId = typeof batchResult.takeProfit.orderId === 'string' ?
+            parseInt(batchResult.takeProfit.orderId) : batchResult.takeProfit.orderId;
+          console.log(`PositionManager: Placed TP for ${symbol} at ${tpPrice.toFixed(4)}, orderId: ${batchResult.takeProfit.orderId}`);
+
+          if (this.statusBroadcaster) {
+            this.statusBroadcaster.broadcastTakeProfitPlaced({
+              symbol,
+              price: tpPrice,
+              quantity,
+              orderId: batchResult.takeProfit.orderId?.toString(),
+            });
+          }
+        }
+
+        if (batchResult.errors.length > 0) {
+          console.error(`PositionManager: Batch order errors for ${symbol}:`, batchResult.errors);
+        }
+
+        console.log(`PositionManager: Batch order placement saved 1 API call!`);
+      } else if (placeSL) {
+        // Place orders individually if not placing both
         // Get current market price to avoid "Order would immediately trigger" error
         const ticker = await axios.get(`https://fapi.asterdex.com/fapi/v1/ticker/price?symbol=${symbol}`);
         const currentPrice = parseFloat(ticker.data.price);

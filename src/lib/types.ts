@@ -38,12 +38,21 @@ export interface ServerConfig {
   websocketPort?: number;       // Port for the WebSocket server (default: 8080)
 }
 
+export interface RateLimitConfig {
+  maxRequestWeight?: number;  // Max request weight per minute (default: 2400)
+  maxOrderCount?: number;      // Max orders per minute (default: 1200)
+  reservePercent?: number;     // Percentage to reserve for critical operations (default: 30)
+  enableBatching?: boolean;    // Enable order batching (default: true)
+  queueTimeout?: number;       // Timeout for queued requests in ms (default: 30000)
+}
+
 export interface GlobalConfig {
   riskPercent: number;     // Max risk per trade as % of account balance
   paperMode: boolean;      // If true, simulate trades without executing
   positionMode?: 'ONE_WAY' | 'HEDGE'; // Position mode preference (optional)
   maxOpenPositions?: number; // Max number of open positions (hedged pairs count as one)
   server?: ServerConfig;    // Optional server configuration
+  rateLimit?: RateLimitConfig; // Rate limit configuration
 }
 
 export interface Config {

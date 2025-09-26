@@ -23,6 +23,7 @@ import { useConfig } from '@/components/ConfigProvider';
 import websocketService from '@/lib/services/websocketService';
 import { useOrderNotifications } from '@/hooks/useOrderNotifications';
 import { useWebSocketUrl } from '@/hooks/useWebSocketUrl';
+import { RateLimitToastListener } from '@/hooks/useRateLimitToasts';
 import dataStore, { AccountInfo, Position } from '@/lib/services/dataStore';
 
 interface BalanceStatus {
@@ -214,6 +215,9 @@ export default function DashboardPage() {
 
   return (
     <DashboardLayout>
+      {/* Rate Limit Toast Listener */}
+      <RateLimitToastListener />
+
       {/* Minimal Bot Status Bar */}
       <MinimalBotStatus />
 

@@ -1,6 +1,6 @@
-import axios from 'axios';
 import { buildSignedQuery } from './auth';
 import { ApiCredentials } from '../types';
+import { getRateLimitedAxios } from './requestInterceptor';
 
 const BASE_URL = 'https://fapi.asterdex.com';
 
@@ -67,6 +67,7 @@ export async function getIncomeHistory(
 ): Promise<IncomeRecord[]> {
   const query = buildSignedQuery(params, credentials);
 
+  const axios = getRateLimitedAxios();
   const response = await axios.get<IncomeRecord[]>(
     `${BASE_URL}/fapi/v1/income?${query}`,
     {

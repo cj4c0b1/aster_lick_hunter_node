@@ -13,6 +13,9 @@ import { cleanupScheduler } from '../lib/services/cleanupScheduler';
 import { db } from '../lib/db/database';
 import { configManager } from '../lib/services/configManager';
 import pnlService from '../lib/services/pnlService';
+import { getRateLimitManager } from '../lib/api/rateLimitManager';
+import { startRateLimitLogging } from '../lib/api/rateLimitMonitor';
+import { initializeRateLimitToasts } from '../lib/api/rateLimitToasts';
 
 // Helper function to kill all child processes (synchronous for exit handler)
 function killAllProcesses() {
@@ -59,11 +62,24 @@ class AsterBot {
       this.config = await configManager.initialize();
       console.log('✅ Configuration loaded');
 
+      // Initialize Rate Limit Manager with config
+      const rateLimitConfig = this.config.global.rateLimit || {};
+      const rateLimitManager = getRateLimitManager(rateLimitConfig);
+      console.log('✅ Rate limit manager initialized');
+      console.log(`  Max weight: ${rateLimitConfig.maxRequestWeight || 2400}/min`);
+      console.log(`  Max orders: ${rateLimitConfig.maxOrderCount || 1200}/min`);
+      console.log(`  Reserve: ${rateLimitConfig.reservePercent || 30}% for critical operations`);
+
       // Initialize WebSocket server with configured port
       const wsPort = this.config.global.server?.websocketPort || 8080;
       this.statusBroadcaster = new StatusBroadcaster(wsPort);
       await this.statusBroadcaster.start();
       console.log(`✅ WebSocket status server started on port ${wsPort}`);
+
+      // Start rate limit monitoring with toast notifications
+      startRateLimitLogging(60000); // Log status every minute
+      initializeRateLimitToasts(this.statusBroadcaster); // Enable toast notifications
+      console.log('✅ Rate limit monitoring started with toast notifications');
       console.log(`📝 Paper Mode: ${this.config.global.paperMode ? 'ENABLED' : 'DISABLED'}`);
       console.log(`💰 Risk Percent: ${this.config.global.riskPercent}%`);
       console.log(`📊 Symbols configured: ${Object.keys(this.config.symbols).join(', ')}`);

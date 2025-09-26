@@ -1,6 +1,6 @@
-import axios from 'axios';
 import { buildSignedQuery, buildSignedForm } from './auth';
 import { ApiCredentials } from '../types';
+import { getRateLimitedAxios } from './requestInterceptor';
 
 const BASE_URL = 'https://fapi.asterdex.com';
 
@@ -12,6 +12,7 @@ export async function getPositionMode(api: ApiCredentials): Promise<boolean> {
   const queryString = buildSignedQuery({}, api);
 
   try {
+    const axios = getRateLimitedAxios();
     const response = await axios.get<PositionModeResponse>(
       `${BASE_URL}/fapi/v1/positionSide/dual?${queryString}`,
       {
@@ -34,6 +35,7 @@ export async function setPositionMode(dualSidePosition: boolean, api: ApiCredent
   }, api);
 
   try {
+    const axios = getRateLimitedAxios();
     await axios.post(
       `${BASE_URL}/fapi/v1/positionSide/dual`,
       params.toString(),
