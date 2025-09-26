@@ -236,7 +236,7 @@ export default function RecentOrdersTable({ maxRows = 50 }: RecentOrdersTablePro
 
   // Get order type badge
   const getTypeBadge = (type: OrderType) => {
-    const colors = {
+    const colors: Record<string, string> = {
       [OrderType.MARKET]: 'bg-purple-600/10 text-purple-600 border-purple-600/20',
       [OrderType.LIMIT]: 'bg-blue-600/10 text-blue-600 border-blue-600/20',
       [OrderType.STOP_MARKET]: 'bg-orange-600/10 text-orange-600 border-orange-600/20',
@@ -257,10 +257,10 @@ export default function RecentOrdersTable({ maxRows = 50 }: RecentOrdersTablePro
     // Check if this is a reduce-only order (closing/reducing position)
     if (order.reduceOnly) {
       // Check if it's a stop-loss or take-profit
-      if (order.type === OrderType.STOP_MARKET || order.type === OrderType.STOP) {
+      if (order.type === OrderType.STOP_MARKET || order.type === 'STOP') {
         return 'STOP LOSS';
       }
-      if (order.type === OrderType.TAKE_PROFIT_MARKET || order.type === OrderType.TAKE_PROFIT) {
+      if (order.type === OrderType.TAKE_PROFIT_MARKET || order.type === 'TAKE_PROFIT') {
         return 'TAKE PROFIT';
       }
       // Check if it fully closed the position (would need position tracking for accuracy)
@@ -322,8 +322,8 @@ export default function RecentOrdersTable({ maxRows = 50 }: RecentOrdersTablePro
       const isClosingOrder = o.reduceOnly ||
                              o.type === OrderType.STOP_MARKET ||
                              o.type === OrderType.TAKE_PROFIT_MARKET ||
-                             o.type === OrderType.STOP ||
-                             o.type === OrderType.TAKE_PROFIT;
+                             o.type === 'STOP' ||
+                             o.type === 'TAKE_PROFIT';
 
       return hasRealizedPnL || isClosingOrder;
     });
