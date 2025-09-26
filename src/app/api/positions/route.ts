@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPositions } from '@/lib/api/orders';
+import { getOpenOrders } from '@/lib/api/market';
 import { loadConfig } from '@/lib/bot/config';
 
 export async function GET(_request: NextRequest) {
@@ -11,8 +12,11 @@ export async function GET(_request: NextRequest) {
       return NextResponse.json([]);
     }
 
-    // Get positions from exchange
-    const positions = await getPositions(config.api);
+    // Get positions and open orders from exchange
+    const [positions, openOrders] = await Promise.all([
+      getPositions(config.api),
+      getOpenOrders(undefined, config.api)
+    ]);
 
     // Filter out positions with zero amount and format for UI
     const activePositions = positions
@@ -25,10 +29,26 @@ export async function GET(_request: NextRequest) {
         const leverage = parseInt(pos.leverage || '1');
         const quantity = Math.abs(positionAmt);
         const notionalValue = quantity * entryPrice;
+        const side = positionAmt > 0 ? 'LONG' : 'SHORT';
+
+        // Check for active SL/TP orders for this position
+        const hasStopLoss = openOrders.some(order =>
+          order.symbol === pos.symbol &&
+          (order.type === 'STOP_MARKET' || order.type === 'STOP') &&
+          order.reduceOnly === true &&
+          ((side === 'LONG' && order.side === 'SELL') || (side === 'SHORT' && order.side === 'BUY'))
+        );
+
+        const hasTakeProfit = openOrders.some(order =>
+          order.symbol === pos.symbol &&
+          (order.type === 'TAKE_PROFIT_MARKET' || order.type === 'TAKE_PROFIT' ||
+           (order.type === 'LIMIT' && order.reduceOnly === true)) &&
+          ((side === 'LONG' && order.side === 'SELL') || (side === 'SHORT' && order.side === 'BUY'))
+        );
 
         return {
           symbol: pos.symbol,
-          side: positionAmt > 0 ? 'LONG' : 'SHORT',
+          side,
           quantity,
           entryPrice,
           markPrice,
@@ -37,6 +57,8 @@ export async function GET(_request: NextRequest) {
           margin: notionalValue / leverage,
           leverage,
           liquidationPrice: pos.liquidationPrice ? parseFloat(pos.liquidationPrice) : undefined,
+          hasStopLoss,
+          hasTakeProfit,
         };
       });
 

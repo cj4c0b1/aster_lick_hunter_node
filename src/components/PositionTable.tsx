@@ -4,10 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { TrendingUp, TrendingDown, Wallet, X, Check, Edit3, BarChart3 } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, BarChart3 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import websocketService from '@/lib/services/websocketService';
 import { useConfig } from '@/components/ConfigProvider';
@@ -25,6 +23,8 @@ interface Position {
   stopLoss?: number;
   takeProfit?: number;
   leverage: number;
+  hasStopLoss?: boolean;
+  hasTakeProfit?: boolean;
 }
 
 interface VWAPData {
@@ -36,20 +36,12 @@ interface VWAPData {
 interface PositionTableProps {
   positions?: Position[];
   onClosePosition?: (symbol: string, side: 'LONG' | 'SHORT') => void;
-  onUpdateSL?: (symbol: string, side: 'LONG' | 'SHORT', price: number) => void;
-  onUpdateTP?: (symbol: string, side: 'LONG' | 'SHORT', price: number) => void;
 }
 
 export default function PositionTable({
   positions = [],
   onClosePosition,
-  onUpdateSL,
-  onUpdateTP,
 }: PositionTableProps) {
-  const [editingSL, setEditingSL] = useState<string | null>(null);
-  const [editingTP, setEditingTP] = useState<string | null>(null);
-  const [tempSL, setTempSL] = useState<number>(0);
-  const [tempTP, setTempTP] = useState<number>(0);
   const [realPositions, setRealPositions] = useState<Position[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [markPrices, setMarkPrices] = useState<Record<string, number>>({});
@@ -198,34 +190,6 @@ export default function PositionTable({
     return position;
   });
 
-  // Removed color helper functions since we're using inline classes now
-
-  const handleSLEdit = (position: Position) => {
-    const key = `${position.symbol}-${position.side}`;
-    setEditingSL(key);
-    setTempSL(position.stopLoss || 0);
-  };
-
-  const handleTPEdit = (position: Position) => {
-    const key = `${position.symbol}-${position.side}`;
-    setEditingTP(key);
-    setTempTP(position.takeProfit || 0);
-  };
-
-  const saveSL = (position: Position) => {
-    if (onUpdateSL && tempSL > 0) {
-      onUpdateSL(position.symbol, position.side, tempSL);
-    }
-    setEditingSL(null);
-  };
-
-  const saveTP = (position: Position) => {
-    if (onUpdateTP && tempTP > 0) {
-      onUpdateTP(position.symbol, position.side, tempTP);
-    }
-    setEditingTP(null);
-  };
-
   const totalPnL = displayPositions.reduce((sum, p) => sum + p.pnl, 0);
   const totalMargin = displayPositions.reduce((sum, p) => sum + p.margin, 0);
 
@@ -268,7 +232,6 @@ export default function PositionTable({
                 <TableHead className="text-center">VWAP</TableHead>
                 <TableHead className="text-center">Stop Loss</TableHead>
                 <TableHead className="text-center">Take Profit</TableHead>
-                <TableHead className="text-center">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -283,7 +246,6 @@ export default function PositionTable({
                   <TableCell className="text-right"><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
                   <TableCell className="text-right"><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
                   <TableCell className="text-center"><Skeleton className="h-4 w-12 mx-auto" /></TableCell>
-                  <TableCell className="text-center"><Skeleton className="h-4 w-16 mx-auto" /></TableCell>
                   <TableCell className="text-center"><Skeleton className="h-4 w-16 mx-auto" /></TableCell>
                   <TableCell className="text-center"><Skeleton className="h-4 w-16 mx-auto" /></TableCell>
                 </TableRow>
@@ -377,114 +339,33 @@ export default function PositionTable({
                     )}
                   </TableCell>
                   <TableCell className="text-center">
-                    {editingSL === key ? (
-                      <div className="flex items-center gap-1">
-                        <Input
-                          type="number"
-                          value={tempSL}
-                          onChange={(e) => setTempSL(parseFloat(e.target.value))}
-                          className="w-20 h-8 text-sm"
-                        />
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => saveSL(position)}
-                          className="h-8 w-8 p-0 text-green-600 hover:text-green-700"
-                        >
-                          <Check className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setEditingSL(null)}
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
+                    {position.hasStopLoss ? (
+                      <Badge variant="default" className="bg-green-600 hover:bg-green-700">
+                        Active
+                      </Badge>
                     ) : (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleSLEdit(position)}
-                        className="text-sm h-8"
-                      >
-                        {position.stopLoss ? (
-                          <div className="flex items-center gap-1">
-                            ${formatPriceWithCommas(position.symbol, position.stopLoss)}
-                            <Edit3 className="h-3 w-3" />
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1">
-                            Set SL
-                            <Edit3 className="h-3 w-3" />
-                          </div>
-                        )}
-                      </Button>
+                      <Badge variant="secondary">
+                        Inactive
+                      </Badge>
                     )}
                   </TableCell>
                   <TableCell className="text-center">
-                    {editingTP === key ? (
-                      <div className="flex items-center gap-1">
-                        <Input
-                          type="number"
-                          value={tempTP}
-                          onChange={(e) => setTempTP(parseFloat(e.target.value))}
-                          className="w-20 h-8 text-sm"
-                        />
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => saveTP(position)}
-                          className="h-8 w-8 p-0 text-green-600 hover:text-green-700"
-                        >
-                          <Check className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setEditingTP(null)}
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
+                    {position.hasTakeProfit ? (
+                      <Badge variant="default" className="bg-green-600 hover:bg-green-700">
+                        Active
+                      </Badge>
                     ) : (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleTPEdit(position)}
-                        className="text-sm h-8"
-                      >
-                        {position.takeProfit ? (
-                          <div className="flex items-center gap-1">
-                            ${formatPriceWithCommas(position.symbol, position.takeProfit)}
-                            <Edit3 className="h-3 w-3" />
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1">
-                            Set TP
-                            <Edit3 className="h-3 w-3" />
-                          </div>
-                        )}
-                      </Button>
+                      <Badge variant="secondary">
+                        Inactive
+                      </Badge>
                     )}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => onClosePosition && onClosePosition(position.symbol, position.side)}
-                    >
-                      Close
-                    </Button>
                   </TableCell>
                 </TableRow>
               );
             })}
             {!isLoading && displayPositions.length === 0 && (
               <TableRow>
-                <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                   No open positions
                 </TableCell>
               </TableRow>
