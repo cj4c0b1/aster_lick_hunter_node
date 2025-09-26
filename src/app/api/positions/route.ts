@@ -3,7 +3,31 @@ import { getPositions } from '@/lib/api/orders';
 import { getOpenOrders } from '@/lib/api/market';
 import { loadConfig } from '@/lib/bot/config';
 
-export async function GET(_request: NextRequest) {
+// Simple in-memory cache
+interface CacheEntry {
+  data: any;
+  timestamp: number;
+}
+
+const cache: Map<string, CacheEntry> = new Map();
+const CACHE_TTL = 5000; // 5 seconds
+
+export async function GET(request: NextRequest) {
+  const cacheKey = 'positions';
+
+  // Check if force refresh is requested
+  const searchParams = request.nextUrl.searchParams;
+  const forceRefresh = searchParams.get('force') === 'true';
+
+  // Check cache first (skip if force refresh)
+  if (!forceRefresh) {
+    const cached = cache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      console.log('[Positions API] Returning cached data');
+      return NextResponse.json(cached.data);
+    }
+  }
+
   try {
     const config = await loadConfig();
 
@@ -29,6 +53,7 @@ export async function GET(_request: NextRequest) {
         const leverage = parseInt(pos.leverage || '1');
         const quantity = Math.abs(positionAmt);
         const notionalValue = quantity * entryPrice;
+        const currentNotionalValue = quantity * markPrice;
         const side = positionAmt > 0 ? 'LONG' : 'SHORT';
 
         // Check for active SL/TP orders for this position
@@ -54,13 +79,19 @@ export async function GET(_request: NextRequest) {
           markPrice,
           pnl: unRealizedProfit,
           pnlPercent: notionalValue > 0 ? (unRealizedProfit / notionalValue) * 100 : 0,
-          margin: notionalValue / leverage,
+          margin: currentNotionalValue / leverage,
           leverage,
           liquidationPrice: pos.liquidationPrice ? parseFloat(pos.liquidationPrice) : undefined,
           hasStopLoss,
           hasTakeProfit,
         };
       });
+
+    // Cache the successful response
+    cache.set(cacheKey, {
+      data: activePositions,
+      timestamp: Date.now(),
+    });
 
     return NextResponse.json(activePositions);
   } catch (error) {

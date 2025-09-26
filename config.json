@@ -46,6 +46,7 @@
   "global": {
     "riskPercent": 100,
     "paperMode": false,
+    "positionMode": "HEDGE",
     "maxOpenPositions": 7
   }
 }

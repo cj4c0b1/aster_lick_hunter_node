@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import websocketService from '@/lib/services/websocketService';
 import { useConfig } from '@/components/ConfigProvider';
 import { useSymbolPrecision } from '@/hooks/useSymbolPrecision';
+import dataStore from '@/lib/services/dataStore';
 
 interface Position {
   symbol: string;
@@ -51,77 +52,124 @@ export default function PositionTable({
 
   // Load initial positions and set up WebSocket updates
   useEffect(() => {
-    loadPositions();
-
-    // Set up WebSocket listener for real-time updates
-    const handleMessage = (message: any) => {
-      if (message.type === 'position_update') {
-        // Refresh positions when we get position updates
-        loadPositions();
-      } else if (message.type === 'mark_price_update') {
-        // Update mark prices for live PnL calculation
-        if (Array.isArray(message.data)) {
-          const priceUpdates: Record<string, number> = {};
-          message.data.forEach((price: any) => {
-            priceUpdates[price.symbol] = parseFloat(price.markPrice);
-          });
-          setMarkPrices(prev => ({ ...prev, ...priceUpdates }));
-        }
-      } else if (message.type === 'vwap_update') {
-        // Update single VWAP value
-        const data = message.data;
-        if (data && data.symbol) {
-          setVwapData(prev => ({
-            ...prev,
-            [data.symbol]: {
-              value: data.vwap,
-              position: data.position,
-              timestamp: data.timestamp
-            }
-          }));
-        }
-      } else if (message.type === 'vwap_bulk') {
-        // Update multiple VWAP values at once
-        if (Array.isArray(message.data)) {
-          const vwapUpdates: Record<string, VWAPData> = {};
-          message.data.forEach((data: any) => {
-            vwapUpdates[data.symbol] = {
-              value: data.vwap,
-              position: data.position,
-              timestamp: data.timestamp
-            };
-          });
-          setVwapData(prev => ({ ...prev, ...vwapUpdates }));
-        }
-      }
-    };
-
-    const cleanupMessageHandler = websocketService.addMessageHandler(handleMessage);
-
-    // Load initial VWAP data once
-    loadVWAPData();
-
-    // Cleanup on unmount
-    return () => {
-      cleanupMessageHandler();
-    };
-  }, []);
-
-  // No longer need to load VWAP data when positions change - it's streamed via WebSocket
-
-  const loadPositions = async () => {
-    try {
-      const response = await fetch('/api/positions');
-      if (response.ok) {
-        const data = await response.json();
+    // Use data store if no positions passed as props
+    if (positions.length === 0) {
+      // Load initial data from data store
+      dataStore.fetchPositions().then((data) => {
         setRealPositions(data);
+        setIsLoading(false);
+      }).catch((error) => {
+        console.error('[PositionTable] Failed to load positions:', error);
+        setIsLoading(false);
+      });
+
+      // Subscribe to data store events
+      const handlePositionsUpdate = (data: Position[]) => {
+        setRealPositions(data);
+      };
+
+      const handleMarkPricesUpdate = (prices: Record<string, number>) => {
+        setMarkPrices(prices);
+      };
+
+      dataStore.on('positions:update', handlePositionsUpdate);
+      dataStore.on('markPrices:update', handleMarkPricesUpdate);
+
+      // Load initial mark prices
+      const currentMarkPrices = dataStore.getMarkPrices();
+      if (Object.keys(currentMarkPrices).length > 0) {
+        setMarkPrices(currentMarkPrices);
       }
-    } catch (error) {
-      console.error('Failed to load positions:', error);
-    } finally {
+
+      // Clean up data store listeners
+      const cleanupDataStore = () => {
+        dataStore.off('positions:update', handlePositionsUpdate);
+        dataStore.off('markPrices:update', handleMarkPricesUpdate);
+      };
+
+      // Forward WebSocket messages to data store and handle VWAP
+      const handleWebSocketMessage = (message: any) => {
+        // Forward to data store for balance/position/mark price updates
+        dataStore.handleWebSocketMessage(message);
+
+        // Handle VWAP updates separately (not in data store)
+        if (message.type === 'vwap_update') {
+          const data = message.data;
+          if (data && data.symbol) {
+            setVwapData(prev => ({
+              ...prev,
+              [data.symbol]: {
+                value: data.vwap,
+                position: data.position,
+                timestamp: data.timestamp
+              }
+            }));
+          }
+        } else if (message.type === 'vwap_bulk') {
+          if (Array.isArray(message.data)) {
+            const vwapUpdates: Record<string, VWAPData> = {};
+            message.data.forEach((data: any) => {
+              vwapUpdates[data.symbol] = {
+                value: data.vwap,
+                position: data.position,
+                timestamp: data.timestamp
+              };
+            });
+            setVwapData(prev => ({ ...prev, ...vwapUpdates }));
+          }
+        }
+      };
+
+      const cleanupWebSocket = websocketService.addMessageHandler(handleWebSocketMessage);
+
+      // Load initial VWAP data once
+      loadVWAPData();
+
+      // Cleanup on unmount
+      return () => {
+        cleanupDataStore();
+        cleanupWebSocket();
+      };
+    } else {
+      // Use passed positions and set up VWAP updates only
       setIsLoading(false);
+
+      const handleVwapMessage = (message: any) => {
+        if (message.type === 'vwap_update') {
+          const data = message.data;
+          if (data && data.symbol) {
+            setVwapData(prev => ({
+              ...prev,
+              [data.symbol]: {
+                value: data.vwap,
+                position: data.position,
+                timestamp: data.timestamp
+              }
+            }));
+          }
+        } else if (message.type === 'vwap_bulk') {
+          if (Array.isArray(message.data)) {
+            const vwapUpdates: Record<string, VWAPData> = {};
+            message.data.forEach((data: any) => {
+              vwapUpdates[data.symbol] = {
+                value: data.vwap,
+                position: data.position,
+                timestamp: data.timestamp
+              };
+            });
+            setVwapData(prev => ({ ...prev, ...vwapUpdates }));
+          }
+        }
+      };
+
+      const cleanupVwap = websocketService.addMessageHandler(handleVwapMessage);
+      loadVWAPData();
+
+      return () => {
+        cleanupVwap();
+      };
     }
-  };
+  }, [positions.length]); // Only re-run when positions prop changes
 
   // Initial load of VWAP data (fallback for when WebSocket is not yet connected)
   const loadVWAPData = async () => {
@@ -398,7 +446,7 @@ export default function PositionTable({
             })}
             {!isLoading && displayPositions.length === 0 && (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                   No open positions
                 </TableCell>
               </TableRow>

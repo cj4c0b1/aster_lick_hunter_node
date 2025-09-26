@@ -74,7 +74,7 @@ export async function getAccountInfo(credentials: ApiCredentials): Promise<any> 
   const query = paramsToQuery(signedParams);
 
   try {
-    const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v2/account?${query}`, {
+    const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v4/account?${query}`, {
       headers: {
         'X-MBX-APIKEY': credentials.apiKey
       }
@@ -85,7 +85,7 @@ export async function getAccountInfo(credentials: ApiCredentials): Promise<any> 
       status: error.response?.status,
       statusText: error.response?.statusText,
       data: error.response?.data,
-      url: `${BASE_URL}/fapi/v2/account?${query}`,
+      url: `${BASE_URL}/fapi/v4/account?${query}`,
       headers: { 'X-MBX-APIKEY': credentials.apiKey }
     });
     throw error;

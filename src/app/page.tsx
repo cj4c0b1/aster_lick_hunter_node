@@ -19,12 +19,12 @@ import PerformanceCard from '@/components/PerformanceCard';
 import { useConfig } from '@/components/ConfigProvider';
 import websocketService from '@/lib/services/websocketService';
 import { useOrderNotifications } from '@/hooks/useOrderNotifications';
+import dataStore, { AccountInfo, Position } from '@/lib/services/dataStore';
 
-interface AccountInfo {
-  totalBalance: number;
-  availableBalance: number;
-  totalPositionValue: number;
-  totalPnL: number;
+interface BalanceStatus {
+  source?: string;
+  timestamp?: number;
+  error?: string;
 }
 
 export default function DashboardPage() {
@@ -35,66 +35,87 @@ export default function DashboardPage() {
     totalPositionValue: 1500,
     totalPnL: 60,
   });
+  const [balanceStatus, setBalanceStatus] = useState<BalanceStatus>({});
   const [isLoading, setIsLoading] = useState(true);
-  const [positions, setPositions] = useState<any[]>([]);
+  const [positions, setPositions] = useState<Position[]>([]);
   const [markPrices, setMarkPrices] = useState<Record<string, number>>({});
 
   // Initialize order notifications
   useOrderNotifications();
 
   useEffect(() => {
-    // Load initial balance and positions
-    loadAccountInfo();
-    loadPositions();
-
-    // Set up WebSocket listener for real-time updates
-    const handleMessage = (message: any) => {
-      if (message.type === 'balance_update') {
-        setAccountInfo(message.data);
+    // Load initial data from data store
+    const loadInitialData = async () => {
+      try {
+        const [balanceData, positionsData] = await Promise.all([
+          dataStore.fetchBalance(),
+          dataStore.fetchPositions()
+        ]);
+        setAccountInfo(balanceData);
+        setPositions(positionsData);
+        setBalanceStatus({ source: 'api', timestamp: Date.now() });
+      } catch (error) {
+        console.error('[Dashboard] Failed to load initial data:', error);
+        setBalanceStatus({ error: error instanceof Error ? error.message : 'Unknown error' });
+      } finally {
         setIsLoading(false);
-      } else if (message.type === 'position_update') {
-        loadPositions();
-        setTimeout(() => loadAccountInfo(), 500);
-      } else if (message.type === 'mark_price_update') {
-        // Update mark prices for live PnL display
-        if (Array.isArray(message.data)) {
-          const priceUpdates: Record<string, number> = {};
-          message.data.forEach((price: any) => {
-            priceUpdates[price.symbol] = parseFloat(price.markPrice);
-          });
-          setMarkPrices(prev => ({ ...prev, ...priceUpdates }));
-        }
       }
     };
 
-    const cleanupMessageHandler = websocketService.addMessageHandler(handleMessage);
+    loadInitialData();
+
+    // Listen to data store updates
+    const handleBalanceUpdate = (data: AccountInfo & { source: string }) => {
+      console.log('[Dashboard] Balance updated from data store:', data.source);
+      setAccountInfo(data);
+      setBalanceStatus({ source: data.source, timestamp: Date.now() });
+      setIsLoading(false);
+    };
+
+    const handlePositionsUpdate = (data: Position[]) => {
+      console.log('[Dashboard] Positions updated from data store');
+      setPositions(data);
+    };
+
+    const handleMarkPricesUpdate = (prices: Record<string, number>) => {
+      setMarkPrices(prices);
+    };
+
+    // Subscribe to data store events
+    dataStore.on('balance:update', handleBalanceUpdate);
+    dataStore.on('positions:update', handlePositionsUpdate);
+    dataStore.on('markPrices:update', handleMarkPricesUpdate);
+
+    // Set up WebSocket listener for real-time updates
+    const handleWebSocketMessage = (message: any) => {
+      // Forward to data store for centralized handling
+      dataStore.handleWebSocketMessage(message);
+    };
+
+    const cleanupMessageHandler = websocketService.addMessageHandler(handleWebSocketMessage);
 
     // Cleanup on unmount
-    return cleanupMessageHandler;
-  }, []);
+    return () => {
+      dataStore.off('balance:update', handleBalanceUpdate);
+      dataStore.off('positions:update', handlePositionsUpdate);
+      dataStore.off('markPrices:update', handleMarkPricesUpdate);
+      cleanupMessageHandler();
+    };
+  }, []); // No dependencies - only run once on mount
 
-  // Load positions for live PnL calculation
-  const loadPositions = async () => {
+  // Refresh data manually if needed
+  const refreshData = async () => {
     try {
-      const response = await fetch('/api/positions');
-      if (response.ok) {
-        const data = await response.json();
-        setPositions(data);
-      }
-    } catch (_error) {
-    }
-  };
-
-  const loadAccountInfo = async () => {
-    try {
-      const response = await fetch('/api/balance');
-      if (response.ok) {
-        const data = await response.json();
-        setAccountInfo(data);
-      }
-    } catch (_error) {
-    } finally {
-      setIsLoading(false);
+      const [balanceData, positionsData] = await Promise.all([
+        dataStore.fetchBalance(true), // Force refresh
+        dataStore.fetchPositions(true)
+      ]);
+      setAccountInfo(balanceData);
+      setPositions(positionsData);
+      setBalanceStatus({ source: 'manual', timestamp: Date.now() });
+    } catch (error) {
+      console.error('[Dashboard] Failed to refresh data:', error);
+      setBalanceStatus({ error: error instanceof Error ? error.message : 'Unknown error' });
     }
   };
 
@@ -201,7 +222,15 @@ export default function DashboardPage() {
                   <>
                     <div className="text-2xl font-bold">{formatCurrency(liveAccountInfo.totalBalance)}</div>
                     <p className="text-xs text-muted-foreground">
-                      Account equity
+                      {balanceStatus.error ? (
+                        <span className="text-red-500">Connection error</span>
+                      ) : balanceStatus.source === 'websocket' ? (
+                        <span className="text-green-500">● Live</span>
+                      ) : balanceStatus.source === 'rest-account' || balanceStatus.source === 'rest-balance' ? (
+                        <span className="text-yellow-500">● REST API</span>
+                      ) : (
+                        'Account equity'
+                      )}
                     </p>
                   </>
                 )}

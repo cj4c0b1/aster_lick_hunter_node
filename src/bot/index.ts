@@ -2,13 +2,12 @@
 
 import { Hunter } from '../lib/bot/hunter';
 import { PositionManager } from '../lib/bot/positionManager';
-import { loadConfig } from '../lib/bot/config';
 import { Config } from '../lib/types';
 import { StatusBroadcaster } from './websocketServer';
 import { initializeBalanceService, stopBalanceService, getBalanceService } from '../lib/services/balanceService';
 import { initializePriceService, stopPriceService, getPriceService } from '../lib/services/priceService';
 import { vwapStreamer } from '../lib/services/vwapStreamer';
-import { getPositionMode, setPositionMode } from '../lib/api/positionMode';
+import { getPositionMode } from '../lib/api/positionMode';
 import { execSync } from 'child_process';
 import { cleanupScheduler } from '../lib/services/cleanupScheduler';
 import { db } from '../lib/db/database';
@@ -83,14 +82,38 @@ class AsterBot {
       });
 
       // Check API keys
-      if (!this.config.api.apiKey || !this.config.api.secretKey) {
+      const hasValidApiKeys = this.config.api.apiKey && this.config.api.secretKey &&
+                              this.config.api.apiKey.length > 0 && this.config.api.secretKey.length > 0;
+
+      if (!hasValidApiKeys) {
         console.log('⚠️  WARNING: No API keys configured. Running in PAPER MODE only.');
         console.log('   Please configure your API keys via the web interface at http://localhost:3000/config');
         if (!this.config.global.paperMode) {
           console.error('❌ Cannot run in LIVE mode without API keys!');
           throw new Error('API keys required for live trading');
         }
-      } else {
+      }
+
+      if (hasValidApiKeys) {
+        // Initialize balance service and set up WebSocket broadcasting
+        try {
+          console.log('Initializing balance service...');
+          await initializeBalanceService(this.config.api);
+
+          // Connect balance service to status broadcaster
+          const balanceService = getBalanceService();
+          if (balanceService) {
+            balanceService.on('balanceUpdate', (balanceData) => {
+              console.log('[Bot] Broadcasting balance update via WebSocket');
+              this.statusBroadcaster.broadcast('balance_update', balanceData);
+            });
+          }
+          console.log('✅ Balance service initialized and connected to WebSocket broadcaster');
+        } catch (error) {
+          console.error('Failed to initialize balance service:', error);
+          // Continue anyway - bot can work without balance service
+        }
+
         // Check and set position mode
         try {
           this.isHedgeMode = await getPositionMode(this.config.api);
@@ -112,60 +135,38 @@ class AsterBot {
           this.isHedgeMode = false;
         }
 
-        // Initialize real-time balance service if API keys are available
+        // Initialize PnL tracking service with balance data
         try {
-          await initializeBalanceService(this.config.api);
-          console.log('✅ Real-time balance service started');
-
-          // Initialize PnL tracking service
           const balanceService = getBalanceService();
           if (balanceService) {
+            const status = balanceService.getConnectionStatus();
             const currentBalance = balanceService.getCurrentBalance();
-            if (currentBalance) {
+
+            if (status.connected) {
+              console.log('✅ Real-time balance service connected');
+              console.log('[Bot] Balance service status:', {
+                connected: status.connected,
+                lastUpdate: status.lastUpdate ? new Date(status.lastUpdate).toISOString() : 'never',
+                balance: currentBalance
+              });
+            } else {
+              console.warn('⚠️ Balance service initialized but not fully connected:', status.error);
+            }
+
+            // Initialize PnL tracking service
+            if (currentBalance && currentBalance.totalBalance > 0) {
               pnlService.resetSession(currentBalance.totalBalance);
-              console.log('✅ PnL tracking service initialized');
+              console.log('✅ PnL tracking service initialized with balance:', currentBalance.totalBalance);
+            } else {
+              console.warn('⚠️ PnL tracking not initialized - no balance data available');
             }
-          }
-
-          // Listen for balance updates and broadcast to web UI
-          if (balanceService) {
-            balanceService.on('balanceUpdate', (balanceData) => {
-              this.statusBroadcaster.broadcastBalance({
-                totalBalance: balanceData.totalBalance,
-                availableBalance: balanceData.availableBalance,
-                totalPositionValue: balanceData.totalPositionValue,
-                totalPnL: balanceData.totalPnL,
-              });
-            });
-            console.log('✅ Balance broadcasting to web UI enabled');
-
-            // Also broadcast current balance immediately and periodically
-            const currentBalance = balanceService.getCurrentBalance();
-            if (currentBalance) {
-              this.statusBroadcaster.broadcastBalance({
-                totalBalance: currentBalance.totalBalance,
-                availableBalance: currentBalance.availableBalance,
-                totalPositionValue: currentBalance.totalPositionValue,
-                totalPnL: currentBalance.totalPnL,
-              });
-            }
-
-            // Broadcast balance every 5 seconds to ensure UI stays updated
-            setInterval(() => {
-              const balance = balanceService.getCurrentBalance();
-              if (balance) {
-                this.statusBroadcaster.broadcastBalance({
-                  totalBalance: balance.totalBalance,
-                  availableBalance: balance.availableBalance,
-                  totalPositionValue: balance.totalPositionValue,
-                  totalPnL: balance.totalPnL,
-                });
-              }
-            }, 5000);
           }
         } catch (error: any) {
-          console.error('⚠️  Balance service failed to start:', error.message);
-          this.statusBroadcaster.addError(`Balance Service: ${error.message}`);
+          console.error('⚠️  Balance service failed to start:', error instanceof Error ? error.message : error);
+          console.error('[Bot] Balance service error stack:', error instanceof Error ? error.stack : 'No stack trace');
+          this.statusBroadcaster.addError(`Balance Service: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          // Continue running bot even if balance service fails
+          console.log('[Bot] Bot will continue without real-time balance updates');
         }
 
         // Initialize Price Service for real-time mark prices

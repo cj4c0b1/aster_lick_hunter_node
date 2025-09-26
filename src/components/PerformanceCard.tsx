@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TrendingUp, TrendingDown, Activity, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import websocketService from '@/lib/services/websocketService';
+import dataStore from '@/lib/services/dataStore';
 
 interface DailyPnL {
   date: string;
@@ -31,37 +32,27 @@ interface PnLMetrics {
   sharpeRatio: number;
 }
 
-interface BalanceData {
-  totalWalletBalance: number;
-  totalUnrealizedProfit: number;
-  totalMarginBalance: number;
-  availableBalance: number;
-}
 
 export default function PerformanceCard() {
   const [pnlData, setPnlData] = useState<{ dailyPnL: DailyPnL[], metrics: PnLMetrics } | null>(null);
-  const [balanceData, setBalanceData] = useState<BalanceData | null>(null);
+  const [totalBalance, setTotalBalance] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch initial 24h data and balance data
+  // Fetch initial 24h data
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch both 24h PnL and balance data
-        const [pnlResponse, balanceResponse] = await Promise.all([
-          fetch('/api/income?range=24h'),
-          fetch('/api/balance')
-        ]);
+        // Fetch 24h PnL data
+        const pnlResponse = await fetch('/api/income?range=24h');
 
         if (pnlResponse.ok) {
           const pnlData = await pnlResponse.json();
           setPnlData(pnlData);
         }
 
-        if (balanceResponse.ok) {
-          const balanceData = await balanceResponse.json();
-          setBalanceData(balanceData);
-        }
+        // Get balance from data store
+        const balanceData = await dataStore.fetchBalance();
+        setTotalBalance(balanceData.totalBalance);
       } catch (error) {
         console.error('Failed to fetch data:', error);
       } finally {
@@ -72,23 +63,37 @@ export default function PerformanceCard() {
     fetchData();
   }, []);
 
-  // Subscribe to real-time updates to refresh 24h data and balance
+  // Subscribe to real-time updates
   useEffect(() => {
+    // Listen for balance updates from data store
+    const handleBalanceUpdate = (data: any) => {
+      setTotalBalance(data.totalBalance);
+    };
+
+    dataStore.on('balance:update', handleBalanceUpdate);
+
+    // Listen for trade updates to refresh PnL
     const handleMessage = (message: any) => {
-      if (message.type === 'pnl_update' || message.type === 'trade_update' || message.type === 'balance_update') {
-        // Refresh both 24h data and balance when trades occur
-        Promise.all([
-          fetch('/api/income?range=24h').then(r => r.json()),
-          fetch('/api/balance').then(r => r.json())
-        ]).then(([pnlData, balanceData]) => {
-          setPnlData(pnlData);
-          setBalanceData(balanceData);
-        }).catch(error => console.error('Failed to refresh data:', error));
+      if (message.type === 'pnl_update' || message.type === 'trade_update') {
+        // Refresh 24h data when trades occur
+        fetch('/api/income?range=24h')
+          .then(r => r.json())
+          .then(pnlData => setPnlData(pnlData))
+          .catch(error => console.error('Failed to refresh PnL data:', error));
+      }
+
+      // Forward balance updates to data store
+      if (message.type === 'balance_update') {
+        dataStore.handleWebSocketMessage(message);
       }
     };
 
     const cleanup = websocketService.addMessageHandler(handleMessage);
-    return cleanup;
+
+    return () => {
+      dataStore.off('balance:update', handleBalanceUpdate);
+      cleanup();
+    };
   }, []);
 
   const formatCurrency = (value: number) => {
@@ -109,7 +114,7 @@ export default function PerformanceCard() {
     return `${minutes}m`;
   };
 
-  if (isLoading || !pnlData || !balanceData) {
+  if (isLoading || !pnlData) {
     return (
       <Card>
         <CardHeader className="pb-3">
@@ -131,8 +136,7 @@ export default function PerformanceCard() {
   const totalTrades = pnlData.dailyPnL.reduce((sum, day) => sum + day.tradeCount, 0);
   const isProfit = totalPnL >= 0;
 
-  // Calculate return percentage based on total wallet balance
-  const totalBalance = balanceData.totalWalletBalance;
+  // Calculate return percentage based on total balance
   const returnPercent = totalBalance > 0 ? (totalPnL / totalBalance) * 100 : 0;
 
   return (

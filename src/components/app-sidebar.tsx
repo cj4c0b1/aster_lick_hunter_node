@@ -29,6 +29,7 @@ import { Badge } from "@/components/ui/badge"
 import { useConfig } from "@/components/ConfigProvider"
 import { useBotStatus } from "@/hooks/useBotStatus"
 import websocketService from '@/lib/services/websocketService'
+import dataStore from '@/lib/services/dataStore'
 
 const navigation = [
   {
@@ -53,31 +54,29 @@ export function AppSidebar() {
 
   // Load positions and listen for updates
   React.useEffect(() => {
-    // Load initial positions
-    const loadPositions = async () => {
-      try {
-        const response = await fetch('/api/positions')
-        if (response.ok) {
-          const data = await response.json()
-          setPositions(data)
-        }
-      } catch (error) {
-        console.error('Failed to load positions:', error)
-      }
+    // Load initial positions from data store
+    dataStore.fetchPositions()
+      .then(data => setPositions(data))
+      .catch(error => console.error('[AppSidebar] Failed to load positions:', error))
+
+    // Subscribe to position updates from data store
+    const handlePositionsUpdate = (data: any[]) => {
+      setPositions(data)
     }
 
-    loadPositions()
+    dataStore.on('positions:update', handlePositionsUpdate)
 
-    // Listen for position updates
+    // Forward WebSocket messages to data store
     const handleMessage = (message: any) => {
-      if (message.type === 'position_update') {
-        // Refresh positions when we get updates
-        loadPositions()
-      }
+      dataStore.handleWebSocketMessage(message)
     }
 
     const cleanup = websocketService.addMessageHandler(handleMessage)
-    return cleanup
+
+    return () => {
+      dataStore.off('positions:update', handlePositionsUpdate)
+      cleanup()
+    }
   }, [])
 
 

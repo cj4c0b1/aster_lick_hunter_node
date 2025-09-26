@@ -159,3 +159,113 @@ The Next.js application uses App Router with key pages:
 **NEVER** start the development server or run `npm run dev` or any server commands. The user manages the server themselves and starting additional servers can cause port conflicts and issues.
 
 **SECURITY NOTE**: The `config.json` file contains API keys and should never be committed to version control. Always check that sensitive configuration is properly excluded from git.
+
+## Making API Calls to Aster Finance Exchange
+
+When you need to check or verify data from the Aster Finance exchange (e.g., account balance, positions, order status, market data), you can make API calls using the configured API credentials. Here's how to do it:
+
+### Loading Configuration
+
+First, load the API credentials from `config.json`:
+
+```typescript
+import fs from 'fs';
+import path from 'path';
+
+const configPath = path.join(process.cwd(), 'config.json');
+const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+const credentials = config.api; // { apiKey: string, secretKey: string }
+```
+
+### Authentication and API Calls
+
+The bot uses HMAC SHA256 authentication. You can use the existing auth utilities:
+
+#### For Account Data (Balance, Positions, Orders):
+```typescript
+import { getBalance, getPositions, getOpenOrders, getAccountInfo } from './src/lib/api/market';
+
+// Get account balance
+const balance = await getBalance(credentials);
+
+// Get current positions
+const positions = await getPositions(credentials);
+
+// Get open orders
+const openOrders = await getOpenOrders(undefined, credentials);
+
+// Get account info (includes positions and account details)
+const accountInfo = await getAccountInfo(credentials);
+```
+
+#### For Market Data (Public, no authentication needed):
+```typescript
+import { getMarkPrice, getKlines, getExchangeInfo, getOrderBook, getBookTicker } from './src/lib/api/market';
+
+// Get current mark prices for all symbols
+const markPrices = await getMarkPrice();
+
+// Get klines (candlestick data)
+const klines = await getKlines('BTCUSDT', '1m', 100);
+
+// Get exchange information (symbols, price/quantity precision, etc.)
+const exchangeInfo = await getExchangeInfo();
+
+// Get order book depth
+const orderBook = await getOrderBook('BTCUSDT', 5);
+
+// Get best bid/ask prices
+const bookTicker = await getBookTicker('BTCUSDT');
+```
+
+#### For Order Management:
+```typescript
+import { queryOrder, getAllOrders, setLeverage } from './src/lib/api/orders';
+
+// Query specific order
+const orderDetails = await queryOrder({ symbol: 'BTCUSDT', orderId: 12345 }, credentials);
+
+// Get all orders for a symbol
+const allOrders = await getAllOrders('BTCUSDT', credentials);
+
+// Change leverage
+const leverageResponse = await setLeverage('BTCUSDT', 10, credentials);
+```
+
+### Base URL and Headers
+
+All API calls use:
+- **Base URL**: `https://fapi.asterdex.com`
+- **Request Headers**:
+  - `X-MBX-APIKEY`: Your API key
+  - `Content-Type`: `application/x-www-form-urlencoded` (for POST requests)
+
+### Authentication Building Blocks
+
+If you need to construct custom API calls:
+
+```typescript
+import { buildSignedQuery, buildSignedForm, getTimestamp } from './src/lib/api/auth';
+
+// For GET requests (sign query parameters)
+const queryString = buildSignedQuery({ symbol: 'BTCUSDT' }, credentials);
+const response = await axios.get(`https://fapi.asterdex.com/fapi/v1/openOrders?${queryString}`, {
+  headers: { 'X-MBX-APIKEY': credentials.apiKey }
+});
+
+// For POST requests (sign form data)
+const formData = buildSignedForm({ symbol: 'BTCUSDT', leverage: 10 }, credentials);
+const response = await axios.post('https://fapi.asterdex.com/fapi/v1/leverage', formData, {
+  headers: {
+    'X-MBX-APIKEY': credentials.apiKey,
+    'Content-Type': 'application/x-www-form-urlencoded'
+  }
+});
+```
+
+### Important Notes
+
+- All signed requests include timestamp and are valid for 5 seconds (recvWindow: 5000ms)
+- Always check the API documentation at `docs/aster-finance-futures-api.md` for endpoint details
+- Use paper mode (`"paperMode": true` in config.json) when testing to avoid real trades
+- API responses include detailed error information in `error.response?.data` for debugging

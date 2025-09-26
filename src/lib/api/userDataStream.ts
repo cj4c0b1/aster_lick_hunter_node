@@ -42,6 +42,9 @@ export class UserDataStream {
   private onAccountUpdate?: (data: AccountUpdate) => void;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
+  private isConnected = false;
+  private lastPingTime = 0;
+  private pingInterval: NodeJS.Timeout | null = null;
 
   constructor(credentials: ApiCredentials) {
     this.credentials = credentials;
@@ -51,27 +54,40 @@ export class UserDataStream {
     this.onAccountUpdate = onAccountUpdate;
 
     try {
+      console.log('[UserDataStream] Getting listen key...');
       // Get listen key
       this.listenKey = await this.getListenKey();
+      console.log('[UserDataStream] Listen key obtained:', this.listenKey ? 'yes' : 'no');
 
       // Connect to WebSocket
+      console.log('[UserDataStream] Connecting to WebSocket...');
       await this.connect();
 
       // Start keepalive
       this.startKeepAlive();
 
-      console.log('User data stream started successfully');
+      console.log('[UserDataStream] User data stream started successfully');
     } catch (error) {
-      console.error('Failed to start user data stream:', error);
+      console.error('[UserDataStream] Failed to start user data stream:', error instanceof Error ? error.message : error);
+      this.isConnected = false;
       throw error;
     }
   }
 
   async stop(): Promise<void> {
+    console.log('[UserDataStream] Stopping user data stream...');
+    this.isConnected = false;
+
     // Stop keepalive
     if (this.keepAliveInterval) {
       clearInterval(this.keepAliveInterval);
       this.keepAliveInterval = null;
+    }
+
+    // Stop ping interval
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
     }
 
     // Close WebSocket
@@ -86,26 +102,39 @@ export class UserDataStream {
       this.listenKey = null;
     }
 
-    console.log('User data stream stopped');
+    console.log('[UserDataStream] User data stream stopped');
   }
 
   private async getListenKey(): Promise<string> {
-    const response = await axios.post(`${BASE_URL}/fapi/v1/listenKey`, {}, {
-      headers: {
-        'X-MBX-APIKEY': this.credentials.apiKey
+    try {
+      const response = await axios.post(`${BASE_URL}/fapi/v1/listenKey`, {}, {
+        headers: {
+          'X-MBX-APIKEY': this.credentials.apiKey
+        }
+      });
+      return response.data.listenKey;
+    } catch (error) {
+      console.error('[UserDataStream] Failed to get listen key:', error instanceof Error ? error.message : error);
+      if (axios.isAxiosError(error)) {
+        console.error('[UserDataStream] Response data:', error.response?.data);
       }
-    });
-    return response.data.listenKey;
+      throw error;
+    }
   }
 
   private async keepAliveListenKey(): Promise<void> {
     if (!this.listenKey) return;
 
-    await axios.put(`${BASE_URL}/fapi/v1/listenKey`, {}, {
-      headers: {
-        'X-MBX-APIKEY': this.credentials.apiKey
-      }
-    });
+    try {
+      await axios.put(`${BASE_URL}/fapi/v1/listenKey`, {}, {
+        headers: {
+          'X-MBX-APIKEY': this.credentials.apiKey
+        }
+      });
+      console.log('[UserDataStream] Listen key keepalive sent successfully');
+    } catch (error) {
+      console.error('[UserDataStream] Failed to keepalive listen key:', error instanceof Error ? error.message : error);
+    }
   }
 
   private async closeListenKey(): Promise<void> {
@@ -185,7 +214,29 @@ export class UserDataStream {
     } else if (message.e === 'listenKeyExpired') {
       console.log('Listen key expired, refreshing...');
       this.refreshConnection();
+    } else if (message.e) {
+      console.log('[UserDataStream] Received event type:', message.e);
     }
+  }
+
+  private startPingMonitoring(): void {
+    // Monitor connection health
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+    }
+
+    this.pingInterval = setInterval(() => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        const timeSinceLastPing = Date.now() - this.lastPingTime;
+        if (timeSinceLastPing > 60000) { // No ping for 60 seconds
+          console.warn('[UserDataStream] No ping received for 60 seconds, connection may be stale');
+        }
+      }
+    }, 30000); // Check every 30 seconds
+  }
+
+  public isHealthy(): boolean {
+    return this.isConnected && this.ws !== null && this.ws.readyState === WebSocket.OPEN;
   }
 
   private startKeepAlive(): void {
@@ -193,9 +244,8 @@ export class UserDataStream {
     this.keepAliveInterval = setInterval(async () => {
       try {
         await this.keepAliveListenKey();
-        console.log('User data stream keepalive sent');
       } catch (error) {
-        console.error('Failed to send keepalive:', error);
+        console.error('[UserDataStream] Failed to send keepalive:', error);
       }
     }, 50 * 60 * 1000);
   }
