@@ -297,37 +297,37 @@ export default function PnLChart() {
       const displayValue = isDaily ? data.netPnl : data.cumulativePnl;
 
       return (
-        <div className="bg-background border rounded-lg shadow-lg p-3">
-          <p className="font-semibold">{new Date(label).toLocaleDateString()}</p>
-          <div className="space-y-1 mt-2">
-            <div className="flex justify-between gap-4">
+        <div className="bg-background border rounded shadow-lg p-2">
+          <p className="text-xs font-semibold">{new Date(label).toLocaleDateString()}</p>
+          <div className="space-y-0.5 mt-1">
+            <div className="flex justify-between gap-3 text-xs">
               <span className="text-muted-foreground">
-                {isDaily ? 'Net PnL:' : 'Cumulative PnL:'}
+                {isDaily ? 'Net PnL' : 'Cumulative'}
               </span>
-              <span className={displayValue >= 0 ? 'text-green-500' : 'text-red-500'}>
+              <span className={`font-medium ${displayValue >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                 {formatTooltipValue(displayValue)}
               </span>
             </div>
             {isDaily && (
               <>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Realized:</span>
+                <div className="flex justify-between gap-3 text-xs">
+                  <span className="text-muted-foreground">Realized</span>
                   <span className={data.realizedPnl >= 0 ? 'text-green-500' : 'text-red-500'}>
                     {formatTooltipValue(data.realizedPnl)}
                   </span>
                 </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Commission:</span>
+                <div className="flex justify-between gap-3 text-xs">
+                  <span className="text-muted-foreground">Fees</span>
                   <span className="text-red-500">{formatTooltipValue(data.commission)}</span>
                 </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Funding:</span>
+                <div className="flex justify-between gap-3 text-xs">
+                  <span className="text-muted-foreground">Funding</span>
                   <span className={data.fundingFee >= 0 ? 'text-green-500' : 'text-red-500'}>
                     {formatTooltipValue(data.fundingFee)}
                   </span>
                 </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Trades:</span>
+                <div className="flex justify-between gap-3 text-xs">
+                  <span className="text-muted-foreground">Trades</span>
                   <span>{data.tradeCount}</span>
                 </div>
               </>
@@ -403,11 +403,11 @@ export default function PnLChart() {
         </CardHeader>
         {!isCollapsed && (
           <CardContent>
-            <div className="flex items-center justify-center h-[400px] text-muted-foreground">
-              <div className="text-center space-y-2">
-                <BarChart3 className="h-12 w-12 mx-auto opacity-50" />
-                <p className="text-lg font-medium">No trading data available</p>
-                <p className="text-sm">
+            <div className="flex items-center justify-center h-[200px] text-muted-foreground">
+              <div className="text-center space-y-1">
+                <BarChart3 className="h-8 w-8 mx-auto opacity-50" />
+                <p className="text-sm font-medium">No trading data available</p>
+                <p className="text-xs">
                   {pnlData?.error
                     ? `Error: ${pnlData.error}`
                     : `No PnL data found for the selected ${timeRange} period`}
@@ -502,26 +502,26 @@ export default function PnLChart() {
         <CardContent>
         {/* Performance Summary */}
         {safeMetrics && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Total PnL</p>
-              <p className={`text-xl font-bold ${safeMetrics.totalPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+          <div className="grid grid-cols-4 gap-3 mb-3">
+            <div>
+              <p className="text-xs text-muted-foreground">Total PnL</p>
+              <p className={`text-sm font-semibold ${safeMetrics.totalPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                 {formatTooltipValue(safeMetrics.totalPnl)}
               </p>
             </div>
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">PnL %</p>
-              <p className={`text-xl font-bold ${pnlPercentage >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+            <div>
+              <p className="text-xs text-muted-foreground">PnL %</p>
+              <p className={`text-sm font-semibold ${pnlPercentage >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                 {pnlPercentage >= 0 ? '+' : ''}{pnlPercentage.toFixed(2)}%
               </p>
             </div>
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Win Rate</p>
-              <p className="text-xl font-bold">{safeMetrics.winRate.toFixed(1)}%</p>
+            <div>
+              <p className="text-xs text-muted-foreground">Win Rate</p>
+              <p className="text-sm font-semibold">{safeMetrics.winRate.toFixed(1)}%</p>
             </div>
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">APR %</p>
-              <p className={`text-xl font-bold ${apr >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+            <div>
+              <p className="text-xs text-muted-foreground">APR %</p>
+              <p className={`text-sm font-semibold ${apr >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                 {apr >= 0 ? '+' : ''}{apr.toFixed(1)}%
               </p>
             </div>
@@ -535,18 +535,18 @@ export default function PnLChart() {
               <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           )}
-          <ResponsiveContainer width="100%" height={400}>
+          <ResponsiveContainer width="100%" height={250}>
             {chartType === 'daily' ? (
-            <BarChart data={chartData} margin={{ left: 10, right: 30, top: 10, bottom: 10 }}>
+            <BarChart data={chartData} margin={{ left: 0, right: 10, top: 5, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 12 }}
+                tick={{ fontSize: 10 }}
                 tickFormatter={formatDateTick}
                 domain={['dataMin', 'dataMax']}
-                padding={{ left: 20, right: 20 }}
+                padding={{ left: 10, right: 10 }}
               />
-              <YAxis tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 10 }} width={40} />
               <Tooltip content={<CustomTooltip />} />
               <ReferenceLine y={0} stroke="#666" />
               <Bar
@@ -559,14 +559,14 @@ export default function PnLChart() {
               </Bar>
             </BarChart>
           ) : (
-            <AreaChart data={chartData}>
+            <AreaChart data={chartData} margin={{ left: 0, right: 10, top: 5, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 12 }}
+                tick={{ fontSize: 10 }}
                 tickFormatter={formatDateTick}
               />
-              <YAxis tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 10 }} width={40} />
               <Tooltip content={<CustomTooltip />} />
               <ReferenceLine y={0} stroke="#666" />
               <Area
@@ -583,28 +583,28 @@ export default function PnLChart() {
 
         {/* Additional Metrics */}
         {safeMetrics && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t">
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Best Day</p>
-              <p className="text-sm font-medium text-green-500">
+          <div className="grid grid-cols-4 gap-3 mt-3 pt-3 border-t">
+            <div>
+              <p className="text-xs text-muted-foreground">Best Day</p>
+              <p className="text-xs font-medium text-green-500">
                 {safeMetrics.bestDay ? formatTooltipValue(safeMetrics.bestDay.netPnl) : '-'}
               </p>
             </div>
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Worst Day</p>
-              <p className="text-sm font-medium text-red-500">
+            <div>
+              <p className="text-xs text-muted-foreground">Worst Day</p>
+              <p className="text-xs font-medium text-red-500">
                 {safeMetrics.worstDay ? formatTooltipValue(safeMetrics.worstDay.netPnl) : '-'}
               </p>
             </div>
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Avg Daily</p>
-              <p className="text-sm font-medium">
+            <div>
+              <p className="text-xs text-muted-foreground">Avg Daily</p>
+              <p className="text-xs font-medium">
                 {formatTooltipValue(safeMetrics.avgDailyPnl)}
               </p>
             </div>
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Max Drawdown</p>
-              <p className="text-sm font-medium text-orange-500">
+            <div>
+              <p className="text-xs text-muted-foreground">Max Drawdown</p>
+              <p className="text-xs font-medium text-orange-500">
                 {formatTooltipValue(safeMetrics.maxDrawdown)}
               </p>
             </div>
