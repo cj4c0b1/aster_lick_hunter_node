@@ -12,14 +12,14 @@ A smart trading bot that monitors and trades liquidation events on Aster DEX. Fe
 
 ## 🎯 What Makes This Bot Special
 
-📈 **Real-time Liquidation Hunting** - Monitors and instantly trades liquidation events
-💰 **Smart Position Management** - Automatic stop-loss and take-profit on every trade
-🧪 **Paper Trading Mode** - Test strategies safely with simulated trades
-🎨 **Beautiful Web Dashboard** - Monitor everything from a clean, modern UI
-⚡ **One-Click Setup** - Get running in under 2 minutes
-🔄 **Auto-Reconnection** - Never miss a trade due to connection issues
-📊 **VWAP Protection** - Avoid bad entries with volume-weighted analysis
-🛡️ **Risk Controls** - Position limits and leverage management built-in
+- 📈 **Real-time Liquidation Hunting** - Monitors and instantly trades liquidation events
+- 💰 **Smart Position Management** - Automatic stop-loss and take-profit on every trade
+- 🧪 **Paper Trading Mode** - Test strategies safely with simulated trades
+- 🎨 **Beautiful Web Dashboard** - Monitor everything from a clean, modern UI
+- ⚡ **One-Click Setup** - Get running in under 2 minutes
+- 🔄 **Auto-Reconnection** - Never miss a trade due to connection issues
+- 📊 **VWAP Protection** - Avoid bad entries with volume-weighted analysis
+- 🛡️ **Risk Controls** - Position limits and leverage management built-in
 
 ## 🚀 Quick Start
 
