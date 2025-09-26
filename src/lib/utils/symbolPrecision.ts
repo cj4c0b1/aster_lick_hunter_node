@@ -84,10 +84,13 @@ export class SymbolPrecisionManager {
     // Ensure it's aligned with tick size
     const tickSize = parseFloat(filter.tickSize);
     if (tickSize > 0) {
-      return Math.round(rounded / tickSize) * tickSize;
+      const aligned = Math.round(rounded / tickSize) * tickSize;
+      // Parse and return to avoid floating point precision issues
+      return parseFloat(aligned.toFixed(filter.pricePrecision));
     }
 
-    return rounded;
+    // Parse and return to avoid floating point precision issues
+    return parseFloat(rounded.toFixed(filter.pricePrecision));
   }
 
   // Format quantity according to symbol's step size

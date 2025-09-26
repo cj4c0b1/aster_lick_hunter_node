@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { createSignature } from './auth';
+import { buildSignedQuery, buildSignedForm } from './auth';
 import { ApiCredentials } from '../types';
 
 const BASE_URL = 'https://fapi.asterdex.com';
@@ -9,18 +9,11 @@ export interface PositionModeResponse {
 }
 
 export async function getPositionMode(api: ApiCredentials): Promise<boolean> {
-  const timestamp = Date.now();
-  const params = new URLSearchParams({
-    timestamp: timestamp.toString(),
-    recvWindow: '5000',
-  });
-
-  const signature = createSignature(params.toString(), api.secretKey);
-  params.append('signature', signature);
+  const queryString = buildSignedQuery({}, api);
 
   try {
     const response = await axios.get<PositionModeResponse>(
-      `${BASE_URL}/fapi/v1/positionSide/dual?${params.toString()}`,
+      `${BASE_URL}/fapi/v1/positionSide/dual?${queryString}`,
       {
         headers: {
           'X-MBX-APIKEY': api.apiKey,
@@ -36,15 +29,9 @@ export async function getPositionMode(api: ApiCredentials): Promise<boolean> {
 }
 
 export async function setPositionMode(dualSidePosition: boolean, api: ApiCredentials): Promise<void> {
-  const timestamp = Date.now();
-  const params = new URLSearchParams({
+  const params = buildSignedForm({
     dualSidePosition: dualSidePosition.toString(),
-    timestamp: timestamp.toString(),
-    recvWindow: '5000',
-  });
-
-  const signature = createSignature(params.toString(), api.secretKey);
-  params.append('signature', signature);
+  }, api);
 
   try {
     await axios.post(
