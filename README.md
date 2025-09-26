@@ -119,7 +119,13 @@ MIT License - Free to use and modify
 
 ## ⚠️ Disclaimer
 
-Trading cryptocurrency carries substantial risk. This bot is for educational purposes. Always do your own research and trade responsibly. The authors are not responsible for any losses.
+**IMPORTANT RISK WARNING**: Trading cryptocurrency carries substantial risk of loss. This bot is provided for educational and research purposes only.
+
+**No Warranty**: This is open source software provided "as is" without warranty of any kind. There may be bugs, errors, or unexpected behavior that could result in financial losses.
+
+**Developer Liability**: The developers of this open source project are in no way responsible for any financial losses, damages, or other consequences that may result from using this software. By using this bot, you acknowledge and accept full responsibility for all trading decisions and outcomes.
+
+**Use at Your Own Risk**: Only trade with funds you can afford to lose completely. Always do your own research, test thoroughly in paper mode, and trade responsibly. Never risk more than you can afford to lose.
 
 ---
 
