@@ -130,3 +130,43 @@
     display: none;
   }
 }
+
+/* Enhanced GSAP toast animations */
+[data-sonner-toaster] {
+  /* Ensure transform animations work properly */
+  transform-style: preserve-3d;
+}
+
+[data-sonner-toast] {
+  /* Enable hardware acceleration for smooth animations */
+  transform: translate3d(0, 0, 0);
+  will-change: transform, opacity, scale;
+
+  /* Ensure proper stacking context */
+  position: relative;
+  z-index: auto;
+
+  /* Smooth transitions for any non-GSAP animations */
+  transition: all 0.2s ease-out;
+
+  /* Add subtle backdrop blur for visual depth */
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Enhance toast visibility with better shadows and borders */
+[data-sonner-toast] {
+  box-shadow:
+    0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 4px 6px -2px rgba(0, 0, 0, 0.05),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dark [data-sonner-toast] {
+  box-shadow:
+    0 10px 15px -3px rgba(0, 0, 0, 0.3),
+    0 4px 6px -2px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
