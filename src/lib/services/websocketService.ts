@@ -41,24 +41,54 @@ class WebSocketService {
         return;
       }
 
+      // If already connecting, wait for it to complete
+      if (this.ws && this.ws.readyState === WebSocket.CONNECTING) {
+        const checkConnection = () => {
+          if (this.ws?.readyState === WebSocket.OPEN) {
+            resolve();
+          } else if (this.ws?.readyState === WebSocket.CLOSED || this.ws?.readyState === WebSocket.CLOSING) {
+            reject(new Error('WebSocket connection failed'));
+          } else {
+            setTimeout(checkConnection, 50);
+          }
+        };
+        checkConnection();
+        return;
+      }
+
       console.log('WebSocketService: Connecting to', this.url);
-      this.ws = new WebSocket(this.url);
+
+      try {
+        this.ws = new WebSocket(this.url);
+      } catch (error) {
+        console.log('WebSocketService: Failed to create WebSocket:', error);
+        reject(new Error('Failed to create WebSocket connection'));
+        return;
+      }
+
+      const cleanup = () => {
+        if (this.ws) {
+          this.ws.removeEventListener('open', onOpen);
+          this.ws.removeEventListener('error', onError);
+        }
+      };
 
       const onOpen = () => {
         console.log('WebSocketService: Connected');
         this.isConnected = true;
         this.reconnectAttempts = 0;
         this.notifyConnectionChange(true);
-        this.ws!.removeEventListener('open', onOpen);
+        cleanup();
         resolve();
       };
 
-      const onError = () => {
-        // WebSocket errors don't provide useful information
-        console.log('WebSocketService: Connection failed');
-        this.ws!.removeEventListener('open', onOpen);
-        this.ws!.removeEventListener('error', onError);
-        reject(new Error('WebSocket connection failed'));
+      const onError = (event: Event) => {
+        console.log('WebSocketService: Connection failed to', this.url);
+        cleanup();
+        // Only reject if we're still in connecting state
+        if (this.ws?.readyState === WebSocket.CONNECTING || this.ws?.readyState === WebSocket.CLOSED) {
+          reject(new Error('WebSocket connection failed'));
+        }
       };
 
       this.ws.addEventListener('open', onOpen);
@@ -100,10 +130,17 @@ class WebSocketService {
     }
 
     if (this.ws) {
-      // Remove all listeners before closing
       const ws = this.ws;
       this.ws = null;
-      ws.close();
+
+      // Only close if not already closed/closing
+      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+        try {
+          ws.close();
+        } catch (error) {
+          console.log('WebSocketService: Error closing WebSocket:', error);
+        }
+      }
     }
 
     this.isConnected = false;
@@ -113,13 +150,18 @@ class WebSocketService {
   addMessageHandler(handler: MessageHandler): () => void {
     this.handlers.add(handler);
 
-    // Auto-connect if not already connected
-    if (!this.isConnected && !this.ws) {
+    // Auto-connect if not already connected or connecting
+    if (!this.isConnected && (!this.ws || this.ws.readyState === WebSocket.CLOSED)) {
       // Reset reconnect attempts when adding new handler
       this.reconnectAttempts = 0;
-      this.connect().catch(error => {
-        console.log('WebSocketService: Auto-connect failed, will retry');
-      });
+      // Add small delay to prevent race conditions during component mounting
+      setTimeout(() => {
+        if (!this.isConnected && (!this.ws || this.ws.readyState === WebSocket.CLOSED)) {
+          this.connect().catch(error => {
+            console.log('WebSocketService: Auto-connect failed, will retry');
+          });
+        }
+      }, 100);
     }
 
     // Return cleanup function
