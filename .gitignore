@@ -44,3 +44,7 @@ next-env.d.ts
 data/*.db
 data/*.db-journal
 data/*.db-wal
+
+# user configuration
+config.user.json
+config.json

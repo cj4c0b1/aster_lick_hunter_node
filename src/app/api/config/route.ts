@@ -1,24 +1,24 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
 import { Config } from '@/lib/types';
-import { configSchema } from '@/lib/bot/config';
+import { configLoader } from '@/lib/config/configLoader';
+import { configSchema } from '@/lib/config/types';
 
-const CONFIG_FILE = path.join(process.cwd(), 'config.json');
 
 export async function GET() {
   try {
-    const configText = await fs.readFile(CONFIG_FILE, 'utf-8');
-    const config = JSON.parse(configText);
+    // Use the config loader to get current config
+    let config = configLoader.getConfig();
 
-    // Validate config before returning
-    const validatedConfig = configSchema.parse(config);
+    // If not loaded yet, load it
+    if (!config) {
+      config = await configLoader.loadConfig();
+    }
 
-    return NextResponse.json(validatedConfig);
+    return NextResponse.json(config);
   } catch (error) {
     console.error('Failed to load config:', error);
 
-    // Return default config if file doesn't exist
+    // Return default config if loading fails
     const defaultConfig: Config = {
       api: {
         apiKey: '',
@@ -27,8 +27,11 @@ export async function GET() {
       global: {
         riskPercent: 2,
         paperMode: true,
+        positionMode: 'HEDGE',
+        maxOpenPositions: 10,
       },
       symbols: {},
+      version: '1.0.0',
     };
 
     return NextResponse.json(defaultConfig);
@@ -42,12 +45,8 @@ export async function POST(request: Request) {
     // Validate config
     const validatedConfig = configSchema.parse(body);
 
-    // Save to file
-    await fs.writeFile(
-      CONFIG_FILE,
-      JSON.stringify(validatedConfig, null, 2),
-      'utf-8'
-    );
+    // Save using the config loader (saves to user config)
+    await configLoader.saveConfig(validatedConfig);
 
     return NextResponse.json({ success: true, config: validatedConfig });
   } catch (error: any) {

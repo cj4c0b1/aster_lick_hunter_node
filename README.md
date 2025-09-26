@@ -1,3 +1,11 @@
+## 💝 Support Development - This Bot is 100% FREE!
+
+**This bot is completely free and open-source!** If you find it useful and want to support ongoing development, please consider creating your Aster DEX account using our referral link:
+
+### 👉 [**Create Aster DEX Account - Support Development**](https://www.asterdex.com/en/referral/3TixB2)
+
+*By using this referral link for your new account, you help fund continued improvements and new features while getting the exact same trading conditions. Thank you for your support!*
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
@@ -34,3 +42,6 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+
+- 💬 **[Discord Community](https://discord.gg/P8Ev3Up)** - Get help and share strategies

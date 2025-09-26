@@ -75,14 +75,39 @@ The application has a dual architecture:
   - `api/`: Exchange API interaction (auth, orders, market data)
   - `bot/`: Bot components (hunter, position manager, config)
 - **src/components/**: React components for the web UI
-- **config.json**: Trading configuration (API keys, symbols, risk parameters)
+- **config.user.json**: User-specific trading configuration (API keys, symbols, risk parameters)
+- **config.default.json**: Default configuration template with safe defaults
+- **config.example.json**: Example configuration for reference
 
 ## Configuration System
 
-The bot reads from `config.json` which contains:
+The bot uses a dual-configuration system for security and flexibility:
+
+### Configuration Files
+- **`config.user.json`**: User-specific configuration (not tracked by git)
+  - Contains your API keys and custom settings
+  - Auto-created on first run if missing
+  - This file is in `.gitignore` to protect your credentials
+
+- **`config.default.json`**: Default configuration template (tracked by git)
+  - Contains safe default values
+  - Used as a fallback for missing fields
+  - New settings are automatically merged to user config
+
+- **`config.example.json`**: Example configuration (tracked by git)
+  - Documentation reference with all available options
+
+### Initial Setup
+Run `npm run setup:config` to:
+- Migrate existing `config.json` to `config.user.json` (if it exists)
+- Create `config.user.json` from defaults (if no config exists)
+- Remove `config.json` from git tracking (if applicable)
+
+### Configuration Structure
 - **api**: API credentials for Aster Finance exchange
 - **symbols**: Per-symbol trading configuration (volume thresholds, leverage, SL/TP percentages)
 - **global**: Global settings (paper mode, risk percentage)
+- **version**: Config schema version for automatic migrations
 
 Example symbol configuration:
 ```json
@@ -164,7 +189,7 @@ The Next.js application uses App Router with key pages:
 
 **NEVER** start the development server or run `npm run dev` or any server commands. The user manages the server themselves and starting additional servers can cause port conflicts and issues.
 
-**SECURITY NOTE**: The `config.json` file contains API keys and should never be committed to version control. Always check that sensitive configuration is properly excluded from git.
+**SECURITY NOTE**: User configuration is stored in `config.user.json` which is automatically excluded from git. Never commit API keys or sensitive configuration to version control.
 
 ## Making API Calls to Aster Finance Exchange
 
@@ -172,15 +197,22 @@ When you need to check or verify data from the Aster Finance exchange (e.g., acc
 
 ### Loading Configuration
 
-First, load the API credentials from `config.json`:
+First, load the API credentials from the configuration:
 
 ```typescript
-import fs from 'fs';
-import path from 'path';
+import { loadConfig } from './src/lib/bot/config';
 
-const configPath = path.join(process.cwd(), 'config.json');
-const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+const config = await loadConfig();
 const credentials = config.api; // { apiKey: string, secretKey: string }
+```
+
+Or use the config loader directly:
+
+```typescript
+import { configLoader } from './src/lib/config/configLoader';
+
+const config = await configLoader.loadConfig();
+const credentials = config.api;
 ```
 
 ### Authentication and API Calls
@@ -273,5 +305,5 @@ const response = await axios.post('https://fapi.asterdex.com/fapi/v1/leverage', 
 
 - All signed requests include timestamp and are valid for 5 seconds (recvWindow: 5000ms)
 - Always check the API documentation at `docs/aster-finance-futures-api.md` for endpoint details
-- Use paper mode (`"paperMode": true` in config.json) when testing to avoid real trades
+- Use paper mode (`"paperMode": true` in config.user.json) when testing to avoid real trades
 - API responses include detailed error information in `error.response?.data` for debugging

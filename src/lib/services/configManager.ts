@@ -1,8 +1,9 @@
 import { EventEmitter } from 'events';
-import { promises as fs, watch, FSWatcher } from 'fs';
-import path from 'path';
+import { watch, FSWatcher } from 'fs';
+import { promises as fs } from 'fs';
 import { Config } from '../types';
-import { loadConfig, configSchema } from '../bot/config';
+import { configLoader } from '../config/configLoader';
+import { configSchema } from '../config/types';
 import { z } from 'zod';
 
 export interface ConfigManagerEvents {
@@ -20,7 +21,8 @@ export class ConfigManager extends EventEmitter {
 
   private constructor() {
     super();
-    this.configPath = path.join(process.cwd(), 'config.json');
+    // Now watch the user config file instead of config.json
+    this.configPath = configLoader.getUserConfigPath();
   }
 
   static getInstance(): ConfigManager {
@@ -33,8 +35,8 @@ export class ConfigManager extends EventEmitter {
   async initialize(): Promise<Config> {
     console.log('🔧 Initializing Config Manager...');
 
-    // Load initial config
-    this.config = await loadConfig();
+    // Load initial config using the new config loader
+    this.config = await configLoader.loadConfig();
 
     // Start watching for changes
     this.startWatching();
@@ -61,7 +63,7 @@ export class ConfigManager extends EventEmitter {
         }
       });
 
-      console.log('👀 Watching config.json for changes...');
+      console.log(`👀 Watching ${this.configPath} for changes...`);
     } catch (error) {
       console.error('Failed to start config watcher:', error);
       this.emit('config:error', error as Error);
@@ -77,19 +79,8 @@ export class ConfigManager extends EventEmitter {
     console.log('📝 Config file changed, reloading...');
 
     try {
-      // Read and parse the config file
-      const configText = await fs.readFile(this.configPath, 'utf8');
-      const parsed = JSON.parse(configText);
-
-      // Validate the new config
-      const validated = configSchema.parse(parsed);
-
-      // Validate API keys only if not in paper mode
-      if (!validated.global.paperMode) {
-        if (validated.api.apiKey.length !== 64 || validated.api.secretKey.length !== 64) {
-          throw new Error('API keys must be 64 characters when not in paper mode');
-        }
-      }
+      // Use the config loader to reload and validate
+      const validated = await configLoader.loadConfig();
 
       // Store old config for comparison
       const oldConfig = this.config;
@@ -176,10 +167,8 @@ export class ConfigManager extends EventEmitter {
   }
 
   async reloadConfig(): Promise<Config> {
-    await this.handleConfigChange();
-    if (!this.config) {
-      throw new Error('Failed to reload config');
-    }
+    this.config = await configLoader.loadConfig();
+    this.emit('config:updated', this.config);
     return this.config;
   }
 
