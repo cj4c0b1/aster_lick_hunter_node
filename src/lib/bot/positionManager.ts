@@ -1071,7 +1071,22 @@ export class PositionManager extends EventEmitter implements PositionTracker {
         const positionAmt = Math.abs(parseFloat(position.positionAmt));
         if (positionAmt > 0) {
           const entryPrice = parseFloat(position.entryPrice);
-          const leverage = parseFloat(position.leverage);
+          let leverage = parseFloat(position.leverage);
+
+          // Handle invalid leverage (0, NaN, or undefined)
+          if (!leverage || leverage === 0 || isNaN(leverage)) {
+            // Try to use configured leverage as fallback
+            const symbolConfig = this.config.symbols[symbol];
+            if (symbolConfig && symbolConfig.leverage) {
+              console.log(`PositionManager: Warning - Invalid leverage (${position.leverage}) for ${symbol} position, using configured leverage: ${symbolConfig.leverage}`);
+              leverage = symbolConfig.leverage;
+            } else {
+              // Last resort: assume leverage of 1 (no leverage)
+              console.log(`PositionManager: Warning - Invalid leverage (${position.leverage}) for ${symbol} position and no config found, defaulting to 1x`);
+              leverage = 1;
+            }
+          }
+
           // Margin = (Position Size × Entry Price) / Leverage
           const margin = (positionAmt * entryPrice) / leverage;
           totalMargin += margin;

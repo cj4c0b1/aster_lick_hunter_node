@@ -275,6 +275,9 @@ export class Hunter extends EventEmitter {
           const newTradeMargin = symbolConfig.tradeSize;
           const totalMargin = currentMargin + newTradeMargin;
 
+          // Enhanced logging to debug margin issues
+          console.log(`Hunter: Margin check for ${symbol} - Current: ${currentMargin.toFixed(2)} USDT, New trade: ${newTradeMargin} USDT, Total: ${totalMargin.toFixed(2)} USDT, Max allowed: ${symbolConfig.maxPositionMarginUSDT} USDT`);
+
           if (totalMargin > symbolConfig.maxPositionMarginUSDT) {
             console.log(`Hunter: Skipping trade - would exceed max margin for ${symbol} (${totalMargin.toFixed(2)}/${symbolConfig.maxPositionMarginUSDT} USDT)`);
             return;
