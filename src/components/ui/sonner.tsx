@@ -29,59 +29,29 @@ const Toaster = ({ ...props }: ToasterProps) => {
                 if (toastElement && !toastElement.hasAttribute('data-animated')) {
                   toastElement.setAttribute('data-animated', 'true');
 
-                  // Get all existing toasts to calculate proper stacking
-                  const allToasts = Array.from(document.querySelectorAll('[data-sonner-toast]'));
-                  const toastIndex = allToasts.indexOf(toastElement);
-
-                  // Set initial state
+                  // Set initial state for slide-in animation
                   gsap.set(toastElement, {
                     x: 400,
                     opacity: 0,
-                    scale: 0.9,
+                    scale: 0.95,
                     transformOrigin: "center center"
                   });
 
-                  // Animate in with staggered timing
+                  // Animate in with smooth slide
                   gsap.to(toastElement, {
                     x: 0,
                     opacity: 1,
                     scale: 1,
-                    duration: 0.5,
-                    ease: "back.out(1.7)",
-                    delay: toastIndex * 0.1 // Stagger new toasts
-                  });
-
-                  // Update positions of existing toasts when new ones are added
-                  allToasts.forEach((toast, index) => {
-                    if (toast !== toastElement && index < toastIndex) {
-                      gsap.to(toast, {
-                        y: -(toastIndex - index) * 10, // Push existing toasts up slightly
-                        duration: 0.3,
-                        ease: "power2.out"
-                      });
-                    }
+                    duration: 0.4,
+                    ease: "power3.out"
                   });
                 }
               }
             }
           });
 
-          // Handle removed toasts
-          mutation.removedNodes.forEach((node) => {
-            if (node.nodeType === Node.ELEMENT_NODE) {
-              const element = node as HTMLElement;
-
-              // Update remaining toasts positions when one is removed
-              const remainingToasts = Array.from(document.querySelectorAll('[data-sonner-toast]'));
-              remainingToasts.forEach((toast, index) => {
-                gsap.to(toast, {
-                  y: 0, // Reset to normal position
-                  duration: 0.3,
-                  ease: "power2.out"
-                });
-              });
-            }
-          });
+          // Handle removed toasts - no special animation needed
+          // Sonner handles the positioning internally with the gap prop
         });
       });
 
@@ -128,9 +98,11 @@ const Toaster = ({ ...props }: ToasterProps) => {
         } as React.CSSProperties
       }
       position="top-right"
-      expand={true}
+      expand={false}
       richColors={true}
       closeButton={true}
+      gap={8}
+      visibleToasts={10}
       {...props}
     />
   )
