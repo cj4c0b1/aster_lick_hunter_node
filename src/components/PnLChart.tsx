@@ -137,17 +137,25 @@ export default function PnLChart() {
     fetchPnLData();
   }, [timeRange]);
 
-  // Fetch initial real-time session data
+  // Fetch initial real-time session data and balance
   useEffect(() => {
     const fetchRealtimeData = async () => {
       try {
+        // Fetch realtime PnL
         const response = await fetch('/api/pnl/realtime');
         if (response.ok) {
           const data = await response.json();
           setRealtimePnL(data);
         }
+
+        // Fetch balance
+        const balanceResponse = await fetch('/api/balance');
+        if (balanceResponse.ok) {
+          const balanceData = await balanceResponse.json();
+          setTotalBalance(balanceData.totalBalance || 0);
+        }
       } catch (error) {
-        console.error('Failed to fetch realtime PnL:', error);
+        console.error('Failed to fetch realtime PnL or balance:', error);
       }
     };
 
@@ -402,6 +410,23 @@ export default function PnLChart() {
 
   const metrics = pnlData?.metrics;
 
+  // Calculate PnL percentage and APR
+  const pnlPercentage = totalBalance > 0 ? (metrics?.totalPnl ?? 0) / totalBalance * 100 : 0;
+
+  // Calculate APR based on the time range and actual days with data
+  const calculateAPR = () => {
+    if (!metrics || !chartData.length || totalBalance <= 0) return 0;
+
+    const daysWithData = chartData.length;
+    const totalReturn = metrics.totalPnl / totalBalance;
+
+    // Annualize the return based on actual trading days
+    const annualizedReturn = (totalReturn / daysWithData) * 365;
+    return annualizedReturn * 100; // Convert to percentage
+  };
+
+  const apr = calculateAPR();
+
   // Defensive check for metrics
   const safeMetrics = metrics ? {
     totalPnl: metrics.totalPnl ?? 0,
@@ -464,19 +489,19 @@ export default function PnLChart() {
               </p>
             </div>
             <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">PnL %</p>
+              <p className={`text-xl font-bold ${pnlPercentage >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {pnlPercentage >= 0 ? '+' : ''}{pnlPercentage.toFixed(2)}%
+              </p>
+            </div>
+            <div className="space-y-1">
               <p className="text-sm text-muted-foreground">Win Rate</p>
               <p className="text-xl font-bold">{safeMetrics.winRate.toFixed(1)}%</p>
             </div>
             <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Profit Factor</p>
-              <p className="text-xl font-bold">
-                {safeMetrics.profitFactor === Infinity ? '∞' : safeMetrics.profitFactor.toFixed(2)}
-              </p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Sharpe Ratio</p>
-              <p className="text-xl font-bold">
-                {safeMetrics.sharpeRatio.toFixed(2)}
+              <p className="text-sm text-muted-foreground">APR %</p>
+              <p className={`text-xl font-bold ${apr >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {apr >= 0 ? '+' : ''}{apr.toFixed(1)}%
               </p>
             </div>
           </div>
