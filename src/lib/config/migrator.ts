@@ -2,7 +2,7 @@ import { ConfigMigration } from './types';
 import { DEFAULT_CONFIG_VERSION } from './defaults';
 
 const migrations: ConfigMigration[] = [
-  // Example migration from v0.9.0 to v1.0.0
+  // Migration from v0.9.0 to v1.0.0
   {
     fromVersion: '0.9.0',
     toVersion: '1.0.0',
@@ -41,6 +41,24 @@ const migrations: ConfigMigration[] = [
       if (config.global && config.global.maxOpenPositions === undefined) {
         config.global.maxOpenPositions = 10;
       }
+
+      return config;
+    }
+  },
+  // Migration from v1.0.0 to v1.1.0 - Add support for separate long/short trade sizes
+  {
+    fromVersion: '1.0.0',
+    toVersion: '1.1.0',
+    migrate: (config: any) => {
+      // Update version
+      config.version = '1.1.0';
+
+      // No structural changes needed for v1.1.0
+      // The longTradeSize and shortTradeSize fields are optional
+      // When not present, the bot falls back to using tradeSize
+      // This ensures backward compatibility
+
+      console.log('Migrated to v1.1.0: Added support for separate long/short trade sizes');
 
       return config;
     }

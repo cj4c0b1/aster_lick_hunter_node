@@ -351,6 +351,7 @@ export class Hunter extends EventEmitter {
     let currentPrice: number = entryPrice;
     let quantity: number = 0;
     let notionalUSDT: number = 0;
+    let tradeSizeUSDT: number = symbolConfig.tradeSize; // Default to general tradeSize
 
     try {
       // Check position limits before placing trade
@@ -451,8 +452,12 @@ export class Hunter extends EventEmitter {
       }
 
       // Calculate proper quantity based on USDT margin value
-      // tradeSize is the margin in USDT, multiply by leverage to get notional, then divide by price for quantity
-      notionalUSDT = symbolConfig.tradeSize * symbolConfig.leverage;
+      // Use direction-specific trade size if available, otherwise fall back to general tradeSize
+      tradeSizeUSDT = side === 'BUY'
+        ? (symbolConfig.longTradeSize ?? symbolConfig.tradeSize)
+        : (symbolConfig.shortTradeSize ?? symbolConfig.tradeSize);
+
+      notionalUSDT = tradeSizeUSDT * symbolConfig.leverage;
 
       // Ensure we meet minimum notional requirement
       if (notionalUSDT < minNotional) {
@@ -482,7 +487,7 @@ export class Hunter extends EventEmitter {
       // Set leverage if needed
       await setLeverage(symbol, symbolConfig.leverage, this.config.api);
 
-      console.log(`Hunter: Calculated quantity for ${symbol}: margin=${symbolConfig.tradeSize} USDT, leverage=${symbolConfig.leverage}x, price=${currentPrice}, notional=${notionalUSDT} USDT, quantity=${quantity}`);
+      console.log(`Hunter: Calculated quantity for ${symbol}: margin=${tradeSizeUSDT} USDT (${side === 'BUY' ? 'long' : 'short'}), leverage=${symbolConfig.leverage}x, price=${currentPrice}, notional=${notionalUSDT} USDT, quantity=${quantity}`);
 
       // Prepare order parameters
       const orderParams: any = {
@@ -545,7 +550,7 @@ export class Hunter extends EventEmitter {
         console.error(`  Price: ${tradingError.price}`);
         console.error(`  Quantity: ${tradingError.quantity}`);
         console.error(`  Leverage: ${tradingError.leverage}x`);
-        console.error(`  Margin used: ${symbolConfig.tradeSize} USDT`);
+        console.error(`  Margin used: ${tradeSizeUSDT} USDT (${side === 'BUY' ? 'long' : 'short'})`);
         console.error(`  This indicates the symbol may have special requirements or price has moved significantly.`);
       } else if (tradingError instanceof RateLimitError) {
         console.error(`Hunter: RATE LIMIT ERROR - Too many requests, please slow down`);

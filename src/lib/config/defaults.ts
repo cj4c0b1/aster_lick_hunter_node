@@ -1,6 +1,6 @@
 import { Config } from './types';
 
-export const DEFAULT_CONFIG_VERSION = '1.0.0';
+export const DEFAULT_CONFIG_VERSION = '1.1.0';
 
 export const DEFAULT_CONFIG: Config = {
   api: {

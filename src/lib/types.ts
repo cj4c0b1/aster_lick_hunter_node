@@ -6,6 +6,8 @@ export interface SymbolConfig {
 
   // Position sizing
   tradeSize: number;                  // Base quantity for trades (adjusted by leverage)
+  longTradeSize?: number;              // Optional: Specific margin in USDT for long positions
+  shortTradeSize?: number;             // Optional: Specific margin in USDT for short positions
   maxPositionMarginUSDT?: number;     // Max margin exposure for this symbol (position size × leverage × price)
 
   // Risk parameters

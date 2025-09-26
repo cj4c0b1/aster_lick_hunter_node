@@ -8,6 +8,8 @@ export const symbolConfigSchema = z.object({
 
   // Position sizing
   tradeSize: z.number().min(0.00001),
+  longTradeSize: z.number().min(0.00001).optional(),
+  shortTradeSize: z.number().min(0.00001).optional(),
   maxPositionMarginUSDT: z.number().min(0).optional(),
 
   // Risk parameters

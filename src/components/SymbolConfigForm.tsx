@@ -60,6 +60,9 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
   const [loadingSymbols, setLoadingSymbols] = useState(false);
   const [symbolSearch, setSymbolSearch] = useState('');
   const [showSymbolPicker, setShowSymbolPicker] = useState(false);
+  const [useSeparateTradeSizes, setUseSeparateTradeSizes] = useState<Record<string, boolean>>({});
+  const [longTradeSizeInput, setLongTradeSizeInput] = useState<string>('');
+  const [shortTradeSizeInput, setShortTradeSizeInput] = useState<string>('');
 
   // Function to generate default config
   const getDefaultSymbolConfig = (): SymbolConfig => {
@@ -189,10 +192,25 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
   useEffect(() => {
     if (selectedSymbol && config.symbols[selectedSymbol]) {
       fetchSymbolDetails(selectedSymbol);
+      // Sync input states with config values
+      const symbolConfig = config.symbols[selectedSymbol];
+      setLongTradeSizeInput((symbolConfig.longTradeSize ?? symbolConfig.tradeSize).toString());
+      setShortTradeSizeInput((symbolConfig.shortTradeSize ?? symbolConfig.tradeSize).toString());
     } else {
       setSymbolDetails(null);
     }
   }, [selectedSymbol]);
+
+  // Initialize separate trade sizes state based on existing config
+  useEffect(() => {
+    const separateSizes: Record<string, boolean> = {};
+    Object.keys(config.symbols).forEach(symbol => {
+      const symbolConfig = config.symbols[symbol];
+      // Check for undefined specifically, not falsy values (0 is valid)
+      separateSizes[symbol] = symbolConfig.longTradeSize !== undefined || symbolConfig.shortTradeSize !== undefined;
+    });
+    setUseSeparateTradeSizes(separateSizes);
+  }, [config.symbols]);
 
   // Calculate minimum margin based on leverage
   const getMinimumMargin = () => {
@@ -631,39 +649,180 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                           </p>
                         </div>
 
-                        <div className="space-y-2">
-                          <Label>Trade Size (USDT)</Label>
-                          <Input
-                            type="number"
-                            value={config.symbols[selectedSymbol].tradeSize}
-                            onChange={(e) => handleSymbolChange(selectedSymbol, 'tradeSize', parseFloat(e.target.value))}
-                            min="0"
-                          />
-                          <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground">
-                              Position size in USDT
-                            </p>
-                            {symbolDetails && !loadingDetails && getMinimumMargin() && (
-                              <div className="flex items-center gap-2">
-                                <Badge
-                                  variant={config.symbols[selectedSymbol].tradeSize >= getMinimumMargin()! ? "default" : "destructive"}
-                                  className="text-xs"
-                                >
-                                  Min: ${getMinimumMargin()!.toFixed(2)} USDT @ {config.symbols[selectedSymbol].leverage}x
-                                </Badge>
-                                {config.symbols[selectedSymbol].tradeSize < getMinimumMargin()! && (
-                                  <Badge variant="destructive" className="text-xs">
-                                    Below minimum!
-                                  </Badge>
+                        {/* Trade Size Configuration */}
+                        <div className="col-span-2 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-0.5">
+                              <Label className="text-base">Trade Size Configuration</Label>
+                              <p className="text-sm text-muted-foreground">
+                                Use different sizes for long and short positions
+                              </p>
+                            </div>
+                            <Switch
+                              checked={useSeparateTradeSizes[selectedSymbol] || false}
+                              onCheckedChange={(checked) => {
+                                setUseSeparateTradeSizes({
+                                  ...useSeparateTradeSizes,
+                                  [selectedSymbol]: checked,
+                                });
+                                if (checked) {
+                                  // Initialize separate values with current tradeSize when toggling on
+                                  const currentTradeSize = config.symbols[selectedSymbol].tradeSize;
+                                  if (!config.symbols[selectedSymbol].longTradeSize) {
+                                    handleSymbolChange(selectedSymbol, 'longTradeSize', currentTradeSize);
+                                    setLongTradeSizeInput(currentTradeSize.toString());
+                                  }
+                                  if (!config.symbols[selectedSymbol].shortTradeSize) {
+                                    handleSymbolChange(selectedSymbol, 'shortTradeSize', currentTradeSize);
+                                    setShortTradeSizeInput(currentTradeSize.toString());
+                                  }
+                                } else {
+                                  // Clear separate values when toggling off
+                                  handleSymbolChange(selectedSymbol, 'longTradeSize', undefined);
+                                  handleSymbolChange(selectedSymbol, 'shortTradeSize', undefined);
+                                }
+                              }}
+                            />
+                          </div>
+
+                          {!useSeparateTradeSizes[selectedSymbol] ? (
+                            <div className="space-y-2">
+                              <Label>Trade Size (USDT)</Label>
+                              <Input
+                                type="number"
+                                value={config.symbols[selectedSymbol].tradeSize}
+                                onChange={(e) => handleSymbolChange(selectedSymbol, 'tradeSize', parseFloat(e.target.value))}
+                                min="0"
+                                step="0.01"
+                              />
+                              <div className="space-y-1">
+                                <p className="text-xs text-muted-foreground">
+                                  Position size in USDT (used for both long and short)
+                                </p>
+                                {symbolDetails && !loadingDetails && getMinimumMargin() && (
+                                  <div className="flex items-center gap-2">
+                                    <Badge
+                                      variant={config.symbols[selectedSymbol].tradeSize >= getMinimumMargin()! ? "default" : "destructive"}
+                                      className="text-xs"
+                                    >
+                                      Min: ${getMinimumMargin()!.toFixed(2)} USDT @ {config.symbols[selectedSymbol].leverage}x
+                                    </Badge>
+                                    {config.symbols[selectedSymbol].tradeSize < getMinimumMargin()! && (
+                                      <Badge variant="destructive" className="text-xs">
+                                        Below minimum!
+                                      </Badge>
+                                    )}
+                                  </div>
+                                )}
+                                {loadingDetails && (
+                                  <p className="text-xs text-muted-foreground">
+                                    Loading minimum requirements...
+                                  </p>
                                 )}
                               </div>
-                            )}
-                            {loadingDetails && (
-                              <p className="text-xs text-muted-foreground">
-                                Loading minimum requirements...
-                              </p>
-                            )}
-                          </div>
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label className="flex items-center gap-2">
+                                  Long Trade Size (USDT)
+                                  <Badge variant="outline" className="text-xs">BUY</Badge>
+                                </Label>
+                                <Input
+                                  type="number"
+                                  value={longTradeSizeInput}
+                                  onChange={(e) => {
+                                    setLongTradeSizeInput(e.target.value);
+                                    if (e.target.value !== '') {
+                                      const value = parseFloat(e.target.value);
+                                      if (!isNaN(value)) {
+                                        handleSymbolChange(selectedSymbol, 'longTradeSize', value);
+                                      }
+                                    }
+                                  }}
+                                  onBlur={(e) => {
+                                    // On blur, if empty, reset to tradeSize
+                                    if (e.target.value === '') {
+                                      const fallbackValue = config.symbols[selectedSymbol].tradeSize;
+                                      setLongTradeSizeInput(fallbackValue.toString());
+                                      handleSymbolChange(selectedSymbol, 'longTradeSize', fallbackValue);
+                                    }
+                                  }}
+                                  min="0"
+                                  step="0.01"
+                                />
+                                <div className="space-y-1">
+                                  <p className="text-xs text-muted-foreground">
+                                    Margin used for long positions (buy on sell liquidations)
+                                  </p>
+                                  {symbolDetails && !loadingDetails && getMinimumMargin() && (
+                                    <div className="flex items-center gap-2">
+                                      <Badge
+                                        variant={(config.symbols[selectedSymbol].longTradeSize || config.symbols[selectedSymbol].tradeSize) >= getMinimumMargin()! ? "default" : "destructive"}
+                                        className="text-xs"
+                                      >
+                                        Min: ${getMinimumMargin()!.toFixed(2)} @ {config.symbols[selectedSymbol].leverage}x
+                                      </Badge>
+                                      {(config.symbols[selectedSymbol].longTradeSize || config.symbols[selectedSymbol].tradeSize) < getMinimumMargin()! && (
+                                        <Badge variant="destructive" className="text-xs">
+                                          Below minimum!
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="flex items-center gap-2">
+                                  Short Trade Size (USDT)
+                                  <Badge variant="outline" className="text-xs">SELL</Badge>
+                                </Label>
+                                <Input
+                                  type="number"
+                                  value={shortTradeSizeInput}
+                                  onChange={(e) => {
+                                    setShortTradeSizeInput(e.target.value);
+                                    if (e.target.value !== '') {
+                                      const value = parseFloat(e.target.value);
+                                      if (!isNaN(value)) {
+                                        handleSymbolChange(selectedSymbol, 'shortTradeSize', value);
+                                      }
+                                    }
+                                  }}
+                                  onBlur={(e) => {
+                                    // On blur, if empty, reset to tradeSize
+                                    if (e.target.value === '') {
+                                      const fallbackValue = config.symbols[selectedSymbol].tradeSize;
+                                      setShortTradeSizeInput(fallbackValue.toString());
+                                      handleSymbolChange(selectedSymbol, 'shortTradeSize', fallbackValue);
+                                    }
+                                  }}
+                                  min="0"
+                                  step="0.01"
+                                />
+                                <div className="space-y-1">
+                                  <p className="text-xs text-muted-foreground">
+                                    Margin used for short positions (sell on buy liquidations)
+                                  </p>
+                                  {symbolDetails && !loadingDetails && getMinimumMargin() && (
+                                    <div className="flex items-center gap-2">
+                                      <Badge
+                                        variant={(config.symbols[selectedSymbol].shortTradeSize || config.symbols[selectedSymbol].tradeSize) >= getMinimumMargin()! ? "default" : "destructive"}
+                                        className="text-xs"
+                                      >
+                                        Min: ${getMinimumMargin()!.toFixed(2)} @ {config.symbols[selectedSymbol].leverage}x
+                                      </Badge>
+                                      {(config.symbols[selectedSymbol].shortTradeSize || config.symbols[selectedSymbol].tradeSize) < getMinimumMargin()! && (
+                                        <Badge variant="destructive" className="text-xs">
+                                          Below minimum!
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         <div className="space-y-2">

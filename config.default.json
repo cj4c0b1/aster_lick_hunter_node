@@ -8,6 +8,8 @@
       "longVolumeThresholdUSDT": 10000,
       "shortVolumeThresholdUSDT": 10000,
       "tradeSize": 0.001,
+      "longTradeSize": 0.0015,
+      "shortTradeSize": 0.0008,
       "maxPositionMarginUSDT": 5000,
       "leverage": 5,
       "tpPercent": 5,
@@ -23,6 +25,8 @@
       "longVolumeThresholdUSDT": 5000,
       "shortVolumeThresholdUSDT": 5000,
       "tradeSize": 0.01,
+      "longTradeSize": 0.012,
+      "shortTradeSize": 0.008,
       "maxPositionMarginUSDT": 3000,
       "leverage": 10,
       "tpPercent": 4,
@@ -46,5 +50,5 @@
       "websocketPort": 8080
     }
   },
-  "version": "1.0.0"
+  "version": "1.1.0"
 }
