@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { TrendingUp, TrendingDown, Wallet, BarChart3, Tag } from 'lucide-react';
+import { BarChart3, Tag } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import websocketService from '@/lib/services/websocketService';
 import { useConfig } from '@/components/ConfigProvider';
@@ -217,19 +217,6 @@ export default function PositionTable({
             <div>
               <CardTitle>Open Positions</CardTitle>
               <CardDescription>Manage your active trading positions</CardDescription>
-            </div>
-            <div className="flex items-center gap-4 text-sm">
-              <Badge variant="outline" className="flex items-center gap-1">
-                <Wallet className="h-3 w-3" />
-                Margin: ${totalMargin.toFixed(2)}
-              </Badge>
-              <Badge
-                variant={totalPnL >= 0 ? "default" : "destructive"}
-                className="flex items-center gap-1"
-              >
-                {totalPnL >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                {totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(2)}
-              </Badge>
             </div>
           </div>
 
