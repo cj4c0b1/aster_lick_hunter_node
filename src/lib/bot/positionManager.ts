@@ -226,6 +226,9 @@ export class PositionManager extends EventEmitter implements PositionTracker {
       this.riskCheckInterval = setInterval(() => this.checkRisk(), 5 * 60 * 1000);
       // Order check every 30 seconds to ensure SL/TP quantities match positions
       this.orderCheckInterval = setInterval(() => this.checkAndAdjustOrders(), 30 * 1000);
+
+      // Clean up orphaned orders every 2 minutes
+      setInterval(() => this.cleanupOrphanedOrders(), 2 * 60 * 1000);
     });
 
     this.ws.on('message', (data: Buffer) => {
@@ -572,7 +575,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
             await this.checkAndAdjustOrdersForPosition(key);
           } else {
             // Just ensure position is protected
-            this.ensurePositionProtected(symbol, positionSide, positionAmt);
+            await this.ensurePositionProtected(symbol, positionSide, positionAmt);
           }
 
           // Broadcast to UI
@@ -602,7 +605,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
           this.positionOrders.delete(key);
           this.previousPositionSizes.delete(key);
           // Cancel any remaining SL/TP orders if they exist
-          this.cancelProtectiveOrders(key, orders);
+          await this.cancelProtectiveOrders(key, orders);
 
           // Trigger balance refresh after position closure
           this.refreshBalance();
@@ -692,9 +695,9 @@ export class PositionManager extends EventEmitter implements PositionTracker {
           if (orders.slOrderId === orderId || orders.tpOrderId === orderId) {
             // Cancel the other order if it exists
             if (orders.slOrderId === orderId && orders.tpOrderId) {
-              this.cancelOrderById(symbol, orders.tpOrderId);
+              await this.cancelOrderById(symbol, orders.tpOrderId);
             } else if (orders.tpOrderId === orderId && orders.slOrderId) {
-              this.cancelOrderById(symbol, orders.slOrderId);
+              await this.cancelOrderById(symbol, orders.slOrderId);
             }
             this.positionOrders.delete(key);
             break;
@@ -882,6 +885,13 @@ export class PositionManager extends EventEmitter implements PositionTracker {
         const slPrice = symbolPrecision.formatPrice(symbol, adjustedSlPrice);
         const formattedQuantity = symbolPrecision.formatQuantity(symbol, quantity);
 
+        console.log(`PositionManager: SL order preparation for ${symbol}:`);
+        console.log(`  Raw quantity: ${quantity}`);
+        console.log(`  Formatted quantity: ${formattedQuantity}`);
+        console.log(`  Raw SL price: ${rawSlPrice}`);
+        console.log(`  Adjusted SL price: ${adjustedSlPrice}`);
+        console.log(`  Formatted SL price: ${slPrice}`);
+
         // Determine position side for the SL order
         const orderPositionSide = position.positionSide || 'BOTH';
 
@@ -926,17 +936,22 @@ export class PositionManager extends EventEmitter implements PositionTracker {
         const tpPrice = symbolPrecision.formatPrice(symbol, rawTpPrice);
         const formattedQuantity = symbolPrecision.formatQuantity(symbol, quantity);
 
-        // Use LIMIT order for take profit (more control, better fills)
+        console.log(`PositionManager: TP order preparation for ${symbol}:`);
+        console.log(`  Raw quantity: ${quantity}`);
+        console.log(`  Formatted quantity: ${formattedQuantity}`);
+        console.log(`  Raw TP price: ${rawTpPrice}`);
+        console.log(`  Formatted TP price: ${tpPrice}`);
+
+        // Use TAKE_PROFIT_MARKET order for consistency with exchange
         // Determine position side for the TP order
         const orderPositionSide = position.positionSide || 'BOTH';
 
         const tpParams: any = {
           symbol,
           side: isLong ? 'SELL' : 'BUY',
-          type: 'LIMIT',
+          type: 'TAKE_PROFIT_MARKET',
           quantity: formattedQuantity,
-          price: tpPrice,
-          timeInForce: 'GTC',
+          stopPrice: tpPrice, // Use stopPrice for TAKE_PROFIT_MARKET
           positionSide: orderPositionSide as 'BOTH' | 'LONG' | 'SHORT',
         };
 
@@ -976,6 +991,50 @@ export class PositionManager extends EventEmitter implements PositionTracker {
     // Implementation depends on balance query
 
     console.log(`PositionManager: Risk check complete`);
+  }
+
+  // Clean up orphaned orders (orders for symbols without active positions)
+  private async cleanupOrphanedOrders(): Promise<void> {
+    try {
+      console.log('PositionManager: Checking for orphaned orders...');
+
+      const openOrders = await this.getOpenOrdersFromExchange();
+      const positions = await this.getPositionsFromExchange();
+
+      // Get symbols with active positions
+      const activeSymbols = new Set(
+        positions
+          .filter(p => Math.abs(parseFloat(p.positionAmt)) > 0)
+          .map(p => p.symbol)
+      );
+
+      // Find orphaned orders (reduce-only orders for symbols without positions)
+      const orphanedOrders = openOrders.filter(order =>
+        order.reduceOnly && !activeSymbols.has(order.symbol)
+      );
+
+      if (orphanedOrders.length > 0) {
+        console.log(`PositionManager: Found ${orphanedOrders.length} orphaned orders to cleanup`);
+
+        for (const order of orphanedOrders) {
+          try {
+            await this.cancelOrderById(order.symbol, order.orderId);
+            console.log(`PositionManager: Cancelled orphaned order ${order.symbol} #${order.orderId}`);
+          } catch (error: any) {
+            // Ignore "order not found" errors (already filled/cancelled)
+            if (error?.response?.data?.code === -2011) {
+              console.log(`PositionManager: Orphaned order ${order.symbol} #${order.orderId} already filled/cancelled`);
+            } else {
+              console.error(`PositionManager: Failed to cancel orphaned order ${order.symbol} #${order.orderId}:`, error?.response?.data || error?.message);
+            }
+          }
+        }
+      } else {
+        console.log('PositionManager: No orphaned orders found');
+      }
+    } catch (error: any) {
+      console.error('PositionManager: Error during orphaned order cleanup:', error?.response?.data || error?.message);
+    }
   }
 
   // Check and adjust all orders periodically
