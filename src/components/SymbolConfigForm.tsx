@@ -212,8 +212,19 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
     setUseSeparateTradeSizes(separateSizes);
   }, [config.symbols]);
 
-  // Calculate minimum margin based on leverage
+  // Calculate minimum margin based on leverage (with 20% buffer for safety)
   const getMinimumMargin = () => {
+    if (!symbolDetails || !selectedSymbol || !config.symbols[selectedSymbol]) {
+      return null;
+    }
+    const leverage = config.symbols[selectedSymbol].leverage || 1;
+    const rawMinimum = symbolDetails.minNotional / leverage;
+    // Add 20% buffer to avoid rejection due to price movements
+    return rawMinimum * 1.2;
+  };
+
+  // Get raw minimum without buffer (for display purposes)
+  const getRawMinimum = () => {
     if (!symbolDetails || !selectedSymbol || !config.symbols[selectedSymbol]) {
       return null;
     }
@@ -700,18 +711,23 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                                   Position size in USDT (used for both long and short)
                                 </p>
                                 {symbolDetails && !loadingDetails && getMinimumMargin() && (
-                                  <div className="flex items-center gap-2">
-                                    <Badge
-                                      variant={config.symbols[selectedSymbol].tradeSize >= getMinimumMargin()! ? "default" : "destructive"}
-                                      className="text-xs"
-                                    >
-                                      Min: ${getMinimumMargin()!.toFixed(2)} USDT @ {config.symbols[selectedSymbol].leverage}x
-                                    </Badge>
-                                    {config.symbols[selectedSymbol].tradeSize < getMinimumMargin()! && (
-                                      <Badge variant="destructive" className="text-xs">
-                                        Below minimum!
+                                  <div className="flex flex-col gap-1">
+                                    <div className="flex items-center gap-2">
+                                      <Badge
+                                        variant={config.symbols[selectedSymbol].tradeSize >= getMinimumMargin()! ? "default" : "destructive"}
+                                        className="text-xs"
+                                      >
+                                        Recommended: ${getMinimumMargin()!.toFixed(2)} USDT
                                       </Badge>
-                                    )}
+                                      {config.symbols[selectedSymbol].tradeSize < getMinimumMargin()! && (
+                                        <Badge variant="destructive" className="text-xs">
+                                          Too low - may be rejected!
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                      Exchange min: ${getRawMinimum()!.toFixed(2)} @ {config.symbols[selectedSymbol].leverage}x (20% buffer added)
+                                    </p>
                                   </div>
                                 )}
                                 {loadingDetails && (
@@ -756,18 +772,23 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                                     Margin used for long positions (buy on sell liquidations)
                                   </p>
                                   {symbolDetails && !loadingDetails && getMinimumMargin() && (
-                                    <div className="flex items-center gap-2">
-                                      <Badge
-                                        variant={(config.symbols[selectedSymbol].longTradeSize || config.symbols[selectedSymbol].tradeSize) >= getMinimumMargin()! ? "default" : "destructive"}
-                                        className="text-xs"
-                                      >
-                                        Min: ${getMinimumMargin()!.toFixed(2)} @ {config.symbols[selectedSymbol].leverage}x
-                                      </Badge>
-                                      {(config.symbols[selectedSymbol].longTradeSize || config.symbols[selectedSymbol].tradeSize) < getMinimumMargin()! && (
-                                        <Badge variant="destructive" className="text-xs">
-                                          Below minimum!
+                                    <div className="flex flex-col gap-1">
+                                      <div className="flex items-center gap-2">
+                                        <Badge
+                                          variant={(config.symbols[selectedSymbol].longTradeSize || config.symbols[selectedSymbol].tradeSize) >= getMinimumMargin()! ? "default" : "destructive"}
+                                          className="text-xs"
+                                        >
+                                          Recommended: ${getMinimumMargin()!.toFixed(2)}
                                         </Badge>
-                                      )}
+                                        {(config.symbols[selectedSymbol].longTradeSize || config.symbols[selectedSymbol].tradeSize) < getMinimumMargin()! && (
+                                          <Badge variant="destructive" className="text-xs">
+                                            Too low!
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <p className="text-xs text-muted-foreground">
+                                        Min: ${getRawMinimum()!.toFixed(2)} + 20% buffer
+                                      </p>
                                     </div>
                                   )}
                                 </div>
@@ -805,18 +826,23 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                                     Margin used for short positions (sell on buy liquidations)
                                   </p>
                                   {symbolDetails && !loadingDetails && getMinimumMargin() && (
-                                    <div className="flex items-center gap-2">
-                                      <Badge
-                                        variant={(config.symbols[selectedSymbol].shortTradeSize || config.symbols[selectedSymbol].tradeSize) >= getMinimumMargin()! ? "default" : "destructive"}
-                                        className="text-xs"
-                                      >
-                                        Min: ${getMinimumMargin()!.toFixed(2)} @ {config.symbols[selectedSymbol].leverage}x
-                                      </Badge>
-                                      {(config.symbols[selectedSymbol].shortTradeSize || config.symbols[selectedSymbol].tradeSize) < getMinimumMargin()! && (
-                                        <Badge variant="destructive" className="text-xs">
-                                          Below minimum!
+                                    <div className="flex flex-col gap-1">
+                                      <div className="flex items-center gap-2">
+                                        <Badge
+                                          variant={(config.symbols[selectedSymbol].shortTradeSize || config.symbols[selectedSymbol].tradeSize) >= getMinimumMargin()! ? "default" : "destructive"}
+                                          className="text-xs"
+                                        >
+                                          Recommended: ${getMinimumMargin()!.toFixed(2)}
                                         </Badge>
-                                      )}
+                                        {(config.symbols[selectedSymbol].shortTradeSize || config.symbols[selectedSymbol].tradeSize) < getMinimumMargin()! && (
+                                          <Badge variant="destructive" className="text-xs">
+                                            Too low!
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <p className="text-xs text-muted-foreground">
+                                        Min: ${getRawMinimum()!.toFixed(2)} + 20% buffer
+                                      </p>
                                     </div>
                                   )}
                                 </div>
