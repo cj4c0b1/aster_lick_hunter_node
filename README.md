@@ -28,8 +28,10 @@ cd aster_lick_hunter_node
 npm run setup
 ```
 
-### Step 2: Configure Your API Keys
-The Setup Wizard will guide you through configuration, or use the Web UI at http://localhost:3000/config
+### Step 2: Get Your API Keys
+1. Create your Aster DEX account: [**Sign up here (Support Development)**](https://www.asterdex.com/en/referral/3TixB2)
+2. Generate API keys with futures trading enabled
+3. The Setup Wizard will guide you through configuration, or use the Web UI at http://localhost:3000/config
 
 ### Step 3: Run the Bot
 ```bash
