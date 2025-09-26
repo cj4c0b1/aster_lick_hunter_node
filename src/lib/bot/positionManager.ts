@@ -73,6 +73,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
   private isRunning = false;
   private statusBroadcaster: any; // Will be injected
   private isHedgeMode: boolean;
+  private orderPlacementLocks: Set<string> = new Set(); // Prevent concurrent order placement for same position
 
   constructor(config: Config, isHedgeMode: boolean = false) {
     super();
@@ -379,7 +380,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
             await this.adjustProtectiveOrders(position, slOrder, tpOrder);
           } else if (!slOrder || !tpOrder) {
             console.log(`PositionManager: Position ${key} missing protection (SL: ${!!slOrder}, TP: ${!!tpOrder})`);
-            await this.placeProtectiveOrders(position, !slOrder, !tpOrder);
+            await this.placeProtectiveOrdersWithLock(key, position, !slOrder, !tpOrder);
           }
         }
       }
@@ -440,6 +441,12 @@ export class PositionManager extends EventEmitter implements PositionTracker {
   private async ensurePositionProtected(symbol: string, positionSide: string, positionAmt: number): Promise<void> {
     const key = this.getPositionKey(symbol, positionSide, positionAmt);
 
+    // Check if order placement is already in progress for this position
+    if (this.orderPlacementLocks.has(key)) {
+      console.log(`PositionManager: Order placement already in progress for ${key}, skipping`);
+      return;
+    }
+
     // Check if we already have orders tracked
     const existingOrders = this.positionOrders.get(key);
     if (existingOrders?.slOrderId && existingOrders?.tpOrderId) {
@@ -458,7 +465,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
     const needTP = !existingOrders?.tpOrderId;
 
     if (needSL || needTP) {
-      await this.placeProtectiveOrders(position, needSL, needTP);
+      await this.placeProtectiveOrdersWithLock(key, position, needSL, needTP);
     }
   }
 
@@ -577,9 +584,12 @@ export class PositionManager extends EventEmitter implements PositionTracker {
             });
           } else {
             // Just ensure position is protected (async, don't await to avoid blocking)
-            this.ensurePositionProtected(symbol, positionSide, positionAmt).catch(error => {
-              console.error(`PositionManager: Failed to ensure protection for ${symbol}:`, error?.response?.data || error?.message);
-            });
+            // Add small delay to reduce race conditions with other protection logic
+            setTimeout(() => {
+              this.ensurePositionProtected(symbol, positionSide, positionAmt).catch(error => {
+                console.error(`PositionManager: Failed to ensure protection for ${symbol}:`, error?.response?.data || error?.message);
+              });
+            }, 100);
           }
 
           // Broadcast to UI
@@ -842,7 +852,20 @@ export class PositionManager extends EventEmitter implements PositionTracker {
 
     // Place new orders with correct quantities
     if (needNewSL || needNewTP) {
-      await this.placeProtectiveOrders(position, needNewSL, needNewTP);
+      await this.placeProtectiveOrdersWithLock(key, position, needNewSL, needNewTP);
+    }
+  }
+
+  // Place protective orders with lock to prevent duplicates
+  private async placeProtectiveOrdersWithLock(key: string, position: ExchangePosition, placeSL: boolean, placeTP: boolean): Promise<void> {
+    // Set lock to prevent concurrent order placement
+    this.orderPlacementLocks.add(key);
+
+    try {
+      await this.placeProtectiveOrders(position, placeSL, placeTP);
+    } finally {
+      // Always release the lock
+      this.orderPlacementLocks.delete(key);
     }
   }
 
@@ -866,6 +889,77 @@ export class PositionManager extends EventEmitter implements PositionTracker {
       this.positionOrders.set(key, {});
     }
     const orders = this.positionOrders.get(key)!;
+
+    // Double-check existing orders before placing new ones
+    try {
+      const openOrders = await this.getOpenOrdersFromExchange();
+
+      // Find ALL existing SL orders for this position
+      const existingSlOrders = openOrders.filter(o =>
+        o.symbol === symbol &&
+        (o.type === 'STOP_MARKET' || o.type === 'STOP') &&
+        o.reduceOnly &&
+        ((posAmt > 0 && o.side === 'SELL') || (posAmt < 0 && o.side === 'BUY'))
+      );
+
+      // Find ALL existing TP orders for this position
+      const existingTpOrders = openOrders.filter(o =>
+        o.symbol === symbol &&
+        (o.type === 'TAKE_PROFIT_MARKET' || o.type === 'TAKE_PROFIT' || o.type === 'LIMIT') &&
+        o.reduceOnly &&
+        ((posAmt > 0 && o.side === 'SELL') || (posAmt < 0 && o.side === 'BUY'))
+      );
+
+      // Handle multiple SL orders - keep the first one, cancel the rest
+      if (existingSlOrders.length > 1) {
+        console.log(`PositionManager: Found ${existingSlOrders.length} SL orders for ${key}, cancelling duplicates`);
+        for (let i = 1; i < existingSlOrders.length; i++) {
+          try {
+            await this.cancelOrderById(symbol, existingSlOrders[i].orderId);
+            console.log(`PositionManager: Cancelled duplicate SL order ${existingSlOrders[i].orderId}`);
+          } catch (error: any) {
+            console.error(`PositionManager: Failed to cancel duplicate SL order ${existingSlOrders[i].orderId}:`, error?.response?.data || error?.message);
+          }
+        }
+      }
+
+      // Handle multiple TP orders - keep the first one, cancel the rest
+      if (existingTpOrders.length > 1) {
+        console.log(`PositionManager: Found ${existingTpOrders.length} TP orders for ${key}, cancelling duplicates`);
+        for (let i = 1; i < existingTpOrders.length; i++) {
+          try {
+            await this.cancelOrderById(symbol, existingTpOrders[i].orderId);
+            console.log(`PositionManager: Cancelled duplicate TP order ${existingTpOrders[i].orderId}`);
+          } catch (error: any) {
+            console.error(`PositionManager: Failed to cancel duplicate TP order ${existingTpOrders[i].orderId}:`, error?.response?.data || error?.message);
+          }
+        }
+      }
+
+      // Update our tracking with the remaining orders
+      const existingSlOrder = existingSlOrders.length > 0 ? existingSlOrders[0] : undefined;
+      const existingTpOrder = existingTpOrders.length > 0 ? existingTpOrders[0] : undefined;
+
+      if (existingSlOrder) {
+        orders.slOrderId = existingSlOrder.orderId;
+        placeSL = false; // Don't place if one already exists
+        console.log(`PositionManager: Found existing SL order ${existingSlOrder.orderId} for ${key}, skipping placement`);
+      }
+
+      if (existingTpOrder) {
+        orders.tpOrderId = existingTpOrder.orderId;
+        placeTP = false; // Don't place if one already exists
+        console.log(`PositionManager: Found existing TP order ${existingTpOrder.orderId} for ${key}, skipping placement`);
+      }
+
+      // Exit early if no orders need to be placed
+      if (!placeSL && !placeTP) {
+        console.log(`PositionManager: All protective orders already exist for ${key}`);
+        return;
+      }
+    } catch (error: any) {
+      console.error('PositionManager: Failed to check existing orders, proceeding with placement:', error?.response?.data || error?.message);
+    }
 
     try {
       // Place Stop Loss
@@ -1003,33 +1097,78 @@ export class PositionManager extends EventEmitter implements PositionTracker {
     console.log(`PositionManager: Risk check complete`);
   }
 
-  // Clean up orphaned orders (orders for symbols without active positions)
+  // Clean up orphaned orders (orders for symbols without active positions) and duplicates
   private async cleanupOrphanedOrders(): Promise<void> {
     try {
-      console.log('PositionManager: Checking for orphaned orders...');
+      console.log('PositionManager: Checking for orphaned and duplicate orders...');
 
       const openOrders = await this.getOpenOrdersFromExchange();
       const positions = await this.getPositionsFromExchange();
 
-      // Get symbols with active positions
-      const activeSymbols = new Set(
-        positions
-          .filter(p => Math.abs(parseFloat(p.positionAmt)) > 0)
-          .map(p => p.symbol)
-      );
+      // Create map of active positions with their position details
+      const activePositions = new Map<string, { symbol: string; positionAmt: number; positionSide: string }>();
+
+      for (const position of positions) {
+        const posAmt = parseFloat(position.positionAmt);
+        if (Math.abs(posAmt) > 0) {
+          const key = this.getPositionKey(position.symbol, position.positionSide, posAmt);
+          activePositions.set(key, {
+            symbol: position.symbol,
+            positionAmt: posAmt,
+            positionSide: position.positionSide
+          });
+        }
+      }
+
+      const activeSymbols = new Set(Array.from(activePositions.values()).map(p => p.symbol));
 
       // Find orphaned orders (reduce-only orders for symbols without positions)
       const orphanedOrders = openOrders.filter(order =>
         order.reduceOnly && !activeSymbols.has(order.symbol)
       );
 
+      // Find duplicate orders for each active position
+      const duplicateOrders: ExchangeOrder[] = [];
+
+      for (const [key, positionData] of activePositions) {
+        const { symbol, positionAmt } = positionData;
+
+        // Find all SL orders for this position
+        const slOrders = openOrders.filter(o =>
+          o.symbol === symbol &&
+          (o.type === 'STOP_MARKET' || o.type === 'STOP') &&
+          o.reduceOnly &&
+          ((positionAmt > 0 && o.side === 'SELL') || (positionAmt < 0 && o.side === 'BUY'))
+        );
+
+        // Find all TP orders for this position
+        const tpOrders = openOrders.filter(o =>
+          o.symbol === symbol &&
+          (o.type === 'TAKE_PROFIT_MARKET' || o.type === 'TAKE_PROFIT' || o.type === 'LIMIT') &&
+          o.reduceOnly &&
+          ((positionAmt > 0 && o.side === 'SELL') || (positionAmt < 0 && o.side === 'BUY'))
+        );
+
+        // Mark duplicates for cancellation (keep first, cancel rest)
+        if (slOrders.length > 1) {
+          console.log(`PositionManager: Found ${slOrders.length} SL orders for ${key}, marking ${slOrders.length - 1} for cancellation`);
+          duplicateOrders.push(...slOrders.slice(1));
+        }
+
+        if (tpOrders.length > 1) {
+          console.log(`PositionManager: Found ${tpOrders.length} TP orders for ${key}, marking ${tpOrders.length - 1} for cancellation`);
+          duplicateOrders.push(...tpOrders.slice(1));
+        }
+      }
+
+      // Cancel orphaned orders
       if (orphanedOrders.length > 0) {
         console.log(`PositionManager: Found ${orphanedOrders.length} orphaned orders to cleanup`);
 
         for (const order of orphanedOrders) {
           try {
             await this.cancelOrderById(order.symbol, order.orderId);
-            console.log(`PositionManager: Cancelled orphaned order ${order.symbol} #${order.orderId}`);
+            console.log(`PositionManager: Cancelled orphaned order ${order.symbol} #${order.orderId} (${order.type})`);
           } catch (error: any) {
             // Ignore "order not found" errors (already filled/cancelled)
             if (error?.response?.data?.code === -2011) {
@@ -1039,8 +1178,29 @@ export class PositionManager extends EventEmitter implements PositionTracker {
             }
           }
         }
-      } else {
-        console.log('PositionManager: No orphaned orders found');
+      }
+
+      // Cancel duplicate orders
+      if (duplicateOrders.length > 0) {
+        console.log(`PositionManager: Found ${duplicateOrders.length} duplicate orders to cleanup`);
+
+        for (const order of duplicateOrders) {
+          try {
+            await this.cancelOrderById(order.symbol, order.orderId);
+            console.log(`PositionManager: Cancelled duplicate order ${order.symbol} #${order.orderId} (${order.type})`);
+          } catch (error: any) {
+            // Ignore "order not found" errors (already filled/cancelled)
+            if (error?.response?.data?.code === -2011) {
+              console.log(`PositionManager: Duplicate order ${order.symbol} #${order.orderId} already filled/cancelled`);
+            } else {
+              console.error(`PositionManager: Failed to cancel duplicate order ${order.symbol} #${order.orderId}:`, error?.response?.data || error?.message);
+            }
+          }
+        }
+      }
+
+      if (orphanedOrders.length === 0 && duplicateOrders.length === 0) {
+        console.log('PositionManager: No orphaned or duplicate orders found');
       }
     } catch (error: any) {
       console.error('PositionManager: Error during orphaned order cleanup:', error?.response?.data || error?.message);
@@ -1111,7 +1271,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
           await this.adjustProtectiveOrders(position, slOrder, tpOrder);
         } else if (!slOrder || !tpOrder) {
           console.log(`PositionManager: [Periodic Check] Position ${key} missing protection (SL: ${!!slOrder}, TP: ${!!tpOrder})`);
-          await this.placeProtectiveOrders(position, !slOrder, !tpOrder);
+          await this.placeProtectiveOrdersWithLock(key, position, !slOrder, !tpOrder);
         }
       }
     } catch (error: any) {
