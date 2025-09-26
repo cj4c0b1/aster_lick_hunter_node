@@ -353,8 +353,13 @@ export class PositionManager extends EventEmitter {
       try {
         await this.cancelOrderById(symbol, orders.slOrderId);
         console.log(`PositionManager: Cancelled SL order ${orders.slOrderId}`);
-      } catch (error) {
-        console.error(`PositionManager: Failed to cancel SL order ${orders.slOrderId}:`, error);
+      } catch (error: any) {
+        // Error -2011 means order doesn't exist (already filled or cancelled)
+        if (error?.response?.data?.code === -2011) {
+          console.log(`PositionManager: SL order ${orders.slOrderId} already filled or cancelled`);
+        } else {
+          console.error(`PositionManager: Failed to cancel SL order ${orders.slOrderId}:`, error?.response?.data || error?.message);
+        }
       }
     }
 
@@ -362,8 +367,13 @@ export class PositionManager extends EventEmitter {
       try {
         await this.cancelOrderById(symbol, orders.tpOrderId);
         console.log(`PositionManager: Cancelled TP order ${orders.tpOrderId}`);
-      } catch (error) {
-        console.error(`PositionManager: Failed to cancel TP order ${orders.tpOrderId}:`, error);
+      } catch (error: any) {
+        // Error -2011 means order doesn't exist (already filled or cancelled)
+        if (error?.response?.data?.code === -2011) {
+          console.log(`PositionManager: TP order ${orders.tpOrderId} already filled or cancelled`);
+        } else {
+          console.error(`PositionManager: Failed to cancel TP order ${orders.tpOrderId}:`, error?.response?.data || error?.message);
+        }
       }
     }
   }
