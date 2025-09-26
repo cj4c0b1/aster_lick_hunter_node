@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, TrendingUp, Activity, Flame } from 'lucide-react';
 import websocketService from '@/lib/services/websocketService';
+import { useSymbolPrecision } from '@/hooks/useSymbolPrecision';
 
 interface LiquidationEvent {
   symbol: string;
@@ -38,6 +39,7 @@ export default function LiquidationFeed({ volumeThresholds = {}, maxEvents = 50 
     largestLiquidation: 0,
     totalEvents: 0,
   });
+  const { formatPrice, formatQuantity, formatPriceWithCommas } = useSymbolPrecision();
 
   // Load historical liquidations on mount
   useEffect(() => {
@@ -257,10 +259,10 @@ export default function LiquidationFeed({ volumeThresholds = {}, maxEvents = 50 
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right font-mono">
-                      ${event.price.toLocaleString()}
+                      ${formatPriceWithCommas(event.symbol, event.price)}
                     </TableCell>
                     <TableCell className="text-right font-mono">
-                      {event.quantity.toFixed(4)}
+                      {formatQuantity(event.symbol, event.quantity)}
                     </TableCell>
                     <TableCell className="text-right font-medium">
                       <div className="flex items-center justify-end gap-1">

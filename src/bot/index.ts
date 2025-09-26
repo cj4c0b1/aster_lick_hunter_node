@@ -7,6 +7,7 @@ import { Config } from '../lib/types';
 import { StatusBroadcaster } from './websocketServer';
 import { initializeBalanceService, stopBalanceService, getBalanceService } from '../lib/services/balanceService';
 import { initializePriceService, stopPriceService, getPriceService } from '../lib/services/priceService';
+import { vwapStreamer } from '../lib/services/vwapStreamer';
 import { getPositionMode, setPositionMode } from '../lib/api/positionMode';
 import { execSync } from 'child_process';
 import { cleanupScheduler } from '../lib/services/cleanupScheduler';
@@ -164,6 +165,30 @@ class AsterBot {
         } catch (error: any) {
           console.error('⚠️  Price service failed to start:', error.message);
           this.statusBroadcaster.addError(`Price Service: ${error.message}`);
+        }
+
+        // Initialize VWAP Streamer for real-time VWAP calculations
+        try {
+          await vwapStreamer.start(this.config);
+
+          // Listen for VWAP updates and broadcast to web UI
+          vwapStreamer.on('vwap', (vwapData) => {
+            this.statusBroadcaster.broadcast('vwap_update', vwapData);
+          });
+
+          // Also broadcast all VWAP values periodically
+          setInterval(() => {
+            const allVwap = vwapStreamer.getAllVWAP();
+            if (allVwap.size > 0) {
+              const vwapArray = Array.from(allVwap.values());
+              this.statusBroadcaster.broadcast('vwap_bulk', vwapArray);
+            }
+          }, 2000);
+
+          console.log('✅ VWAP streaming service started');
+        } catch (error: any) {
+          console.error('⚠️  VWAP streamer failed to start:', error.message);
+          this.statusBroadcaster.addError(`VWAP Streamer: ${error.message}`);
         }
       }
 
@@ -326,6 +351,9 @@ class AsterBot {
       }
 
       // Stop other services
+      vwapStreamer.stop();
+      console.log('✅ VWAP streamer stopped');
+
       await stopBalanceService().catch(err =>
         console.error('⚠️  Balance service stop error:', err)
       );

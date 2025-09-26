@@ -11,6 +11,7 @@ import { TrendingUp, TrendingDown, Wallet, X, Check, Edit3, BarChart3 } from 'lu
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import websocketService from '@/lib/services/websocketService';
 import { useConfig } from '@/components/ConfigProvider';
+import { useSymbolPrecision } from '@/hooks/useSymbolPrecision';
 
 interface Position {
   symbol: string;
@@ -54,6 +55,7 @@ export default function PositionTable({
   const [markPrices, setMarkPrices] = useState<Record<string, number>>({});
   const [vwapData, setVwapData] = useState<Record<string, VWAPData>>({});
   const { config } = useConfig();
+  const { formatPrice, formatQuantity, formatPriceWithCommas } = useSymbolPrecision();
 
   // Load initial positions and set up WebSocket updates
   useEffect(() => {
@@ -73,28 +75,47 @@ export default function PositionTable({
           });
           setMarkPrices(prev => ({ ...prev, ...priceUpdates }));
         }
+      } else if (message.type === 'vwap_update') {
+        // Update single VWAP value
+        const data = message.data;
+        if (data && data.symbol) {
+          setVwapData(prev => ({
+            ...prev,
+            [data.symbol]: {
+              value: data.vwap,
+              position: data.position,
+              timestamp: data.timestamp
+            }
+          }));
+        }
+      } else if (message.type === 'vwap_bulk') {
+        // Update multiple VWAP values at once
+        if (Array.isArray(message.data)) {
+          const vwapUpdates: Record<string, VWAPData> = {};
+          message.data.forEach((data: any) => {
+            vwapUpdates[data.symbol] = {
+              value: data.vwap,
+              position: data.position,
+              timestamp: data.timestamp
+            };
+          });
+          setVwapData(prev => ({ ...prev, ...vwapUpdates }));
+        }
       }
     };
 
     const cleanupMessageHandler = websocketService.addMessageHandler(handleMessage);
 
-    // Refresh VWAP data every 30 seconds
-    const vwapInterval = setInterval(loadVWAPData, 30000);
+    // Load initial VWAP data once
+    loadVWAPData();
 
     // Cleanup on unmount
     return () => {
       cleanupMessageHandler();
-      clearInterval(vwapInterval);
     };
   }, []);
 
-  // Load VWAP data when positions change
-  useEffect(() => {
-    const allPositions = positions.length > 0 ? positions : realPositions;
-    if (allPositions.length > 0) {
-      loadVWAPData();
-    }
-  }, [positions, realPositions]);
+  // No longer need to load VWAP data when positions change - it's streamed via WebSocket
 
   const loadPositions = async () => {
     try {
@@ -110,38 +131,30 @@ export default function PositionTable({
     }
   };
 
+  // Initial load of VWAP data (fallback for when WebSocket is not yet connected)
   const loadVWAPData = async () => {
     try {
-      // Get unique symbols from positions
-      const allPositions = [...positions, ...realPositions];
-      if (allPositions.length === 0) {
-        console.log('No positions to load VWAP for');
+      // Only fetch for symbols with VWAP protection enabled
+      const symbolsWithVWAP = Object.entries(config?.symbols || {})
+        .filter(([_, cfg]) => cfg.vwapProtection)
+        .map(([symbol]) => symbol);
+
+      if (symbolsWithVWAP.length === 0) {
+        console.log('No symbols with VWAP protection enabled');
         return;
       }
 
-      const symbols = [...new Set(allPositions.map(p => p.symbol))];
-      console.log('Loading VWAP for symbols:', symbols);
+      console.log('Initial VWAP load for symbols:', symbolsWithVWAP);
 
-      const vwapPromises = symbols.map(async (symbol) => {
-        // Check if this symbol has VWAP protection enabled
-        const symbolConfig = config?.symbols?.[symbol];
-        if (!symbolConfig?.vwapProtection) {
-          console.log(`VWAP protection not enabled for ${symbol}`);
-          return null;
-        }
-
+      const vwapPromises = symbolsWithVWAP.map(async (symbol) => {
         try {
-          console.log(`Fetching VWAP for ${symbol}...`);
           const response = await fetch(`/api/vwap/${symbol}`);
           if (response.ok) {
             const data = await response.json();
-            console.log(`VWAP data for ${symbol}:`, data);
             return { symbol, data };
-          } else {
-            console.error(`VWAP API error for ${symbol}:`, response.status, await response.text());
           }
         } catch (error) {
-          console.error(`Failed to load VWAP for ${symbol}:`, error);
+          console.error(`Failed to load initial VWAP for ${symbol}:`, error);
         }
         return null;
       });
@@ -293,13 +306,13 @@ export default function PositionTable({
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right font-mono">
-                    {position.quantity.toFixed(4)}
+                    {formatQuantity(position.symbol, position.quantity)}
                   </TableCell>
                   <TableCell className="text-right font-mono">
-                    ${position.entryPrice.toLocaleString()}
+                    ${formatPriceWithCommas(position.symbol, position.entryPrice)}
                   </TableCell>
                   <TableCell className="text-right font-mono">
-                    ${position.markPrice.toLocaleString()}
+                    ${formatPriceWithCommas(position.symbol, position.markPrice)}
                   </TableCell>
                   <TableCell className="text-right font-medium">
                     <div className={`${position.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -326,7 +339,7 @@ export default function PositionTable({
                                     variant={vwap.position === 'above' ? 'default' : 'secondary'}
                                     className="text-xs"
                                   >
-                                    {vwap.position === 'above' ? '↑' : '↓'} ${vwap.value.toFixed(2)}
+                                    {vwap.position === 'above' ? '↑' : '↓'} ${formatPrice(position.symbol, vwap.value)}
                                   </Badge>
                                 </>
                               ) : (
@@ -341,7 +354,7 @@ export default function PositionTable({
                             <div className="text-xs">
                               {vwap ? (
                                 <>
-                                  <p>VWAP: ${vwap.value.toFixed(2)}</p>
+                                  <p>VWAP: ${formatPrice(position.symbol, vwap.value)}</p>
                                   <p>Price is {vwap.position} VWAP</p>
                                   <p className="text-muted-foreground">
                                     {position.side === 'LONG' && vwap.position === 'above' && '⚠️ Long above VWAP'}
@@ -398,7 +411,7 @@ export default function PositionTable({
                       >
                         {position.stopLoss ? (
                           <div className="flex items-center gap-1">
-                            ${position.stopLoss.toLocaleString()}
+                            ${formatPriceWithCommas(position.symbol, position.stopLoss)}
                             <Edit3 className="h-3 w-3" />
                           </div>
                         ) : (
@@ -445,7 +458,7 @@ export default function PositionTable({
                       >
                         {position.takeProfit ? (
                           <div className="flex items-center gap-1">
-                            ${position.takeProfit.toLocaleString()}
+                            ${formatPriceWithCommas(position.symbol, position.takeProfit)}
                             <Edit3 className="h-3 w-3" />
                           </div>
                         ) : (

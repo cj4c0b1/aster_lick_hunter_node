@@ -14,7 +14,7 @@
       "slPercent": 20,
       "vwapProtection": true,
       "vwapTimeframe": "1m",
-      "vwapLookback": 101
+      "vwapLookback": 200
     },
     "HYPEUSDT": {
       "longVolumeThresholdUSDT": 2500,
@@ -23,7 +23,9 @@
       "maxPositionMarginUSDT": 200,
       "leverage": 10,
       "tpPercent": 0.1,
-      "slPercent": 20
+      "slPercent": 20,
+      "vwapProtection": true,
+      "vwapLookback": 200
     },
     "PUMPUSDT": {
       "longVolumeThresholdUSDT": 5000,
@@ -38,7 +40,7 @@
       "orderType": "LIMIT",
       "vwapProtection": true,
       "vwapTimeframe": "1m",
-      "vwapLookback": 100
+      "vwapLookback": 200
     }
   },
   "global": {

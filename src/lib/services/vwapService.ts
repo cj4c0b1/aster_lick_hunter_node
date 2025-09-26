@@ -9,7 +9,7 @@ interface VWAPCache {
 
 class VWAPService {
   private cache: Map<string, VWAPCache> = new Map();
-  private readonly CACHE_TTL = 30000; // 30 seconds cache TTL
+  private readonly CACHE_TTL = 60000; // 60 seconds cache TTL (increased since we have WebSocket now)
 
   /**
    * Calculate VWAP from kline data

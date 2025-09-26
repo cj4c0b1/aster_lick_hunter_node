@@ -8,6 +8,7 @@ import { getPositionSide } from '../api/positionMode';
 import { PositionTracker } from './positionManager';
 import { liquidationStorage } from '../services/liquidationStorage';
 import { vwapService } from '../services/vwapService';
+import { vwapStreamer } from '../services/vwapStreamer';
 import {
   parseExchangeError,
   NotionalError,
@@ -161,13 +162,30 @@ export class Hunter extends EventEmitter {
         const lookback = symbolConfig.vwapLookback || 100;
 
         if (triggerBuy) {
-          const vwapCheck = await vwapService.checkVWAPFilter(
-            liquidation.symbol,
-            'BUY',
-            liquidation.price,
-            timeframe,
-            lookback
-          );
+          // Try to use streamer data first (real-time)
+          const streamedVWAP = vwapStreamer.getCurrentVWAP(liquidation.symbol);
+          let vwapCheck;
+
+          if (streamedVWAP && Date.now() - streamedVWAP.timestamp < 5000) {
+            // Use streamed data if it's fresh (less than 5 seconds old)
+            const allowed = liquidation.price < streamedVWAP.vwap;
+            vwapCheck = {
+              allowed,
+              vwap: streamedVWAP.vwap,
+              reason: allowed
+                ? `Price is below VWAP - BUY entry allowed`
+                : `Price ($${liquidation.price.toFixed(2)}) is above VWAP ($${streamedVWAP.vwap.toFixed(2)}) - blocking long entry`
+            };
+          } else {
+            // Fallback to API fetch if no fresh streamer data
+            vwapCheck = await vwapService.checkVWAPFilter(
+              liquidation.symbol,
+              'BUY',
+              liquidation.price,
+              timeframe,
+              lookback
+            );
+          }
 
           if (!vwapCheck.allowed) {
             console.log(`Hunter: VWAP Protection - ${vwapCheck.reason}`);
@@ -187,13 +205,30 @@ export class Hunter extends EventEmitter {
             console.log(`Hunter: VWAP Check Passed - Price $${liquidation.price.toFixed(2)} below VWAP $${vwapCheck.vwap.toFixed(2)}`);
           }
         } else if (triggerSell) {
-          const vwapCheck = await vwapService.checkVWAPFilter(
-            liquidation.symbol,
-            'SELL',
-            liquidation.price,
-            timeframe,
-            lookback
-          );
+          // Try to use streamer data first (real-time)
+          const streamedVWAP = vwapStreamer.getCurrentVWAP(liquidation.symbol);
+          let vwapCheck;
+
+          if (streamedVWAP && Date.now() - streamedVWAP.timestamp < 5000) {
+            // Use streamed data if it's fresh (less than 5 seconds old)
+            const allowed = liquidation.price > streamedVWAP.vwap;
+            vwapCheck = {
+              allowed,
+              vwap: streamedVWAP.vwap,
+              reason: allowed
+                ? `Price is above VWAP - SELL entry allowed`
+                : `Price ($${liquidation.price.toFixed(2)}) is below VWAP ($${streamedVWAP.vwap.toFixed(2)}) - blocking short entry`
+            };
+          } else {
+            // Fallback to API fetch if no fresh streamer data
+            vwapCheck = await vwapService.checkVWAPFilter(
+              liquidation.symbol,
+              'SELL',
+              liquidation.price,
+              timeframe,
+              lookback
+            );
+          }
 
           if (!vwapCheck.allowed) {
             console.log(`Hunter: VWAP Protection - ${vwapCheck.reason}`);

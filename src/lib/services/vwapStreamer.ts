@@ -1,0 +1,311 @@
+import WebSocket from 'ws';
+import { EventEmitter } from 'events';
+import { Config } from '../types';
+import { getKlines } from '../api/market';
+
+interface KlineStreamData {
+  e: string;     // Event type
+  E: number;     // Event time
+  s: string;     // Symbol
+  k: {
+    t: number;   // Kline start time
+    T: number;   // Kline close time
+    s: string;   // Symbol
+    i: string;   // Interval
+    f: number;   // First trade ID
+    L: number;   // Last trade ID
+    o: string;   // Open price
+    c: string;   // Close price
+    h: string;   // High price
+    l: string;   // Low price
+    v: string;   // Base asset volume
+    n: number;   // Number of trades
+    x: boolean;  // Is this kline closed?
+    q: string;   // Quote asset volume
+  };
+}
+
+interface VWAPData {
+  symbol: string;
+  vwap: number;
+  currentPrice: number;
+  position: 'above' | 'below';
+  timestamp: number;
+}
+
+export class VWAPStreamer extends EventEmitter {
+  private ws: WebSocket | null = null;
+  private isRunning = false;
+  private klineBuffers: Map<string, Array<{high: number, low: number, close: number, volume: number, quoteVolume: number}>> = new Map();
+  private vwapValues: Map<string, VWAPData> = new Map();
+  private symbolConfigs: Map<string, {timeframe: string, lookback: number}> = new Map();
+  private reconnectTimeout: NodeJS.Timeout | null = null;
+  private updateInterval: NodeJS.Timeout | null = null;
+
+  constructor() {
+    super();
+  }
+
+  public async start(config: Config): Promise<void> {
+    if (this.isRunning) return;
+    this.isRunning = true;
+
+    // Collect symbols with VWAP protection enabled
+    for (const [symbol, symbolConfig] of Object.entries(config.symbols)) {
+      if (symbolConfig.vwapProtection) {
+        const timeframe = symbolConfig.vwapTimeframe || '1m';
+        const lookback = symbolConfig.vwapLookback || 100;
+        this.symbolConfigs.set(symbol, { timeframe, lookback });
+        this.klineBuffers.set(symbol, []);
+        console.log(`📊 VWAP Streamer: Monitoring ${symbol} with ${timeframe} timeframe, ${lookback} lookback`);
+      }
+    }
+
+    if (this.symbolConfigs.size === 0) {
+      console.log('📊 VWAP Streamer: No symbols with VWAP protection configured');
+      this.isRunning = false;
+      return;
+    }
+
+    // Load initial historical klines for each symbol
+    await this.loadInitialData();
+
+    this.connectWebSocket();
+
+    // Calculate and broadcast VWAP every second
+    this.updateInterval = setInterval(() => {
+      this.calculateAndBroadcastVWAP();
+    }, 1000);
+  }
+
+  private async loadInitialData(): Promise<void> {
+    console.log('📊 VWAP Streamer: Loading initial historical klines...');
+
+    for (const [symbol, config] of this.symbolConfigs.entries()) {
+      try {
+        // Fetch historical klines
+        const klines = await getKlines(symbol, config.timeframe, config.lookback);
+
+        if (klines && klines.length > 0) {
+          const buffer: Array<{high: number, low: number, close: number, volume: number, quoteVolume: number}> = [];
+
+          for (const kline of klines) {
+            buffer.push({
+              high: parseFloat(kline.high),
+              low: parseFloat(kline.low),
+              close: parseFloat(kline.close),
+              volume: parseFloat(kline.volume),
+              quoteVolume: 0  // Quote volume not available from current API, will be calculated
+            });
+          }
+
+          this.klineBuffers.set(symbol, buffer);
+          console.log(`📊 VWAP Streamer: Loaded ${buffer.length} historical klines for ${symbol}`);
+        }
+      } catch (error) {
+        console.error(`📊 VWAP Streamer: Failed to load historical data for ${symbol}:`, error);
+      }
+    }
+
+    // Calculate initial VWAP with historical data
+    this.calculateAndBroadcastVWAP();
+  }
+
+  public stop(): void {
+    this.isRunning = false;
+
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+
+    if (this.updateInterval) {
+      clearInterval(this.updateInterval);
+      this.updateInterval = null;
+    }
+
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+
+    this.klineBuffers.clear();
+    this.vwapValues.clear();
+    this.symbolConfigs.clear();
+  }
+
+  private connectWebSocket(): void {
+    if (!this.isRunning) return;
+
+    // Build stream names for all symbols with their timeframes
+    const streams: string[] = [];
+    for (const [symbol, config] of this.symbolConfigs.entries()) {
+      const stream = `${symbol.toLowerCase()}@kline_${config.timeframe}`;
+      streams.push(stream);
+    }
+
+    const streamUrl = `wss://fstream.asterdex.com/stream?streams=${streams.join('/')}`;
+    console.log(`📊 VWAP Streamer: Connecting to ${streamUrl}`);
+
+    this.ws = new WebSocket(streamUrl);
+
+    this.ws.on('open', () => {
+      console.log('📊 VWAP Streamer: WebSocket connected');
+    });
+
+    this.ws.on('message', (data: Buffer) => {
+      try {
+        const message = JSON.parse(data.toString());
+        if (message.stream && message.data) {
+          this.handleKlineData(message.data);
+        }
+      } catch (error) {
+        console.error('📊 VWAP Streamer: Parse error:', error);
+      }
+    });
+
+    this.ws.on('error', (error) => {
+      console.error('📊 VWAP Streamer: WebSocket error:', error);
+    });
+
+    this.ws.on('close', () => {
+      console.log('📊 VWAP Streamer: WebSocket closed');
+      if (this.isRunning) {
+        this.reconnectTimeout = setTimeout(() => {
+          this.connectWebSocket();
+        }, 5000);
+      }
+    });
+  }
+
+  private handleKlineData(data: KlineStreamData): void {
+    if (data.e !== 'kline') return;
+
+    const symbol = data.s;
+    const config = this.symbolConfigs.get(symbol);
+    if (!config) return;
+
+    const kline = data.k;
+    const klineData = {
+      high: parseFloat(kline.h),
+      low: parseFloat(kline.l),
+      close: parseFloat(kline.c),
+      volume: parseFloat(kline.v),
+      quoteVolume: parseFloat(kline.q)  // Quote volume in USDT
+    };
+
+    // Update or add the kline to buffer
+    const buffer = this.klineBuffers.get(symbol) || [];
+
+    // If this is a closed kline, add it to the buffer
+    if (kline.x) {
+      buffer.push(klineData);
+
+      // Maintain buffer size according to lookback period
+      if (buffer.length > config.lookback) {
+        buffer.shift();
+      }
+
+      this.klineBuffers.set(symbol, buffer);
+    } else {
+      // Update the last kline if it's not closed
+      if (buffer.length > 0) {
+        buffer[buffer.length - 1] = klineData;
+      } else {
+        buffer.push(klineData);
+      }
+      this.klineBuffers.set(symbol, buffer);
+    }
+  }
+
+  private calculateAndBroadcastVWAP(): void {
+    for (const [symbol, buffer] of this.klineBuffers.entries()) {
+      if (buffer.length === 0) continue;
+
+      try {
+        const config = this.symbolConfigs.get(symbol);
+        if (!config) continue;
+
+        // Calculate VWAP
+        let sumPriceVolume = 0;
+        let sumVolume = 0;
+
+        // For session-based VWAP, we should ideally reset at 00:00 UTC
+        // But since we're using a buffer, we'll use the configured lookback
+        // To better match exchange VWAP, consider using 24h worth of data
+        const now = new Date();
+        const sessionStart = new Date(now);
+        sessionStart.setUTCHours(0, 0, 0, 0);
+
+        // Calculate how many periods since session start
+        const timeSinceStart = now.getTime() - sessionStart.getTime();
+        const minutesSinceStart = Math.floor(timeSinceStart / (1000 * 60));
+
+        // Convert timeframe to minutes
+        const timeframeMinutes = config.timeframe === '5m' ? 5 :
+                                config.timeframe === '15m' ? 15 :
+                                config.timeframe === '30m' ? 30 :
+                                config.timeframe === '1h' ? 60 : 1;
+
+        // Use either periods since session start or configured lookback, whichever is smaller
+        const periodsSinceStart = Math.floor(minutesSinceStart / timeframeMinutes);
+        const periodsToUse = Math.min(periodsSinceStart, config.lookback, buffer.length);
+
+        // Only use the most recent periodsToUse candles
+        const startIndex = Math.max(0, buffer.length - periodsToUse);
+
+        for (let i = startIndex; i < buffer.length; i++) {
+          const kline = buffer[i];
+          const typicalPrice = (kline.high + kline.low + kline.close) / 3;
+          // Standard VWAP formula: Sum(Price * Volume) / Sum(Volume)
+          // Using base volume is correct here
+          sumPriceVolume += typicalPrice * kline.volume;
+          sumVolume += kline.volume;
+        }
+
+        if (sumVolume === 0) continue;
+
+        const vwap = sumPriceVolume / sumVolume;
+        const currentPrice = buffer[buffer.length - 1].close;
+        const position = currentPrice > vwap ? 'above' : 'below';
+
+        // Log VWAP calculation details for debugging
+        if (symbol === 'PUMPUSDT') {
+          console.log(`📊 VWAP Debug for ${symbol}:`, {
+            vwap: vwap.toFixed(6),
+            currentPrice: currentPrice.toFixed(6),
+            periodsUsed: periodsToUse,
+            bufferLength: buffer.length,
+            timeframe: config.timeframe,
+            totalVolume: sumVolume.toFixed(2)
+          });
+        }
+
+        const vwapData: VWAPData = {
+          symbol,
+          vwap,
+          currentPrice,
+          position,
+          timestamp: Date.now()
+        };
+
+        // Store and emit the VWAP data
+        this.vwapValues.set(symbol, vwapData);
+        this.emit('vwap', vwapData);
+      } catch (error) {
+        console.error(`📊 VWAP Streamer: Calculation error for ${symbol}:`, error);
+      }
+    }
+  }
+
+  public getCurrentVWAP(symbol: string): VWAPData | null {
+    return this.vwapValues.get(symbol) || null;
+  }
+
+  public getAllVWAP(): Map<string, VWAPData> {
+    return new Map(this.vwapValues);
+  }
+}
+
+// Export singleton instance
+export const vwapStreamer = new VWAPStreamer();
