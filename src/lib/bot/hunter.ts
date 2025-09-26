@@ -7,7 +7,15 @@ import { calculateOptimalPrice, validateOrderParams, analyzeOrderBookDepth, getS
 import { getPositionSide } from '../api/positionMode';
 import { PositionTracker } from './positionManager';
 import { liquidationStorage } from '../services/liquidationStorage';
-import { parseExchangeError, NotionalError } from '../errors/TradingErrors';
+import {
+  parseExchangeError,
+  NotionalError,
+  RateLimitError,
+  InsufficientBalanceError,
+  ReduceOnlyError,
+  PricePrecisionError,
+  QuantityPrecisionError
+} from '../errors/TradingErrors';
 
 export class Hunter extends EventEmitter {
   private ws: WebSocket | null = null;
@@ -370,7 +378,7 @@ export class Hunter extends EventEmitter {
         leverage: symbolConfig.leverage
       });
 
-      // Special handling for notional errors
+      // Special handling for specific error types
       if (tradingError instanceof NotionalError) {
         console.error(`Hunter: NOTIONAL ERROR for ${symbol}:`);
         console.error(`  Required: ${tradingError.requiredNotional} USDT`);
@@ -380,8 +388,23 @@ export class Hunter extends EventEmitter {
         console.error(`  Leverage: ${tradingError.leverage}x`);
         console.error(`  Margin used: ${symbolConfig.tradeSize} USDT`);
         console.error(`  This indicates the symbol may have special requirements or price has moved significantly.`);
+      } else if (tradingError instanceof RateLimitError) {
+        console.error(`Hunter: RATE LIMIT ERROR - Too many requests, please slow down`);
+        console.error(`  Consider reducing order frequency or implementing request throttling`);
+      } else if (tradingError instanceof InsufficientBalanceError) {
+        console.error(`Hunter: INSUFFICIENT BALANCE ERROR for ${symbol}`);
+        console.error(`  Check account balance and margin requirements`);
+      } else if (tradingError instanceof ReduceOnlyError) {
+        console.error(`Hunter: REDUCE ONLY ERROR for ${symbol}`);
+        console.error(`  Cannot place reduce-only order when no position exists`);
+      } else if (tradingError instanceof PricePrecisionError) {
+        console.error(`Hunter: PRICE PRECISION ERROR for ${symbol}`);
+        console.error(`  Price ${tradingError.price} doesn't meet tick size requirements`);
+      } else if (tradingError instanceof QuantityPrecisionError) {
+        console.error(`Hunter: QUANTITY PRECISION ERROR for ${symbol}`);
+        console.error(`  Quantity ${tradingError.quantity} doesn't meet step size requirements`);
       } else {
-        console.error(`Hunter: Place trade error for ${symbol}:`, tradingError.message);
+        console.error(`Hunter: Place trade error for ${symbol} (${tradingError.code}):`, tradingError.message);
       }
 
       // Broadcast the error
@@ -483,8 +506,12 @@ export class Hunter extends EventEmitter {
             console.error(`  Quantity: ${fallbackTradingError.quantity}`);
             console.error(`  Even with adjustments, notional requirement not met!`);
             console.error(`  Check if symbol has special requirements or if price data is stale.`);
+          } else if (fallbackTradingError instanceof RateLimitError) {
+            console.error(`Hunter: RATE LIMIT in fallback - backing off`);
+          } else if (fallbackTradingError instanceof InsufficientBalanceError) {
+            console.error(`Hunter: INSUFFICIENT BALANCE in fallback for ${symbol}`);
           } else {
-            console.error(`Hunter: Fallback order also failed for ${symbol}:`, fallbackTradingError.message);
+            console.error(`Hunter: Fallback order failed for ${symbol} (${fallbackTradingError.code}):`, fallbackTradingError.message);
           }
 
           // Broadcast fallback order failed event
