@@ -24,8 +24,10 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 import {
   BarChart3,
+  RefreshCw,
 } from 'lucide-react';
 import websocketService from '@/lib/services/websocketService';
 
@@ -64,11 +66,13 @@ interface PnLData {
 
 export default function PnLChart() {
   const [timeRange, setTimeRange] = useState<TimeRange>('7d');
-  const [chartType, setChartType] = useState<ChartType>('daily');
+  const [chartType, setChartType] = useState<ChartType>('cumulative');
   const [displayMode, setDisplayMode] = useState<DisplayMode>('usdt');
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [pnlData, setPnlData] = useState<PnLData | null>(null);
   const [realtimePnL, setRealtimePnL] = useState<any>(null);
+  const [totalBalance, setTotalBalance] = useState<number>(0);
 
   // Data validation helper
   const validateDailyPnLData = (data: any[]): DailyPnL[] => {
@@ -90,39 +94,46 @@ export default function PnLChart() {
     });
   };
 
-  // Fetch historical PnL data
-  useEffect(() => {
-    const fetchPnLData = async () => {
+  // Fetch PnL data function
+  const fetchPnLData = async (isRefresh = false) => {
+    if (isRefresh) {
+      setIsRefreshing(true);
+    } else {
       setIsLoading(true);
-      try {
-        const response = await fetch(`/api/income?range=${timeRange}`);
-        if (response.ok) {
-          const data = await response.json();
-          // Validate and clean data structure
-          if (data && data.metrics && Array.isArray(data.dailyPnL)) {
-            const validatedDailyPnL = validateDailyPnLData(data.dailyPnL);
-            setPnlData({
-              ...data,
-              dailyPnL: validatedDailyPnL
-            });
-            console.log(`[PnL Chart] Loaded ${validatedDailyPnL.length} valid daily PnL records for ${timeRange}`);
-            console.log(`[PnL Chart] Daily PnL data for ${timeRange}:`, validatedDailyPnL);
-          } else {
-            console.error('Invalid PnL data structure:', data);
-            setPnlData(null);
-          }
+    }
+
+    try {
+      const response = await fetch(`/api/income?range=${timeRange}`);
+      if (response.ok) {
+        const data = await response.json();
+        // Validate and clean data structure
+        if (data && data.metrics && Array.isArray(data.dailyPnL)) {
+          const validatedDailyPnL = validateDailyPnLData(data.dailyPnL);
+          setPnlData({
+            ...data,
+            dailyPnL: validatedDailyPnL
+          });
+          console.log(`[PnL Chart] Loaded ${validatedDailyPnL.length} valid daily PnL records for ${timeRange}`);
+          console.log(`[PnL Chart] Daily PnL data for ${timeRange}:`, validatedDailyPnL);
         } else {
-          console.error('Failed to fetch PnL data, status:', response.status);
+          console.error('Invalid PnL data structure:', data);
           setPnlData(null);
         }
-      } catch (error) {
-        console.error('Failed to fetch PnL data:', error);
+      } else {
+        console.error('Failed to fetch PnL data, status:', response.status);
         setPnlData(null);
-      } finally {
-        setIsLoading(false);
       }
-    };
+    } catch (error) {
+      console.error('Failed to fetch PnL data:', error);
+      setPnlData(null);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
 
+  // Fetch historical PnL data on mount and when timeRange changes
+  useEffect(() => {
     fetchPnLData();
   }, [timeRange]);
 
@@ -342,6 +353,14 @@ export default function PnLChart() {
               Performance Chart
             </CardTitle>
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => fetchPnLData(true)}
+                disabled={isRefreshing}
+              >
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              </Button>
               <Select value={timeRange} onValueChange={(value) => setTimeRange(value as TimeRange)}>
                 <SelectTrigger className="w-32">
                   <SelectValue />
@@ -404,6 +423,14 @@ export default function PnLChart() {
             Performance Chart
           </CardTitle>
           <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => fetchPnLData(true)}
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </Button>
             <Select value={timeRange} onValueChange={(value) => setTimeRange(value as TimeRange)}>
               <SelectTrigger className="w-32">
                 <SelectValue />
@@ -455,9 +482,15 @@ export default function PnLChart() {
           </div>
         )}
 
-        {/* Chart */}
-        <ResponsiveContainer width="100%" height={400}>
-          {chartType === 'daily' ? (
+        {/* Chart with refresh overlay */}
+        <div className="relative">
+          {isRefreshing && (
+            <div className="absolute inset-0 z-10 bg-background/50 flex items-center justify-center">
+              <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          )}
+          <ResponsiveContainer width="100%" height={400}>
+            {chartType === 'daily' ? (
             <BarChart data={chartData} margin={{ left: 10, right: 30, top: 10, bottom: 10 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis
@@ -493,13 +526,14 @@ export default function PnLChart() {
               <Area
                 type="monotone"
                 dataKey="cumulativePnl"
-                stroke="#3b82f6"
-                fill="#3b82f680"
+                stroke={chartData.length > 0 && chartData[chartData.length - 1].cumulativePnl >= 0 ? "#10b981" : "#ef4444"}
+                fill={chartData.length > 0 && chartData[chartData.length - 1].cumulativePnl >= 0 ? "#10b98140" : "#ef444440"}
                 strokeWidth={2}
               />
             </AreaChart>
           )}
         </ResponsiveContainer>
+        </div>
 
         {/* Additional Metrics */}
         {safeMetrics && (
