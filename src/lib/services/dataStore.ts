@@ -243,7 +243,9 @@ class DataStore extends EventEmitter {
       console.log('[DataStore] Received balance update from WebSocket:', message.data);
       this.updateBalance(message.data, 'websocket');
     } else if (message.type === 'position_update') {
-      console.log('[DataStore] Position update received, fetching latest positions');
+      console.log('[DataStore] Position update received, clearing cache and fetching latest positions');
+      // Clear positions cache immediately to prevent serving stale data
+      this.state.positions.timestamp = 0;
       // Force fetch to get latest positions
       this.fetchPositions(true).catch(error => {
         console.error('[DataStore] Failed to fetch positions after update:', error);
