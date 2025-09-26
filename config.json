@@ -26,6 +26,6 @@
   "global": {
     "riskPercent": 100,
     "paperMode": false,
-    "maxOpenPositions": 6
+    "maxOpenPositions": 7
   }
 }

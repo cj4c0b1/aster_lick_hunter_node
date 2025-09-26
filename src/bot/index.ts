@@ -9,6 +9,7 @@ import { initializeBalanceService, stopBalanceService, getBalanceService } from 
 import { initializePriceService, stopPriceService, getPriceService } from '../lib/services/priceService';
 import { getPositionMode, setPositionMode } from '../lib/api/positionMode';
 import { execSync } from 'child_process';
+import { cleanupScheduler } from '../lib/services/cleanupScheduler';
 
 // Helper function to kill all child processes (synchronous for exit handler)
 function killAllProcesses() {
@@ -246,6 +247,10 @@ class AsterBot {
       await this.hunter.start();
       console.log('✅ Liquidation Hunter started');
 
+      // Start the cleanup scheduler for liquidation database
+      cleanupScheduler.start();
+      console.log('✅ Database cleanup scheduler started (7-day retention)');
+
       this.isRunning = true;
       this.statusBroadcaster.setRunning(true);
       console.log('🟢 Bot is now running. Press Ctrl+C to stop.');
@@ -323,6 +328,9 @@ class AsterBot {
 
       stopPriceService();
       console.log('✅ Price service stopped');
+
+      cleanupScheduler.stop();
+      console.log('✅ Cleanup scheduler stopped');
 
       this.statusBroadcaster.stop();
       console.log('✅ WebSocket server stopped');

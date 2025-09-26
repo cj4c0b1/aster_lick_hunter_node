@@ -39,8 +39,60 @@ export default function LiquidationFeed({ volumeThresholds = {}, maxEvents = 50 
     totalEvents: 0,
   });
 
+  // Load historical liquidations on mount
   useEffect(() => {
-    setIsLoading(false);
+    const loadHistoricalLiquidations = async () => {
+      try {
+        const response = await fetch(`/api/liquidations?limit=${maxEvents}`);
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data) {
+            const historicalEvents = result.data.map((liq: any) => {
+              const volume = liq.volume_usdt || (liq.quantity * liq.price);
+              const threshold = volumeThresholds[liq.symbol] || 10000;
+              return {
+                symbol: liq.symbol,
+                side: liq.side,
+                orderType: liq.order_type,
+                quantity: liq.quantity,
+                price: liq.price,
+                averagePrice: liq.average_price || liq.price,
+                orderStatus: liq.order_status,
+                eventTime: liq.event_time,
+                timestamp: new Date(liq.event_time),
+                volume,
+                isHighVolume: volume >= threshold,
+              };
+            });
+            setEvents(historicalEvents);
+
+            // Calculate initial stats from historical data
+            const now = Date.now();
+            const last24h = historicalEvents.filter((e: LiquidationEvent) =>
+              e.eventTime > now - 24 * 60 * 60 * 1000
+            );
+            const totalVol = last24h.reduce((sum: number, e: LiquidationEvent) => sum + e.volume, 0);
+            const maxVol = last24h.length > 0 ? Math.max(...last24h.map((e: LiquidationEvent) => e.volume)) : 0;
+
+            setStats({
+              totalVolume24h: totalVol,
+              largestLiquidation: maxVol,
+              totalEvents: last24h.length,
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load historical liquidations:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadHistoricalLiquidations();
+  }, [maxEvents, volumeThresholds]);
+
+  // Handle WebSocket messages
+  useEffect(() => {
 
     // Handle WebSocket messages
     const handleMessage = (message: any) => {
@@ -94,7 +146,7 @@ export default function LiquidationFeed({ volumeThresholds = {}, maxEvents = 50 
       cleanupMessageHandler();
       cleanupConnectionListener();
     };
-  }, [volumeThresholds, maxEvents]);
+  }, [volumeThresholds]);
 
   const formatTime = (timestamp: Date | number): string => {
     const date = timestamp instanceof Date ? timestamp : new Date(timestamp);

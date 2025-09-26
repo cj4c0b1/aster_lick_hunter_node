@@ -6,6 +6,7 @@ import { placeOrder, setLeverage } from '../api/orders';
 import { calculateOptimalPrice, validateOrderParams, analyzeOrderBookDepth } from '../api/pricing';
 import { getPositionSide } from '../api/positionMode';
 import { PositionTracker } from './positionManager';
+import { liquidationStorage } from '../services/liquidationStorage';
 
 export class Hunter extends EventEmitter {
   private ws: WebSocket | null = null;
@@ -108,6 +109,11 @@ export class Hunter extends EventEmitter {
     if (!symbolConfig) return; // Symbol not in config
 
     const volumeUSDT = liquidation.qty * liquidation.price;
+
+    // Store liquidation in database (non-blocking)
+    liquidationStorage.saveLiquidation(liquidation, volumeUSDT).catch(error => {
+      console.error('Hunter: Failed to store liquidation:', error);
+    });
 
     // Check direction-specific volume thresholds
     // SELL liquidation means longs are getting liquidated, we might want to BUY

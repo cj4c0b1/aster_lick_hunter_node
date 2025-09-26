@@ -17,7 +17,8 @@
       "Bash(powershell:*)",
       "Bash(netstat:*)",
       "Bash(npm run build:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(dir:*)"
     ],
     "deny": [],
     "ask": []
