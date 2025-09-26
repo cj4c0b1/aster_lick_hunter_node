@@ -1208,11 +1208,53 @@ export class PositionManager extends EventEmitter implements PositionTracker {
 
       const activeSymbols = new Set(Array.from(activePositions.values()).map(p => p.symbol));
 
-      // Find orphaned orders (reduce-only orders for symbols without positions, and not our bot orders)
-      const orphanedOrders = openOrders.filter(order =>
-        order.reduceOnly && !activeSymbols.has(order.symbol) &&
-        !(order.clientOrderId && (order.clientOrderId.startsWith('al_sl_') || order.clientOrderId.startsWith('al_tp_')))
-      );
+      // Find orphaned orders (reduce-only orders for symbols without positions)
+      // This includes bot-created orders since they're also orphaned if no position exists
+      const orphanedOrders = openOrders.filter(order => {
+        const isOrphaned = order.reduceOnly && !activeSymbols.has(order.symbol);
+
+        // Log evaluation for debugging
+        if (order.reduceOnly) {
+          const isBotOrder = order.clientOrderId &&
+            (order.clientOrderId.startsWith('al_sl_') || order.clientOrderId.startsWith('al_tp_'));
+
+          if (isOrphaned) {
+            console.log(`PositionManager: Found orphaned ${order.type} order for ${order.symbol} - OrderId: ${order.orderId}, ClientOrderId: ${order.clientOrderId || 'none'}, Bot order: ${isBotOrder ? 'yes' : 'no'}`);
+          }
+        }
+
+        return isOrphaned;
+      });
+
+      // Find stuck entry orders (non reduce-only orders that have been open for too long without creating positions)
+      // These are LIMIT orders that haven't filled and don't have corresponding positions
+      const stuckEntryOrders = openOrders.filter(order => {
+        // Only check non reduce-only LIMIT orders
+        if (order.reduceOnly || order.type !== 'LIMIT') {
+          return false;
+        }
+
+        // Check if this symbol has an active position
+        const hasPosition = Array.from(activePositions.values()).some(p => p.symbol === order.symbol);
+
+        // Calculate order age
+        const orderAge = Date.now() - order.time;
+
+        // For non reduce-only LIMIT orders, ensure they're at least 30 seconds old
+        // This prevents cancelling orders that were just placed
+        if (orderAge < 30 * 1000) { // 30 seconds
+          return false;
+        }
+
+        // If no position exists and order is older than 5 minutes, consider it stuck
+        const isStuck = !hasPosition && orderAge > 5 * 60 * 1000; // 5 minutes
+
+        if (isStuck) {
+          console.log(`PositionManager: Found stuck entry order for ${order.symbol} - OrderId: ${order.orderId}, Type: ${order.type}, Age: ${Math.round(orderAge / 1000)}s`);
+        }
+
+        return isStuck;
+      });
 
       // Find duplicate orders for each active position
       const duplicateOrders: ExchangeOrder[] = [];
@@ -1286,8 +1328,27 @@ export class PositionManager extends EventEmitter implements PositionTracker {
         }
       }
 
-      if (orphanedOrders.length === 0 && duplicateOrders.length === 0) {
-        console.log('PositionManager: No orphaned or duplicate orders found');
+      // Cancel stuck entry orders
+      if (stuckEntryOrders.length > 0) {
+        console.log(`PositionManager: Found ${stuckEntryOrders.length} stuck entry orders to cleanup`);
+
+        for (const order of stuckEntryOrders) {
+          try {
+            await this.cancelOrderById(order.symbol, order.orderId);
+            console.log(`PositionManager: Cancelled stuck entry order ${order.symbol} #${order.orderId} (${order.type})`);
+          } catch (error: any) {
+            // Ignore "order not found" errors (already filled/cancelled)
+            if (error?.response?.data?.code === -2011) {
+              console.log(`PositionManager: Stuck entry order ${order.symbol} #${order.orderId} already filled/cancelled`);
+            } else {
+              console.error(`PositionManager: Failed to cancel stuck entry order ${order.symbol} #${order.orderId}:`, error?.response?.data || error?.message);
+            }
+          }
+        }
+      }
+
+      if (orphanedOrders.length === 0 && duplicateOrders.length === 0 && stuckEntryOrders.length === 0) {
+        console.log('PositionManager: No orphaned, duplicate, or stuck orders found');
       }
     } catch (error: any) {
       console.error('PositionManager: Error during orphaned order cleanup:', error?.response?.data || error?.message);
