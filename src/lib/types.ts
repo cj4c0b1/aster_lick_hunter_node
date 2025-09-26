@@ -18,6 +18,11 @@ export interface SymbolConfig {
   usePostOnly?: boolean;       // Use post-only orders to guarantee maker fees (default: false)
   maxSlippageBps?: number;     // Maximum acceptable slippage in basis points (default: 50)
   orderType?: 'LIMIT' | 'MARKET'; // Order type preference (default: 'LIMIT')
+
+  // VWAP protection settings
+  vwapProtection?: boolean;    // Enable VWAP-based entry filtering (default: false)
+  vwapTimeframe?: string;      // Timeframe for VWAP calculation: 1m, 5m, 15m, 30m, 1h (default: '1m')
+  vwapLookback?: number;       // Number of candles to use for VWAP calculation (default: 100)
 }
 
 export interface ApiCredentials {

@@ -11,7 +11,10 @@
       "maxPositionMarginUSDT": 500,
       "leverage": 10,
       "tpPercent": 0.1,
-      "slPercent": 20
+      "slPercent": 20,
+      "vwapProtection": true,
+      "vwapTimeframe": "1m",
+      "vwapLookback": 101
     },
     "HYPEUSDT": {
       "longVolumeThresholdUSDT": 2500,
@@ -21,6 +24,21 @@
       "leverage": 10,
       "tpPercent": 0.1,
       "slPercent": 20
+    },
+    "PUMPUSDT": {
+      "longVolumeThresholdUSDT": 5000,
+      "shortVolumeThresholdUSDT": 10000,
+      "tradeSize": 0.66,
+      "maxPositionMarginUSDT": 300,
+      "leverage": 10,
+      "tpPercent": 0.1,
+      "slPercent": 20,
+      "priceOffsetBps": 5,
+      "maxSlippageBps": 50,
+      "orderType": "LIMIT",
+      "vwapProtection": true,
+      "vwapTimeframe": "1m",
+      "vwapLookback": 100
     }
   },
   "global": {

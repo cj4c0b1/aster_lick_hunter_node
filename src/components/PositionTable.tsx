@@ -7,8 +7,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { TrendingUp, TrendingDown, Wallet, X, Check, Edit3 } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, X, Check, Edit3, BarChart3 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import websocketService from '@/lib/services/websocketService';
+import { useConfig } from '@/components/ConfigProvider';
 
 interface Position {
   symbol: string;
@@ -22,6 +24,12 @@ interface Position {
   stopLoss?: number;
   takeProfit?: number;
   leverage: number;
+}
+
+interface VWAPData {
+  value: number;
+  position: 'above' | 'below';
+  timestamp: number;
 }
 
 interface PositionTableProps {
@@ -44,6 +52,8 @@ export default function PositionTable({
   const [realPositions, setRealPositions] = useState<Position[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [markPrices, setMarkPrices] = useState<Record<string, number>>({});
+  const [vwapData, setVwapData] = useState<Record<string, VWAPData>>({});
+  const { config } = useConfig();
 
   // Load initial positions and set up WebSocket updates
   useEffect(() => {
@@ -68,9 +78,23 @@ export default function PositionTable({
 
     const cleanupMessageHandler = websocketService.addMessageHandler(handleMessage);
 
+    // Refresh VWAP data every 30 seconds
+    const vwapInterval = setInterval(loadVWAPData, 30000);
+
     // Cleanup on unmount
-    return cleanupMessageHandler;
+    return () => {
+      cleanupMessageHandler();
+      clearInterval(vwapInterval);
+    };
   }, []);
+
+  // Load VWAP data when positions change
+  useEffect(() => {
+    const allPositions = positions.length > 0 ? positions : realPositions;
+    if (allPositions.length > 0) {
+      loadVWAPData();
+    }
+  }, [positions, realPositions]);
 
   const loadPositions = async () => {
     try {
@@ -83,6 +107,56 @@ export default function PositionTable({
       console.error('Failed to load positions:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadVWAPData = async () => {
+    try {
+      // Get unique symbols from positions
+      const allPositions = [...positions, ...realPositions];
+      if (allPositions.length === 0) {
+        console.log('No positions to load VWAP for');
+        return;
+      }
+
+      const symbols = [...new Set(allPositions.map(p => p.symbol))];
+      console.log('Loading VWAP for symbols:', symbols);
+
+      const vwapPromises = symbols.map(async (symbol) => {
+        // Check if this symbol has VWAP protection enabled
+        const symbolConfig = config?.symbols?.[symbol];
+        if (!symbolConfig?.vwapProtection) {
+          console.log(`VWAP protection not enabled for ${symbol}`);
+          return null;
+        }
+
+        try {
+          console.log(`Fetching VWAP for ${symbol}...`);
+          const response = await fetch(`/api/vwap/${symbol}`);
+          if (response.ok) {
+            const data = await response.json();
+            console.log(`VWAP data for ${symbol}:`, data);
+            return { symbol, data };
+          } else {
+            console.error(`VWAP API error for ${symbol}:`, response.status, await response.text());
+          }
+        } catch (error) {
+          console.error(`Failed to load VWAP for ${symbol}:`, error);
+        }
+        return null;
+      });
+
+      const results = await Promise.all(vwapPromises);
+      const vwapMap: Record<string, VWAPData> = {};
+      results.forEach(result => {
+        if (result) {
+          vwapMap[result.symbol] = result.data;
+        }
+      });
+      console.log('Final VWAP map:', vwapMap);
+      setVwapData(vwapMap);
+    } catch (error) {
+      console.error('Failed to load VWAP data:', error);
     }
   };
 
@@ -178,6 +252,7 @@ export default function PositionTable({
                 <TableHead className="text-right">Mark</TableHead>
                 <TableHead className="text-right">PnL</TableHead>
                 <TableHead className="text-right">Margin</TableHead>
+                <TableHead className="text-center">VWAP</TableHead>
                 <TableHead className="text-center">Stop Loss</TableHead>
                 <TableHead className="text-center">Take Profit</TableHead>
                 <TableHead className="text-center">Actions</TableHead>
@@ -194,6 +269,7 @@ export default function PositionTable({
                   <TableCell className="text-right"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
                   <TableCell className="text-right"><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
                   <TableCell className="text-right"><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
+                  <TableCell className="text-center"><Skeleton className="h-4 w-12 mx-auto" /></TableCell>
                   <TableCell className="text-center"><Skeleton className="h-4 w-16 mx-auto" /></TableCell>
                   <TableCell className="text-center"><Skeleton className="h-4 w-16 mx-auto" /></TableCell>
                   <TableCell className="text-center"><Skeleton className="h-4 w-16 mx-auto" /></TableCell>
@@ -201,6 +277,10 @@ export default function PositionTable({
               ))
             ) : displayPositions.map((position) => {
               const key = `${position.symbol}-${position.side}`;
+              const vwap = vwapData[position.symbol];
+              const symbolConfig = config?.symbols?.[position.symbol];
+              const hasVwapProtection = symbolConfig?.vwapProtection;
+
               return (
                 <TableRow key={key}>
                   <TableCell className="font-medium">{position.symbol}</TableCell>
@@ -232,6 +312,56 @@ export default function PositionTable({
                   <TableCell className="text-right">
                     <div className="font-mono">${position.margin.toFixed(2)}</div>
                     <div className="text-xs text-muted-foreground">{position.leverage}x</div>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {hasVwapProtection ? (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="inline-flex items-center gap-1">
+                              {vwap ? (
+                                <>
+                                  <BarChart3 className="h-4 w-4" />
+                                  <Badge
+                                    variant={vwap.position === 'above' ? 'default' : 'secondary'}
+                                    className="text-xs"
+                                  >
+                                    {vwap.position === 'above' ? '↑' : '↓'} ${vwap.value.toFixed(2)}
+                                  </Badge>
+                                </>
+                              ) : (
+                                <Badge variant="outline" className="text-xs">
+                                  <BarChart3 className="h-3 w-3 mr-1" />
+                                  Loading...
+                                </Badge>
+                              )}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <div className="text-xs">
+                              {vwap ? (
+                                <>
+                                  <p>VWAP: ${vwap.value.toFixed(2)}</p>
+                                  <p>Price is {vwap.position} VWAP</p>
+                                  <p className="text-muted-foreground">
+                                    {position.side === 'LONG' && vwap.position === 'above' && '⚠️ Long above VWAP'}
+                                    {position.side === 'SHORT' && vwap.position === 'below' && '⚠️ Short below VWAP'}
+                                    {position.side === 'LONG' && vwap.position === 'below' && '✅ Long below VWAP'}
+                                    {position.side === 'SHORT' && vwap.position === 'above' && '✅ Short above VWAP'}
+                                  </p>
+                                </>
+                              ) : (
+                                <p>Loading VWAP data...</p>
+                              )}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : (
+                      <Badge variant="outline" className="text-xs text-muted-foreground">
+                        Disabled
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-center">
                     {editingSL === key ? (
@@ -341,7 +471,7 @@ export default function PositionTable({
             })}
             {!isLoading && displayPositions.length === 0 && (
               <TableRow>
-                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                   No open positions
                 </TableCell>
               </TableRow>

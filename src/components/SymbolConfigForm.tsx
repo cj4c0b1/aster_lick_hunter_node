@@ -10,6 +10,8 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Plus,
   Trash2,
@@ -21,6 +23,7 @@ import {
   TrendingUp,
   AlertCircle,
   Settings2,
+  BarChart3,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -66,6 +69,9 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
       priceOffsetBps: 5,      // 5 basis points offset for limit orders
       maxSlippageBps: 50,     // 50 basis points max slippage
       orderType: 'LIMIT' as 'LIMIT',
+      vwapProtection: false,  // VWAP protection disabled by default
+      vwapTimeframe: '1m',    // Default to 1 minute timeframe
+      vwapLookback: 100,      // Default to 100 candles
     };
   };
 
@@ -602,7 +608,7 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                           </p>
                         </div>
 
-                        <div className="space-y-2 col-span-2">
+                        <div className="space-y-2">
                           <Label>Take Profit (%)</Label>
                           <Input
                             type="number"
@@ -614,6 +620,88 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                           <p className="text-xs text-muted-foreground">
                             Take profit percentage
                           </p>
+                        </div>
+
+                        {/* VWAP Protection Settings */}
+                        <div className="col-span-2">
+                          <Separator className="my-4" />
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <div className="space-y-0.5">
+                                <Label className="flex items-center gap-2">
+                                  <BarChart3 className="h-4 w-4" />
+                                  VWAP Protection
+                                </Label>
+                                <p className="text-sm text-muted-foreground">
+                                  Block entries against VWAP trend
+                                </p>
+                              </div>
+                              <Switch
+                                checked={config.symbols[selectedSymbol].vwapProtection || false}
+                                onCheckedChange={(checked) =>
+                                  handleSymbolChange(selectedSymbol, 'vwapProtection', checked)
+                                }
+                              />
+                            </div>
+
+                            {config.symbols[selectedSymbol].vwapProtection && (
+                              <div className="grid grid-cols-2 gap-4 pt-2">
+                                <div className="space-y-2">
+                                  <Label>VWAP Timeframe</Label>
+                                  <Select
+                                    value={config.symbols[selectedSymbol].vwapTimeframe || '1m'}
+                                    onValueChange={(value) =>
+                                      handleSymbolChange(selectedSymbol, 'vwapTimeframe', value)
+                                    }
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="1m">1 minute</SelectItem>
+                                      <SelectItem value="5m">5 minutes</SelectItem>
+                                      <SelectItem value="15m">15 minutes</SelectItem>
+                                      <SelectItem value="30m">30 minutes</SelectItem>
+                                      <SelectItem value="1h">1 hour</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <p className="text-xs text-muted-foreground">
+                                    Candle timeframe for VWAP calculation
+                                  </p>
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label>Lookback Period</Label>
+                                  <Input
+                                    type="number"
+                                    value={config.symbols[selectedSymbol].vwapLookback || 100}
+                                    onChange={(e) =>
+                                      handleSymbolChange(
+                                        selectedSymbol,
+                                        'vwapLookback',
+                                        parseInt(e.target.value)
+                                      )
+                                    }
+                                    min="10"
+                                    max="500"
+                                  />
+                                  <p className="text-xs text-muted-foreground">
+                                    Number of candles for VWAP (10-500)
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+
+                            {config.symbols[selectedSymbol].vwapProtection && (
+                              <Alert>
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertDescription className="text-xs">
+                                  <strong>VWAP Protection Active:</strong> Long positions will only open when price is below VWAP.
+                                  Short positions will only open when price is above VWAP. This helps avoid entering against the trend.
+                                </AlertDescription>
+                              </Alert>
+                            )}
+                          </div>
                         </div>
                       </CardContent>
                     </Card>

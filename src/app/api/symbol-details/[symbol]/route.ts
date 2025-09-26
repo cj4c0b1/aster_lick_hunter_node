@@ -16,10 +16,10 @@ interface SymbolDetails {
 
 export async function GET(
   request: Request,
-  { params }: { params: { symbol: string } }
+  { params }: { params: Promise<{ symbol: string }> }
 ) {
   try {
-    const symbol = params.symbol;
+    const { symbol } = await params;
 
     // Fetch both exchange info and current price in parallel
     const [exchangeInfoResponse, priceResponse] = await Promise.all([

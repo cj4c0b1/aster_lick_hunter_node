@@ -7,6 +7,7 @@ import { calculateOptimalPrice, validateOrderParams, analyzeOrderBookDepth, getS
 import { getPositionSide } from '../api/positionMode';
 import { PositionTracker } from './positionManager';
 import { liquidationStorage } from '../services/liquidationStorage';
+import { vwapService } from '../services/vwapService';
 import {
   parseExchangeError,
   NotionalError,
@@ -153,6 +154,66 @@ export class Hunter extends EventEmitter {
       const priceRatio = liquidation.price / markPrice;
       const triggerBuy = liquidation.side === 'SELL' && priceRatio < 1.01; // 1% below
       const triggerSell = liquidation.side === 'BUY' && priceRatio > 0.99;  // 1% above
+
+      // Check VWAP protection if enabled
+      if (symbolConfig.vwapProtection) {
+        const timeframe = symbolConfig.vwapTimeframe || '1m';
+        const lookback = symbolConfig.vwapLookback || 100;
+
+        if (triggerBuy) {
+          const vwapCheck = await vwapService.checkVWAPFilter(
+            liquidation.symbol,
+            'BUY',
+            liquidation.price,
+            timeframe,
+            lookback
+          );
+
+          if (!vwapCheck.allowed) {
+            console.log(`Hunter: VWAP Protection - ${vwapCheck.reason}`);
+
+            // Emit blocked trade opportunity for monitoring
+            this.emit('tradeBlocked', {
+              symbol: liquidation.symbol,
+              side: 'BUY',
+              reason: vwapCheck.reason,
+              vwap: vwapCheck.vwap,
+              currentPrice: liquidation.price,
+              blockType: 'VWAP_FILTER'
+            });
+
+            return; // Block the trade
+          } else {
+            console.log(`Hunter: VWAP Check Passed - Price $${liquidation.price.toFixed(2)} below VWAP $${vwapCheck.vwap.toFixed(2)}`);
+          }
+        } else if (triggerSell) {
+          const vwapCheck = await vwapService.checkVWAPFilter(
+            liquidation.symbol,
+            'SELL',
+            liquidation.price,
+            timeframe,
+            lookback
+          );
+
+          if (!vwapCheck.allowed) {
+            console.log(`Hunter: VWAP Protection - ${vwapCheck.reason}`);
+
+            // Emit blocked trade opportunity for monitoring
+            this.emit('tradeBlocked', {
+              symbol: liquidation.symbol,
+              side: 'SELL',
+              reason: vwapCheck.reason,
+              vwap: vwapCheck.vwap,
+              currentPrice: liquidation.price,
+              blockType: 'VWAP_FILTER'
+            });
+
+            return; // Block the trade
+          } else {
+            console.log(`Hunter: VWAP Check Passed - Price $${liquidation.price.toFixed(2)} above VWAP $${vwapCheck.vwap.toFixed(2)}`);
+          }
+        }
+      }
 
       if (triggerBuy) {
         const volumeUSDT = liquidation.qty * liquidation.price;
