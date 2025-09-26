@@ -1,6 +1,6 @@
 import WebSocket from 'ws';
-import axios from 'axios';
 import { ApiCredentials } from '../types';
+import { getRateLimitedAxios } from './requestInterceptor';
 
 const BASE_URL = 'https://fapi.asterdex.com';
 const WS_BASE_URL = 'wss://fstream.asterdex.com';
@@ -107,6 +107,7 @@ export class UserDataStream {
 
   private async getListenKey(): Promise<string> {
     try {
+      const axios = getRateLimitedAxios();
       const response = await axios.post(`${BASE_URL}/fapi/v1/listenKey`, {}, {
         headers: {
           'X-MBX-APIKEY': this.credentials.apiKey
@@ -115,8 +116,8 @@ export class UserDataStream {
       return response.data.listenKey;
     } catch (error) {
       console.error('[UserDataStream] Failed to get listen key:', error instanceof Error ? error.message : error);
-      if (axios.isAxiosError(error)) {
-        console.error('[UserDataStream] Response data:', error.response?.data);
+      if ((error as any).response) {
+        console.error('[UserDataStream] Response data:', (error as any).response?.data);
       }
       throw error;
     }
@@ -126,6 +127,7 @@ export class UserDataStream {
     if (!this.listenKey) return;
 
     try {
+      const axios = getRateLimitedAxios();
       await axios.put(`${BASE_URL}/fapi/v1/listenKey`, {}, {
         headers: {
           'X-MBX-APIKEY': this.credentials.apiKey
@@ -140,6 +142,7 @@ export class UserDataStream {
   private async closeListenKey(): Promise<void> {
     if (!this.listenKey) return;
 
+    const axios = getRateLimitedAxios();
     await axios.delete(`${BASE_URL}/fapi/v1/listenKey`, {
       headers: {
         'X-MBX-APIKEY': this.credentials.apiKey

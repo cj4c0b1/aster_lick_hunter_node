@@ -1,11 +1,13 @@
-import axios, { AxiosResponse } from 'axios';
+import { AxiosResponse } from 'axios';
 import { ApiCredentials, MarkPrice, Kline } from '../types';
 import { getSignedParams, paramsToQuery } from './auth';
+import { getRateLimitedAxios } from './requestInterceptor';
 
 const BASE_URL = 'https://fapi.asterdex.com';
 
 // Public endpoints (no authentication)
 export async function getExchangeInfo(): Promise<any> {
+  const axios = getRateLimitedAxios();
   const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v1/exchangeInfo`);
   return response.data;
 }
@@ -15,6 +17,7 @@ export async function getMarkPrice(symbol?: string): Promise<MarkPrice | MarkPri
   if (symbol) params.symbol = symbol;
   const query = paramsToQuery(params);
   const url = query ? `${BASE_URL}/fapi/v1/premiumIndex?${query}` : `${BASE_URL}/fapi/v1/premiumIndex`;
+  const axios = getRateLimitedAxios();
   const response: AxiosResponse = await axios.get(url);
   return response.data;
 }
@@ -22,6 +25,7 @@ export async function getMarkPrice(symbol?: string): Promise<MarkPrice | MarkPri
 export async function getKlines(symbol: string, interval: string = '1m', limit: number = 500): Promise<Kline[]> {
   const params = { symbol, interval, limit };
   const query = paramsToQuery(params);
+  const axios = getRateLimitedAxios();
   const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v1/klines?${query}`);
   // Klines come as [[openTime, open, high, low, close, volume], ...]
   // Convert to Kline array
@@ -39,6 +43,7 @@ export async function getKlines(symbol: string, interval: string = '1m', limit: 
 export async function getRecentTrades(symbol: string, limit: number = 500): Promise<any[]> {
   const params = { symbol, limit };
   const query = paramsToQuery(params);
+  const axios = getRateLimitedAxios();
   const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v1/trades?${query}`);
   return response.data;
 }
@@ -50,6 +55,7 @@ export async function getBalance(credentials: ApiCredentials): Promise<any> {
   const query = paramsToQuery(signedParams);
 
   try {
+    const axios = getRateLimitedAxios();
     const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v2/balance?${query}`, {
       headers: {
         'X-MBX-APIKEY': credentials.apiKey
@@ -74,6 +80,7 @@ export async function getAccountInfo(credentials: ApiCredentials): Promise<any> 
   const query = paramsToQuery(signedParams);
 
   try {
+    const axios = getRateLimitedAxios();
     const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v4/account?${query}`, {
       headers: {
         'X-MBX-APIKEY': credentials.apiKey
@@ -104,6 +111,7 @@ export async function getPositionRisk(symbol?: string, credentials?: ApiCredenti
   }
   const signedParams = getSignedParams(params, credentials);
   const query = paramsToQuery(signedParams);
+  const axios = getRateLimitedAxios();
   const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v2/positionRisk?${query}`, {
     headers: {
       'X-MBX-APIKEY': credentials.apiKey
@@ -124,6 +132,7 @@ export async function getOpenOrders(symbol?: string, credentials?: ApiCredential
   }
   const signedParams = getSignedParams(params, credentials);
   const query = paramsToQuery(signedParams);
+  const axios = getRateLimitedAxios();
   const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v1/openOrders?${query}`, {
     headers: {
       'X-MBX-APIKEY': credentials.apiKey
@@ -136,6 +145,7 @@ export async function getOpenOrders(symbol?: string, credentials?: ApiCredential
 export async function getOrderBook(symbol: string, limit: number = 5): Promise<any> {
   const params = { symbol, limit };
   const query = paramsToQuery(params);
+  const axios = getRateLimitedAxios();
   const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v1/depth?${query}`);
   return response.data;
 }
@@ -144,6 +154,7 @@ export async function getOrderBook(symbol: string, limit: number = 5): Promise<a
 export async function getSymbolPrice(symbol: string): Promise<any> {
   const params = { symbol };
   const query = paramsToQuery(params);
+  const axios = getRateLimitedAxios();
   const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v1/ticker/price?${query}`);
   return response.data;
 }
@@ -152,6 +163,7 @@ export async function getSymbolPrice(symbol: string): Promise<any> {
 export async function getBookTicker(symbol: string): Promise<any> {
   const params = { symbol };
   const query = paramsToQuery(params);
+  const axios = getRateLimitedAxios();
   const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v1/ticker/bookTicker?${query}`);
   return response.data;
 }
