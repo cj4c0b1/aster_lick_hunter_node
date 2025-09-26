@@ -20,7 +20,8 @@
       "Bash(python:*)",
       "Bash(dir:*)",
       "Bash(curl:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(tree:*)"
     ],
     "deny": [],
     "ask": []

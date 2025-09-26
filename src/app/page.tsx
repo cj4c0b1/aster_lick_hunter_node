@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
 import {
   DollarSign,
   TrendingUp,
@@ -15,7 +16,7 @@ import MinimalBotStatus from '@/components/MinimalBotStatus';
 import LiquidationSidebar from '@/components/LiquidationSidebar';
 import PositionTable from '@/components/PositionTable';
 import PnLChart from '@/components/PnLChart';
-import PerformanceCard from '@/components/PerformanceCard';
+import PerformanceCardInline from '@/components/PerformanceCardInline';
 import { useConfig } from '@/components/ConfigProvider';
 import websocketService from '@/lib/services/websocketService';
 import { useOrderNotifications } from '@/hooks/useOrderNotifications';
@@ -208,105 +209,104 @@ export default function DashboardPage() {
       <div className="flex h-full overflow-hidden">
         {/* Main Content */}
         <div className="flex-1 p-6 space-y-6 overflow-y-auto">
-          {/* Account Summary Cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
-                <Wallet className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <Skeleton className="h-8 w-24" />
-                ) : (
-                  <>
-                    <div className="text-2xl font-bold">{formatCurrency(liveAccountInfo.totalBalance)}</div>
-                    <p className="text-xs text-muted-foreground">
+          {/* Account Summary - Minimal Design */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Total Balance */}
+            <div className="flex items-center gap-2">
+              <Wallet className="h-4 w-4 text-muted-foreground" />
+              <div className="flex flex-col">
+                <span className="text-xs text-muted-foreground">Balance</span>
+                <div className="flex items-center gap-2">
+                  {isLoading ? (
+                    <Skeleton className="h-5 w-20" />
+                  ) : (
+                    <>
+                      <span className="text-lg font-semibold">{formatCurrency(liveAccountInfo.totalBalance)}</span>
                       {balanceStatus.error ? (
-                        <span className="text-red-500">Connection error</span>
+                        <Badge variant="destructive" className="h-4 text-[10px] px-1">ERROR</Badge>
                       ) : balanceStatus.source === 'websocket' ? (
-                        <span className="text-green-500">● Live</span>
+                        <Badge variant="default" className="h-4 text-[10px] px-1 bg-green-600">LIVE</Badge>
                       ) : balanceStatus.source === 'rest-account' || balanceStatus.source === 'rest-balance' ? (
-                        <span className="text-yellow-500">● REST API</span>
-                      ) : (
-                        'Account equity'
-                      )}
-                    </p>
-                  </>
-                )}
-              </CardContent>
-            </Card>
+                        <Badge variant="secondary" className="h-4 text-[10px] px-1">REST</Badge>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Available Balance</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <Skeleton className="h-8 w-24" />
-                ) : (
-                  <>
-                    <div className="text-2xl font-bold">{formatCurrency(liveAccountInfo.availableBalance)}</div>
-                    <p className="text-xs text-muted-foreground">
-                      Ready for trading
-                    </p>
-                  </>
-                )}
-              </CardContent>
-            </Card>
+            <div className="w-px h-8 bg-border" />
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Position Value</CardTitle>
-                <Activity className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
+            {/* Available Balance */}
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+              <div className="flex flex-col">
+                <span className="text-xs text-muted-foreground">Available</span>
                 {isLoading ? (
-                  <Skeleton className="h-8 w-24" />
+                  <Skeleton className="h-5 w-20" />
                 ) : (
-                  <>
-                    <div className="text-2xl font-bold">{formatCurrency(liveAccountInfo.totalPositionValue)}</div>
-                    <p className="text-xs text-muted-foreground">
-                      Across all positions
-                    </p>
-                  </>
+                  <span className="text-lg font-semibold">{formatCurrency(liveAccountInfo.availableBalance)}</span>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Unrealized PnL</CardTitle>
-                {liveAccountInfo.totalPnL >= 0 ? (
-                  <TrendingUp className="h-4 w-4 text-green-600" />
-                ) : (
-                  <TrendingDown className="h-4 w-4 text-red-600" />
-                )}
-              </CardHeader>
-              <CardContent>
+            <div className="w-px h-8 bg-border" />
+
+            {/* Position Value */}
+            <div className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-muted-foreground" />
+              <div className="flex flex-col">
+                <span className="text-xs text-muted-foreground">In Position</span>
                 {isLoading ? (
-                  <Skeleton className="h-8 w-24" />
+                  <Skeleton className="h-5 w-20" />
                 ) : (
-                  <>
-                    <div className={`text-2xl font-bold ${
+                  <span className="text-lg font-semibold">{formatCurrency(liveAccountInfo.totalPositionValue)}</span>
+                )}
+              </div>
+            </div>
+
+            <div className="w-px h-8 bg-border" />
+
+            {/* Unrealized PnL */}
+            <div className="flex items-center gap-2">
+              {liveAccountInfo.totalPnL >= 0 ? (
+                <TrendingUp className="h-4 w-4 text-green-600" />
+              ) : (
+                <TrendingDown className="h-4 w-4 text-red-600" />
+              )}
+              <div className="flex flex-col">
+                <span className="text-xs text-muted-foreground">Unrealized PnL</span>
+                {isLoading ? (
+                  <Skeleton className="h-5 w-20" />
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className={`text-lg font-semibold ${
                       liveAccountInfo.totalPnL >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                     }`}>
                       {formatCurrency(liveAccountInfo.totalPnL)}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {liveAccountInfo.totalBalance > 0 ?
-                        formatPercentage(liveAccountInfo.totalPnL / liveAccountInfo.totalBalance * 100) :
-                        '0.00%'
-                      } of balance
-                    </p>
-                  </>
+                    </span>
+                    <Badge
+                      variant={liveAccountInfo.totalPnL >= 0 ? "outline" : "destructive"}
+                      className={`h-4 text-[10px] px-1 ${
+                        liveAccountInfo.totalPnL >= 0
+                          ? 'border-green-600 text-green-600 dark:border-green-400 dark:text-green-400'
+                          : ''
+                      }`}
+                    >
+                      {liveAccountInfo.totalBalance > 0
+                        ? formatPercentage(liveAccountInfo.totalPnL / liveAccountInfo.totalBalance * 100)
+                        : '0.00%'
+                      }
+                    </Badge>
+                  </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            {/* Session Performance Card */}
-            <PerformanceCard />
+            <div className="w-px h-8 bg-border" />
+
+            {/* Session Performance - Inline */}
+            <PerformanceCardInline />
           </div>
 
           {/* PnL Chart */}

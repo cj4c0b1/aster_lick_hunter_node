@@ -35,8 +35,11 @@ npm run lint
 # Check TypeScript types
 npx tsc --noEmit
 
-# Run tests (if available)
-npm test
+# Run tests
+npm test                   # Test limit orders
+npm run test:simulation    # Test bot simulation
+npm run test:flow         # Test limit order flow
+npm run test:all          # Run all test suites
 
 # Setup (install + build)
 npm run setup
@@ -54,7 +57,8 @@ The application has a dual architecture:
 - **PositionManager** (`src/lib/bot/positionManager.ts`): Manages open positions, SL/TP orders, and user data streams
 - **AsterBot** (`src/bot/index.ts`): Main bot orchestrator that coordinates Hunter and PositionManager
 - **StatusBroadcaster** (`src/bot/websocketServer.ts`): WebSocket server for real-time status updates to web UI
-- **Services**: Helper services for balance (`balanceService.ts`), pricing (`priceService.ts`), and WebSocket management (`websocketService.ts`)
+- **Services**: Helper services for balance (`balanceService.ts`), pricing (`priceService.ts`), VWAP calculations (`vwapService.ts`), and WebSocket management (`websocketService.ts`)
+- **Database** (`src/lib/db/liquidationDb.ts`): SQLite database for persisting liquidation history and analytics
 
 ### Data Flow
 1. Hunter connects to `wss://fstream.asterdex.com/ws/!forceOrder@arr` for liquidation events
@@ -146,6 +150,8 @@ Connects to Aster Finance exchange API (`https://fapi.asterdex.com`):
 - Graceful shutdown handling (Ctrl+C to stop) with cross-platform support
 - Intelligent limit orders with order book analysis and slippage protection
 - Exchange filter validation (price, quantity, notional limits)
+- VWAP-based entry filtering to avoid adverse price movements
+- SQLite database for liquidation history and pattern analysis
 
 ## Web UI Structure
 
