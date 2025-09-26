@@ -52,7 +52,15 @@ interface ExchangeOrder {
 
 const BASE_URL = 'https://fapi.asterdex.com';
 
-export class PositionManager extends EventEmitter {
+// Position tracking interface for Hunter
+export interface PositionTracker {
+  getMarginUsage(symbol: string): number;
+  getTotalPositionCount(): number;
+  getUniquePositionCount(isHedgeMode: boolean): number;
+  getPositionsMap(): Map<string, ExchangePosition>;
+}
+
+export class PositionManager extends EventEmitter implements PositionTracker {
   private ws: WebSocket | null = null;
   private listenKey: string | null = null;
   private config: Config;
@@ -823,5 +831,60 @@ export class PositionManager extends EventEmitter {
       }
     }
     return false;
+  }
+
+  // ===== Position Tracking Methods for Hunter =====
+
+  // Calculate total margin usage for a symbol (position size × leverage × entry price)
+  public getMarginUsage(symbol: string): number {
+    let totalMargin = 0;
+
+    for (const position of this.currentPositions.values()) {
+      if (position.symbol === symbol) {
+        const positionAmt = Math.abs(parseFloat(position.positionAmt));
+        if (positionAmt > 0) {
+          const entryPrice = parseFloat(position.entryPrice);
+          const leverage = parseFloat(position.leverage);
+          // Margin = (Position Size × Entry Price) / Leverage
+          const margin = (positionAmt * entryPrice) / leverage;
+          totalMargin += margin;
+        }
+      }
+    }
+
+    return totalMargin;
+  }
+
+  // Get total count of all open positions
+  public getTotalPositionCount(): number {
+    let count = 0;
+    for (const position of this.currentPositions.values()) {
+      if (Math.abs(parseFloat(position.positionAmt)) > 0) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  // Get unique position count (hedge mode: long+short on same symbol = 1 position)
+  public getUniquePositionCount(isHedgeMode: boolean): number {
+    if (!isHedgeMode) {
+      // In one-way mode, just count positions with non-zero amount
+      return this.getTotalPositionCount();
+    }
+
+    // In hedge mode, count unique symbols
+    const uniqueSymbols = new Set<string>();
+    for (const position of this.currentPositions.values()) {
+      if (Math.abs(parseFloat(position.positionAmt)) > 0) {
+        uniqueSymbols.add(position.symbol);
+      }
+    }
+    return uniqueSymbols.size;
+  }
+
+  // Get Map of positions for direct access
+  public getPositionsMap(): Map<string, ExchangePosition> {
+    return this.currentPositions;
   }
 }

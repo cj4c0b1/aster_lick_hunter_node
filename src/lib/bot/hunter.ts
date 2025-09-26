@@ -5,6 +5,7 @@ import { getMarkPrice } from '../api/market';
 import { placeOrder, setLeverage } from '../api/orders';
 import { calculateOptimalPrice, validateOrderParams, analyzeOrderBookDepth } from '../api/pricing';
 import { getPositionSide } from '../api/positionMode';
+import { PositionTracker } from './positionManager';
 
 export class Hunter extends EventEmitter {
   private ws: WebSocket | null = null;
@@ -12,6 +13,7 @@ export class Hunter extends EventEmitter {
   private isRunning = false;
   private statusBroadcaster: any; // Will be injected
   private isHedgeMode: boolean;
+  private positionTracker: PositionTracker | null = null;
 
   constructor(config: Config, isHedgeMode: boolean = false) {
     super();
@@ -22,6 +24,11 @@ export class Hunter extends EventEmitter {
   // Set status broadcaster for order events
   public setStatusBroadcaster(broadcaster: any): void {
     this.statusBroadcaster = broadcaster;
+  }
+
+  // Set position tracker for position limit checks
+  public setPositionTracker(tracker: PositionTracker): void {
+    this.positionTracker = tracker;
   }
 
   start(): void {
@@ -101,7 +108,15 @@ export class Hunter extends EventEmitter {
     if (!symbolConfig) return; // Symbol not in config
 
     const volumeUSDT = liquidation.qty * liquidation.price;
-    if (volumeUSDT < symbolConfig.volumeThresholdUSDT) return; // Too small
+
+    // Check direction-specific volume thresholds
+    // SELL liquidation means longs are getting liquidated, we might want to BUY
+    // BUY liquidation means shorts are getting liquidated, we might want to SELL
+    const thresholdToCheck = liquidation.side === 'SELL'
+      ? (symbolConfig.longVolumeThresholdUSDT ?? symbolConfig.volumeThresholdUSDT ?? 0)
+      : (symbolConfig.shortVolumeThresholdUSDT ?? symbolConfig.volumeThresholdUSDT ?? 0);
+
+    if (volumeUSDT < thresholdToCheck) return; // Too small
 
     console.log(`Hunter: Liquidation detected - ${liquidation.symbol} ${liquidation.side} ${volumeUSDT.toFixed(2)} USDT`);
 
@@ -162,6 +177,30 @@ export class Hunter extends EventEmitter {
 
   private async placeTrade(symbol: string, side: 'BUY' | 'SELL', symbolConfig: SymbolConfig, entryPrice: number): Promise<void> {
     try {
+      // Check position limits before placing trade
+      if (this.positionTracker && !this.config.global.paperMode) {
+        // Check global max positions limit
+        const maxPositions = this.config.global.maxOpenPositions || 10;
+        const currentPositionCount = this.positionTracker.getUniquePositionCount(this.isHedgeMode);
+
+        if (currentPositionCount >= maxPositions) {
+          console.log(`Hunter: Skipping trade - max positions reached (${currentPositionCount}/${maxPositions})`);
+          return;
+        }
+
+        // Check symbol-specific margin limit
+        if (symbolConfig.maxPositionMarginUSDT) {
+          const currentMargin = this.positionTracker.getMarginUsage(symbol);
+          const newTradeMargin = (symbolConfig.tradeSize * entryPrice) / symbolConfig.leverage;
+          const totalMargin = currentMargin + newTradeMargin;
+
+          if (totalMargin > symbolConfig.maxPositionMarginUSDT) {
+            console.log(`Hunter: Skipping trade - would exceed max margin for ${symbol} (${totalMargin.toFixed(2)}/${symbolConfig.maxPositionMarginUSDT} USDT)`);
+            return;
+          }
+        }
+      }
+
       if (this.config.global.paperMode) {
         console.log(`Hunter: PAPER MODE - Would place ${side} order for ${symbol}, quantity: ${symbolConfig.tradeSize}, leverage: ${symbolConfig.leverage}`);
         this.emit('positionOpened', {
@@ -294,7 +333,7 @@ export class Hunter extends EventEmitter {
             side,
             type: 'MARKET',
             quantity: symbolConfig.tradeSize,
-            positionSide: getPositionSide(this.isHedgeMode, side),
+            positionSide: getPositionSide(this.isHedgeMode, side) as 'BOTH' | 'LONG' | 'SHORT',
           }, this.config.api);
 
           console.log(`Hunter: Fallback market order placed for ${symbol}, orderId: ${fallbackOrder.orderId}`);

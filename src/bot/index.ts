@@ -197,6 +197,11 @@ class AsterBot {
       // Inject status broadcaster for order events
       this.hunter.setStatusBroadcaster(this.statusBroadcaster);
 
+      // Inject position tracker for position limit checks
+      if (this.positionManager) {
+        this.hunter.setPositionTracker(this.positionManager);
+      }
+
       // Connect hunter events to position manager and status broadcaster
       this.hunter.on('liquidationDetected', (liquidationEvent: any) => {
         console.log(`💥 Liquidation: ${liquidationEvent.symbol} ${liquidationEvent.side} ${liquidationEvent.quantity}`);

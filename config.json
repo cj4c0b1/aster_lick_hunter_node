@@ -5,15 +5,19 @@
   },
   "symbols": {
     "ASTERUSDT": {
-      "volumeThresholdUSDT": 2000,
+      "longVolumeThresholdUSDT": 100,
+      "shortVolumeThresholdUSDT": 10000,
       "tradeSize": 3,
+      "maxPositionMarginUSDT": 500,
       "leverage": 10,
       "tpPercent": 0.1,
       "slPercent": 20
     },
     "HYPEUSDT": {
-      "volumeThresholdUSDT": 5000,
+      "longVolumeThresholdUSDT": 5000,
+      "shortVolumeThresholdUSDT": 5000,
       "tradeSize": 1,
+      "maxPositionMarginUSDT": 200,
       "leverage": 10,
       "tpPercent": 0.1,
       "slPercent": 20
@@ -21,6 +25,7 @@
   },
   "global": {
     "riskPercent": 100,
-    "paperMode": false
+    "paperMode": false,
+    "maxOpenPositions": 6
   }
 }

@@ -55,11 +55,14 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
   const getDefaultSymbolConfig = (minNotional: number = 10): SymbolConfig => {
     // Base trade size on minimum notional (use 2x minimum for safety)
     const tradeSize = Math.max(minNotional * 2, 20);
+    const defaultThreshold = Math.max(minNotional * 10, 10000);
 
     return {
-      volumeThresholdUSDT: Math.max(minNotional * 10, 10000), // 10x min notional for volume threshold
+      longVolumeThresholdUSDT: defaultThreshold,  // For long positions (buy on sell liquidations)
+      shortVolumeThresholdUSDT: defaultThreshold, // For short positions (sell on buy liquidations)
       leverage: 10,
       tradeSize: parseFloat(tradeSize.toFixed(2)),
+      maxPositionMarginUSDT: parseFloat((tradeSize * 100).toFixed(2)), // Default to 100x trade size
       slPercent: 2,
       tpPercent: 3,
       priceOffsetBps: 5,      // 5 basis points offset for limit orders
@@ -312,6 +315,25 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                   One-way: All positions use BOTH | Hedge: Separate LONG and SHORT positions
                 </p>
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="maxOpenPositions">Max Open Positions</Label>
+                <div className="flex items-center space-x-4">
+                  <Input
+                    id="maxOpenPositions"
+                    type="number"
+                    value={config.global.maxOpenPositions || 10}
+                    onChange={(e) => handleGlobalChange('maxOpenPositions', parseInt(e.target.value))}
+                    className="w-24"
+                    min="1"
+                    max="50"
+                    step="1"
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    Maximum concurrent positions (hedged pairs count as one)
+                  </span>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -448,15 +470,28 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                       </CardHeader>
                       <CardContent className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label>Volume Threshold (USDT)</Label>
+                          <Label>Long Volume Threshold (USDT)</Label>
                           <Input
                             type="number"
-                            value={config.symbols[selectedSymbol].volumeThresholdUSDT}
-                            onChange={(e) => handleSymbolChange(selectedSymbol, 'volumeThresholdUSDT', parseFloat(e.target.value))}
+                            value={config.symbols[selectedSymbol].longVolumeThresholdUSDT || config.symbols[selectedSymbol].volumeThresholdUSDT || 0}
+                            onChange={(e) => handleSymbolChange(selectedSymbol, 'longVolumeThresholdUSDT', parseFloat(e.target.value))}
                             min="0"
                           />
                           <p className="text-xs text-muted-foreground">
-                            Minimum liquidation volume to trigger
+                            Min liquidation volume for longs (buy on sell liquidations)
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Short Volume Threshold (USDT)</Label>
+                          <Input
+                            type="number"
+                            value={config.symbols[selectedSymbol].shortVolumeThresholdUSDT || config.symbols[selectedSymbol].volumeThresholdUSDT || 0}
+                            onChange={(e) => handleSymbolChange(selectedSymbol, 'shortVolumeThresholdUSDT', parseFloat(e.target.value))}
+                            min="0"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Min liquidation volume for shorts (sell on buy liquidations)
                           </p>
                         </div>
 
@@ -484,6 +519,19 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                           />
                           <p className="text-xs text-muted-foreground">
                             Position size in USDT
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Max Position Margin (USDT)</Label>
+                          <Input
+                            type="number"
+                            value={config.symbols[selectedSymbol].maxPositionMarginUSDT || 0}
+                            onChange={(e) => handleSymbolChange(selectedSymbol, 'maxPositionMarginUSDT', parseFloat(e.target.value))}
+                            min="0"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Max total margin exposure for this symbol
                           </p>
                         </div>
 

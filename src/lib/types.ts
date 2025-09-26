@@ -1,6 +1,14 @@
 export interface SymbolConfig {
-  volumeThresholdUSDT: number; // e.g., 10000 - minimum liquidation volume to trigger trade
-  tradeSize: number;           // Base quantity for trades (adjusted by leverage)
+  // Volume thresholds
+  volumeThresholdUSDT?: number;       // Legacy field for backward compatibility
+  longVolumeThresholdUSDT?: number;   // Min liquidation volume to trigger long trades (buy on sell liquidations)
+  shortVolumeThresholdUSDT?: number;  // Min liquidation volume to trigger short trades (sell on buy liquidations)
+
+  // Position sizing
+  tradeSize: number;                  // Base quantity for trades (adjusted by leverage)
+  maxPositionMarginUSDT?: number;     // Max margin exposure for this symbol (position size × leverage × price)
+
+  // Risk parameters
   leverage: number;            // Leverage (1-125)
   tpPercent: number;           // Take profit as percentage (e.g., 5 for 5%)
   slPercent: number;           // Stop loss as percentage (e.g., 2 for 2%)
@@ -21,6 +29,7 @@ export interface GlobalConfig {
   riskPercent: number;     // Max risk per trade as % of account balance
   paperMode: boolean;      // If true, simulate trades without executing
   positionMode?: 'ONE_WAY' | 'HEDGE'; // Position mode preference (optional)
+  maxOpenPositions?: number; // Max number of open positions (hedged pairs count as one)
 }
 
 export interface Config {

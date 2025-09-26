@@ -5,11 +5,31 @@ import { Config, SymbolConfig, GlobalConfig } from '../types';
 
 // Zod schemas
 export const symbolConfigSchema = z.object({
-  volumeThresholdUSDT: z.number().min(0),
+  // Volume thresholds - support both legacy and new format
+  volumeThresholdUSDT: z.number().min(0).optional(),
+  longVolumeThresholdUSDT: z.number().min(0).optional(),
+  shortVolumeThresholdUSDT: z.number().min(0).optional(),
+
+  // Position sizing
   tradeSize: z.number().min(0.00001),
+  maxPositionMarginUSDT: z.number().min(0).optional(),
+
+  // Risk parameters
   leverage: z.number().min(1).max(125),
   tpPercent: z.number().min(0.1),
   slPercent: z.number().min(0.1),
+
+  // Limit order settings (optional)
+  priceOffsetBps: z.number().optional(),
+  usePostOnly: z.boolean().optional(),
+  maxSlippageBps: z.number().optional(),
+  orderType: z.enum(['LIMIT', 'MARKET']).optional(),
+}).refine(data => {
+  // Ensure we have either legacy or new volume thresholds
+  return data.volumeThresholdUSDT !== undefined ||
+         (data.longVolumeThresholdUSDT !== undefined && data.shortVolumeThresholdUSDT !== undefined);
+}, {
+  message: "Either volumeThresholdUSDT or both longVolumeThresholdUSDT and shortVolumeThresholdUSDT must be provided"
 });
 
 export const apiCredentialsSchema = z.object({
@@ -20,6 +40,8 @@ export const apiCredentialsSchema = z.object({
 export const globalConfigSchema = z.object({
   riskPercent: z.number().min(0).max(100),
   paperMode: z.boolean(),
+  positionMode: z.enum(['ONE_WAY', 'HEDGE']).optional(),
+  maxOpenPositions: z.number().min(1).optional(),
 });
 
 export const configSchema = z.object({
@@ -28,13 +50,48 @@ export const configSchema = z.object({
   global: globalConfigSchema,
 });
 
+// Helper function to migrate legacy configs
+function migrateConfig(config: any): any {
+  // Migrate symbol configs
+  if (config.symbols) {
+    Object.keys(config.symbols).forEach(symbol => {
+      const symbolConfig = config.symbols[symbol];
+
+      // If only legacy volumeThresholdUSDT exists, set it for both long and short
+      if (symbolConfig.volumeThresholdUSDT !== undefined &&
+          symbolConfig.longVolumeThresholdUSDT === undefined &&
+          symbolConfig.shortVolumeThresholdUSDT === undefined) {
+        symbolConfig.longVolumeThresholdUSDT = symbolConfig.volumeThresholdUSDT;
+        symbolConfig.shortVolumeThresholdUSDT = symbolConfig.volumeThresholdUSDT;
+      }
+
+      // Set default maxPositionMarginUSDT if not present
+      if (symbolConfig.maxPositionMarginUSDT === undefined) {
+        // Default to 10x the trade size as a reasonable limit
+        const tradeValue = (symbolConfig.tradeSize || 1) * 1000; // Rough estimate
+        symbolConfig.maxPositionMarginUSDT = tradeValue * (symbolConfig.leverage || 10);
+      }
+    });
+  }
+
+  // Set default maxOpenPositions if not present
+  if (config.global && config.global.maxOpenPositions === undefined) {
+    config.global.maxOpenPositions = 10; // Default to 10 max positions
+  }
+
+  return config;
+}
+
 // Config loading logic
 export async function loadConfig(): Promise<Config> {
   const configPath = path.join(process.cwd(), 'config.json');
 
   try {
     const data = await fs.readFile(configPath, 'utf8');
-    const parsed = JSON.parse(data);
+    let parsed = JSON.parse(data);
+
+    // Migrate legacy config format
+    parsed = migrateConfig(parsed);
 
     const validated = configSchema.parse(parsed);
 
@@ -67,15 +124,19 @@ export async function saveConfig(config: Config): Promise<void> {
 export const defaultConfig: Omit<Config, 'api'> = {
   symbols: {
     BTCUSDT: {
-      volumeThresholdUSDT: 10000,
+      longVolumeThresholdUSDT: 10000,
+      shortVolumeThresholdUSDT: 10000,
       tradeSize: 0.001,
+      maxPositionMarginUSDT: 5000,
       leverage: 5,
       tpPercent: 5,
       slPercent: 2,
     },
     ETHUSDT: {
-      volumeThresholdUSDT: 5000,
+      longVolumeThresholdUSDT: 5000,
+      shortVolumeThresholdUSDT: 5000,
       tradeSize: 0.01,
+      maxPositionMarginUSDT: 3000,
       leverage: 10,
       tpPercent: 4,
       slPercent: 1.5,
@@ -84,6 +145,7 @@ export const defaultConfig: Omit<Config, 'api'> = {
   global: {
     riskPercent: 5,
     paperMode: true,
+    maxOpenPositions: 10,
   },
 };
 
