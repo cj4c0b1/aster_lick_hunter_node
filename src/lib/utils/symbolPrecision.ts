@@ -108,10 +108,13 @@ export class SymbolPrecisionManager {
     // Ensure it's aligned with step size
     const stepSize = parseFloat(filter.stepSize);
     if (stepSize > 0) {
-      return Math.round(rounded / stepSize) * stepSize;
+      const aligned = Math.round(rounded / stepSize) * stepSize;
+      // Parse and return to avoid floating point precision issues
+      return parseFloat(aligned.toFixed(filter.quantityPrecision));
     }
 
-    return rounded;
+    // Parse and return to avoid floating point precision issues
+    return parseFloat(rounded.toFixed(filter.quantityPrecision));
   }
 
   // Get symbol filter
