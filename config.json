@@ -7,7 +7,7 @@
     "ASTERUSDT": {
       "longVolumeThresholdUSDT": 100,
       "shortVolumeThresholdUSDT": 10000,
-      "tradeSize": 0.5,
+      "tradeSize": 0.6,
       "maxPositionMarginUSDT": 500,
       "leverage": 10,
       "tpPercent": 0.1,
@@ -16,7 +16,7 @@
     "HYPEUSDT": {
       "longVolumeThresholdUSDT": 2500,
       "shortVolumeThresholdUSDT": 20000,
-      "tradeSize": 0.5,
+      "tradeSize": 0.6,
       "maxPositionMarginUSDT": 200,
       "leverage": 10,
       "tpPercent": 0.1,

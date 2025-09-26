@@ -3,10 +3,11 @@ import { EventEmitter } from 'events';
 import { Config, LiquidationEvent, SymbolConfig } from '../types';
 import { getMarkPrice } from '../api/market';
 import { placeOrder, setLeverage } from '../api/orders';
-import { calculateOptimalPrice, validateOrderParams, analyzeOrderBookDepth } from '../api/pricing';
+import { calculateOptimalPrice, validateOrderParams, analyzeOrderBookDepth, getSymbolFilters } from '../api/pricing';
 import { getPositionSide } from '../api/positionMode';
 import { PositionTracker } from './positionManager';
 import { liquidationStorage } from '../services/liquidationStorage';
+import { parseExchangeError, NotionalError } from '../errors/TradingErrors';
 
 export class Hunter extends EventEmitter {
   private ws: WebSocket | null = null;
@@ -182,6 +183,11 @@ export class Hunter extends EventEmitter {
   }
 
   private async placeTrade(symbol: string, side: 'BUY' | 'SELL', symbolConfig: SymbolConfig, entryPrice: number): Promise<void> {
+    // Declare variables that will be used in error handling
+    let currentPrice: number = entryPrice;
+    let quantity: number = 0;
+    let notionalUSDT: number = 0;
+
     try {
       // Check position limits before placing trade
       if (this.positionTracker && !this.config.global.paperMode) {
@@ -256,9 +262,46 @@ export class Hunter extends EventEmitter {
         }
       }
 
+      // Fetch symbol info for precision and filters
+      const symbolInfo = await getSymbolFilters(symbol);
+      if (!symbolInfo) {
+        console.error(`Hunter: Could not fetch symbol info for ${symbol}`);
+        return;
+      }
+
+      // Extract minimum notional from filters
+      const minNotionalFilter = symbolInfo.filters.find(f => f.filterType === 'MIN_NOTIONAL');
+      const minNotional = minNotionalFilter ? parseFloat(minNotionalFilter.notional || '5') : 5;
+
+      // Fetch current price for quantity calculation first
+      if (orderType === 'LIMIT' && orderPrice) {
+        // For limit orders, use the order price for calculation
+        currentPrice = orderPrice;
+      } else {
+        // For market orders, fetch the current mark price
+        const markPriceData = await getMarkPrice(symbol);
+        currentPrice = parseFloat(Array.isArray(markPriceData) ? markPriceData[0].markPrice : markPriceData.markPrice);
+      }
+
+      // Calculate proper quantity based on USDT margin value
+      // tradeSize is the margin in USDT, multiply by leverage to get notional, then divide by price for quantity
+      notionalUSDT = symbolConfig.tradeSize * symbolConfig.leverage;
+
+      // Ensure we meet minimum notional requirement
+      if (notionalUSDT < minNotional) {
+        console.log(`Hunter: Adjusting notional from ${notionalUSDT} to minimum ${minNotional} for ${symbol}`);
+        notionalUSDT = minNotional * 1.01; // Add 1% buffer to ensure we're above minimum
+      }
+
+      const calculatedQuantity = notionalUSDT / currentPrice;
+
+      // Round to the symbol's quantity precision
+      const quantityPrecision = symbolInfo.quantityPrecision || 8;
+      quantity = parseFloat(calculatedQuantity.toFixed(quantityPrecision));
+
       // Validate order parameters
       if (orderType === 'LIMIT') {
-        const validation = await validateOrderParams(symbol, side, orderPrice, symbolConfig.tradeSize);
+        const validation = await validateOrderParams(symbol, side, orderPrice, quantity);
         if (!validation.valid) {
           console.error(`Hunter: Order validation failed for ${symbol}: ${validation.error}`);
           return;
@@ -266,18 +309,20 @@ export class Hunter extends EventEmitter {
 
         // Use adjusted values if provided
         if (validation.adjustedPrice) orderPrice = validation.adjustedPrice;
-        if (validation.adjustedQuantity) symbolConfig.tradeSize = validation.adjustedQuantity;
+        if (validation.adjustedQuantity) quantity = validation.adjustedQuantity;
       }
 
       // Set leverage if needed
       await setLeverage(symbol, symbolConfig.leverage, this.config.api);
+
+      console.log(`Hunter: Calculated quantity for ${symbol}: margin=${symbolConfig.tradeSize} USDT, leverage=${symbolConfig.leverage}x, price=${currentPrice}, notional=${notionalUSDT} USDT, quantity=${quantity}`);
 
       // Prepare order parameters
       const orderParams: any = {
         symbol,
         side,
         type: orderType,
-        quantity: symbolConfig.tradeSize,
+        quantity,
         positionSide: getPositionSide(this.isHedgeMode, side),
       };
 
@@ -299,7 +344,7 @@ export class Hunter extends EventEmitter {
           symbol,
           side,
           orderType,
-          quantity: symbolConfig.tradeSize,
+          quantity,
           price: orderType === 'LIMIT' ? orderPrice : undefined,
           orderId: order.orderId?.toString(),
         });
@@ -308,7 +353,7 @@ export class Hunter extends EventEmitter {
       this.emit('positionOpened', {
         symbol,
         side,
-        quantity: symbolConfig.tradeSize,
+        quantity,
         price: orderType === 'LIMIT' ? orderPrice : entryPrice,
         orderId: order.orderId,
         leverage: symbolConfig.leverage,
@@ -316,29 +361,84 @@ export class Hunter extends EventEmitter {
         paperMode: false
       });
 
-    } catch (error) {
-      console.error(`Hunter: Place trade error for ${symbol}:`, error);
+    } catch (error: any) {
+      // Parse the error with context
+      const tradingError = parseExchangeError(error, {
+        symbol,
+        quantity,
+        price: currentPrice,
+        leverage: symbolConfig.leverage
+      });
 
-      // Broadcast order failed event
+      // Special handling for notional errors
+      if (tradingError instanceof NotionalError) {
+        console.error(`Hunter: NOTIONAL ERROR for ${symbol}:`);
+        console.error(`  Required: ${tradingError.requiredNotional} USDT`);
+        console.error(`  Actual: ${tradingError.actualNotional.toFixed(2)} USDT`);
+        console.error(`  Price: ${tradingError.price}`);
+        console.error(`  Quantity: ${tradingError.quantity}`);
+        console.error(`  Leverage: ${tradingError.leverage}x`);
+        console.error(`  Margin used: ${symbolConfig.tradeSize} USDT`);
+        console.error(`  This indicates the symbol may have special requirements or price has moved significantly.`);
+      } else {
+        console.error(`Hunter: Place trade error for ${symbol}:`, tradingError.message);
+      }
+
+      // Broadcast the error
       if (this.statusBroadcaster) {
         this.statusBroadcaster.broadcastOrderFailed({
           symbol,
           side,
-          reason: error instanceof Error ? error.message : 'Unknown error',
+          reason: tradingError.message,
+          details: tradingError.details
         });
       }
 
       // If limit order fails, try fallback to market order
       if (symbolConfig.orderType !== 'MARKET') {
         console.log(`Hunter: Retrying with market order for ${symbol}`);
+
+        // Declare fallback variables for error handling
+        let fallbackQuantity: number = 0;
+        let fallbackPrice: number = 0;
+
         try {
           await setLeverage(symbol, symbolConfig.leverage, this.config.api);
+
+          // Fetch symbol info for precision and filters
+          const fallbackSymbolInfo = await getSymbolFilters(symbol);
+          if (!fallbackSymbolInfo) {
+            console.error(`Hunter: Could not fetch symbol info for fallback order ${symbol}`);
+            throw new Error('Symbol info unavailable');
+          }
+
+          // Extract minimum notional from filters
+          const fallbackMinNotionalFilter = fallbackSymbolInfo.filters.find(f => f.filterType === 'MIN_NOTIONAL');
+          const fallbackMinNotional = fallbackMinNotionalFilter ? parseFloat(fallbackMinNotionalFilter.notional || '5') : 5;
+
+          // Fetch current price for fallback market order
+          const markPriceData = await getMarkPrice(symbol);
+          fallbackPrice = parseFloat(Array.isArray(markPriceData) ? markPriceData[0].markPrice : markPriceData.markPrice);
+
+          // Calculate quantity for fallback order
+          let fallbackNotionalUSDT = symbolConfig.tradeSize * symbolConfig.leverage;
+
+          // Ensure we meet minimum notional requirement
+          if (fallbackNotionalUSDT < fallbackMinNotional) {
+            console.log(`Hunter: Adjusting fallback notional from ${fallbackNotionalUSDT} to minimum ${fallbackMinNotional} for ${symbol}`);
+            fallbackNotionalUSDT = fallbackMinNotional * 1.01; // Add 1% buffer
+          }
+
+          const fallbackQuantityPrecision = fallbackSymbolInfo.quantityPrecision || 8;
+          fallbackQuantity = parseFloat((fallbackNotionalUSDT / fallbackPrice).toFixed(fallbackQuantityPrecision));
+
+          console.log(`Hunter: Fallback calculation for ${symbol}: margin=${symbolConfig.tradeSize} USDT, leverage=${symbolConfig.leverage}x, price=${fallbackPrice}, notional=${fallbackNotionalUSDT} USDT, quantity=${fallbackQuantity}, precision=${fallbackQuantityPrecision}`);
 
           const fallbackOrder = await placeOrder({
             symbol,
             side,
             type: 'MARKET',
-            quantity: symbolConfig.tradeSize,
+            quantity: fallbackQuantity,
             positionSide: getPositionSide(this.isHedgeMode, side) as 'BOTH' | 'LONG' | 'SHORT',
           }, this.config.api);
 
@@ -350,7 +450,7 @@ export class Hunter extends EventEmitter {
               symbol,
               side,
               orderType: 'MARKET',
-              quantity: symbolConfig.tradeSize,
+              quantity: fallbackQuantity,
               orderId: fallbackOrder.orderId?.toString(),
             });
           }
@@ -358,7 +458,7 @@ export class Hunter extends EventEmitter {
           this.emit('positionOpened', {
             symbol,
             side,
-            quantity: symbolConfig.tradeSize,
+            quantity: fallbackQuantity,
             price: entryPrice,
             orderId: fallbackOrder.orderId,
             leverage: symbolConfig.leverage,
@@ -366,14 +466,34 @@ export class Hunter extends EventEmitter {
             paperMode: false
           });
 
-        } catch (fallbackError) {
-          console.error(`Hunter: Fallback order also failed for ${symbol}:`, fallbackError);
+        } catch (fallbackError: any) {
+          // Parse the fallback error with context
+          const fallbackTradingError = parseExchangeError(fallbackError, {
+            symbol,
+            quantity: fallbackQuantity,
+            price: fallbackPrice,
+            leverage: symbolConfig.leverage
+          });
+
+          if (fallbackTradingError instanceof NotionalError) {
+            console.error(`Hunter: CRITICAL NOTIONAL ERROR in fallback for ${symbol}:`);
+            console.error(`  Required: ${fallbackTradingError.requiredNotional} USDT`);
+            console.error(`  Actual: ${fallbackTradingError.actualNotional.toFixed(2)} USDT`);
+            console.error(`  Price: ${fallbackTradingError.price}`);
+            console.error(`  Quantity: ${fallbackTradingError.quantity}`);
+            console.error(`  Even with adjustments, notional requirement not met!`);
+            console.error(`  Check if symbol has special requirements or if price data is stale.`);
+          } else {
+            console.error(`Hunter: Fallback order also failed for ${symbol}:`, fallbackTradingError.message);
+          }
+
           // Broadcast fallback order failed event
           if (this.statusBroadcaster) {
             this.statusBroadcaster.broadcastOrderFailed({
               symbol,
               side,
-              reason: fallbackError instanceof Error ? fallbackError.message : 'Fallback order failed',
+              reason: fallbackTradingError.message,
+              details: fallbackTradingError.details,
             });
           }
         }
