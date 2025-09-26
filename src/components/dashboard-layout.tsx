@@ -48,6 +48,14 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
+
+          {/* Open Beta Warning */}
+          <div className="flex items-center gap-1 text-xs text-yellow-600 dark:text-yellow-400">
+            <span>⚠️</span>
+            <span className="font-medium">OPEN BETA</span>
+            <span className="text-muted-foreground">- Only use what you can afford to lose</span>
+          </div>
+
           <div className="flex flex-1 items-center justify-end">
             <div className="flex items-center gap-4">
               {/* External Links */}
