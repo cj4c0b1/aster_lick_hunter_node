@@ -38,6 +38,7 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
     global: {
       riskPercent: 2,
       paperMode: true,
+      positionMode: 'ONE_WAY',
     },
     symbols: {},
   });
@@ -257,6 +258,24 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                   </p>
                 </div>
               )}
+
+              <Separator />
+
+              <div className="space-y-2">
+                <Label htmlFor="positionMode">Position Mode</Label>
+                <select
+                  id="positionMode"
+                  value={config.global.positionMode || 'ONE_WAY'}
+                  onChange={(e) => handleGlobalChange('positionMode', e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="ONE_WAY">One-way Mode (BOTH)</option>
+                  <option value="HEDGE">Hedge Mode (LONG/SHORT)</option>
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  One-way: All positions use BOTH | Hedge: Separate LONG and SHORT positions
+                </p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
