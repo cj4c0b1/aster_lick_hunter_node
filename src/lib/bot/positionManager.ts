@@ -571,11 +571,15 @@ export class PositionManager extends EventEmitter implements PositionTracker {
 
           // Check if this position has SL/TP orders and if they need adjustment
           if (sizeChanged) {
-            // Position size changed, need to check and adjust orders
-            await this.checkAndAdjustOrdersForPosition(key);
+            // Position size changed, need to check and adjust orders (async, don't await to avoid blocking)
+            this.checkAndAdjustOrdersForPosition(key).catch(error => {
+              console.error(`PositionManager: Failed to adjust orders for ${key}:`, error?.response?.data || error?.message);
+            });
           } else {
-            // Just ensure position is protected
-            await this.ensurePositionProtected(symbol, positionSide, positionAmt);
+            // Just ensure position is protected (async, don't await to avoid blocking)
+            this.ensurePositionProtected(symbol, positionSide, positionAmt).catch(error => {
+              console.error(`PositionManager: Failed to ensure protection for ${symbol}:`, error?.response?.data || error?.message);
+            });
           }
 
           // Broadcast to UI
@@ -604,8 +608,10 @@ export class PositionManager extends EventEmitter implements PositionTracker {
           console.log(`PositionManager: Position ${key} was closed`);
           this.positionOrders.delete(key);
           this.previousPositionSizes.delete(key);
-          // Cancel any remaining SL/TP orders if they exist
-          await this.cancelProtectiveOrders(key, orders);
+          // Cancel any remaining SL/TP orders if they exist (async, don't await to avoid blocking)
+          this.cancelProtectiveOrders(key, orders).catch(error => {
+            console.error(`PositionManager: Failed to cancel protective orders for ${key}:`, error?.response?.data || error?.message);
+          });
 
           // Trigger balance refresh after position closure
           this.refreshBalance();
@@ -693,11 +699,15 @@ export class PositionManager extends EventEmitter implements PositionTracker {
         // Clean up our tracking
         for (const [key, orders] of this.positionOrders.entries()) {
           if (orders.slOrderId === orderId || orders.tpOrderId === orderId) {
-            // Cancel the other order if it exists
+            // Cancel the other order if it exists (async, don't await to avoid blocking)
             if (orders.slOrderId === orderId && orders.tpOrderId) {
-              await this.cancelOrderById(symbol, orders.tpOrderId);
+              this.cancelOrderById(symbol, orders.tpOrderId).catch(error => {
+                console.error(`PositionManager: Failed to cancel TP order ${orders.tpOrderId}:`, error?.response?.data || error?.message);
+              });
             } else if (orders.tpOrderId === orderId && orders.slOrderId) {
-              await this.cancelOrderById(symbol, orders.slOrderId);
+              this.cancelOrderById(symbol, orders.slOrderId).catch(error => {
+                console.error(`PositionManager: Failed to cancel SL order ${orders.slOrderId}:`, error?.response?.data || error?.message);
+              });
             }
             this.positionOrders.delete(key);
             break;
