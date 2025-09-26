@@ -6,7 +6,6 @@ import { getSignedParams, paramsToQuery } from '../api/auth';
 import { getExchangeInfo } from '../api/market';
 import { placeOrder, cancelOrder } from '../api/orders';
 import { symbolPrecision } from '../utils/symbolPrecision';
-import { getPositionSide, getOppositePositionSide } from '../api/positionMode';
 
 // Minimal local state - only track order IDs linked to positions
 interface PositionOrders {
@@ -66,8 +65,10 @@ export class PositionManager extends EventEmitter implements PositionTracker {
   private config: Config;
   private positionOrders: Map<string, PositionOrders> = new Map(); // symbol_side -> order IDs
   private currentPositions: Map<string, ExchangePosition> = new Map(); // Live position data from WebSocket
+  private previousPositionSizes: Map<string, number> = new Map(); // Track position size changes
   private keepaliveInterval?: NodeJS.Timeout;
   private riskCheckInterval?: NodeJS.Timeout;
+  private orderCheckInterval?: NodeJS.Timeout;
   private isRunning = false;
   private statusBroadcaster: any; // Will be injected
   private isHedgeMode: boolean;
@@ -121,6 +122,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
 
     if (this.keepaliveInterval) clearInterval(this.keepaliveInterval);
     if (this.riskCheckInterval) clearInterval(this.riskCheckInterval);
+    if (this.orderCheckInterval) clearInterval(this.orderCheckInterval);
     if (this.ws) this.ws.close();
     if (this.listenKey) await this.closeUserDataStream();
   }
@@ -144,6 +146,8 @@ export class PositionManager extends EventEmitter implements PositionTracker {
       this.keepaliveInterval = setInterval(() => this.keepalive(), 30 * 60 * 1000);
       // Risk check every 5 min
       this.riskCheckInterval = setInterval(() => this.checkRisk(), 5 * 60 * 1000);
+      // Order check every 30 seconds to ensure SL/TP quantities match positions
+      this.orderCheckInterval = setInterval(() => this.checkAndAdjustOrders(), 30 * 1000);
     });
 
     this.ws.on('message', (data: Buffer) => {
@@ -254,21 +258,45 @@ export class PositionManager extends EventEmitter implements PositionTracker {
           );
 
           const orders: PositionOrders = {};
+          let needsAdjustment = false;
+
           if (slOrder) {
             orders.slOrderId = slOrder.orderId;
-            console.log(`PositionManager: Found SL order ${slOrder.orderId} for ${key}`);
+            const slOrderQty = parseFloat(slOrder.origQty);
+            const positionQty = Math.abs(posAmt);
+
+            // Check if SL order quantity matches position size (with small tolerance for rounding)
+            if (Math.abs(slOrderQty - positionQty) > 0.00000001) {
+              console.log(`PositionManager: SL order ${slOrder.orderId} quantity mismatch - Order: ${slOrderQty}, Position: ${positionQty}`);
+              needsAdjustment = true;
+            } else {
+              console.log(`PositionManager: Found SL order ${slOrder.orderId} for ${key} (qty: ${slOrderQty})`);
+            }
           }
+
           if (tpOrder) {
             orders.tpOrderId = tpOrder.orderId;
-            console.log(`PositionManager: Found TP order ${tpOrder.orderId} for ${key}`);
+            const tpOrderQty = parseFloat(tpOrder.origQty);
+            const positionQty = Math.abs(posAmt);
+
+            // Check if TP order quantity matches position size (with small tolerance for rounding)
+            if (Math.abs(tpOrderQty - positionQty) > 0.00000001) {
+              console.log(`PositionManager: TP order ${tpOrder.orderId} quantity mismatch - Order: ${tpOrderQty}, Position: ${positionQty}`);
+              needsAdjustment = true;
+            } else {
+              console.log(`PositionManager: Found TP order ${tpOrder.orderId} for ${key} (qty: ${tpOrderQty})`);
+            }
           }
 
           if (orders.slOrderId || orders.tpOrderId) {
             this.positionOrders.set(key, orders);
           }
 
-          // Place missing SL/TP if needed
-          if (!slOrder || !tpOrder) {
+          // Adjust orders if quantities don't match or place missing orders
+          if (needsAdjustment) {
+            console.log(`PositionManager: Adjusting protective orders for ${key} due to quantity mismatch`);
+            await this.adjustProtectiveOrders(position, slOrder, tpOrder);
+          } else if (!slOrder || !tpOrder) {
             console.log(`PositionManager: Position ${key} missing protection (SL: ${!!slOrder}, TP: ${!!tpOrder})`);
             await this.placeProtectiveOrders(position, !slOrder, !tpOrder);
           }
@@ -409,7 +437,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
       // Clear and rebuild position map - exchange data is the truth
       this.currentPositions.clear();
 
-      positions.forEach((pos: any) => {
+      positions.forEach(async (pos: any) => {
         const positionAmt = parseFloat(pos.pa);
         const symbol = pos.s;
         const positionSide = pos.ps || 'BOTH';
@@ -417,6 +445,19 @@ export class PositionManager extends EventEmitter implements PositionTracker {
         // Store the full position data from exchange
         if (Math.abs(positionAmt) > 0) {
           const key = this.getPositionKey(symbol, positionSide, positionAmt);
+
+          // Check if position size has changed
+          const previousSize = this.previousPositionSizes.get(key);
+          const currentSize = Math.abs(positionAmt);
+          const sizeChanged = previousSize !== undefined && Math.abs(previousSize - currentSize) > 0.00000001;
+
+          if (sizeChanged) {
+            console.log(`PositionManager: Position size changed for ${key} from ${previousSize} to ${currentSize}`);
+          }
+
+          // Update tracking
+          this.previousPositionSizes.set(key, currentSize);
+
           this.currentPositions.set(key, {
             symbol: pos.s,
             positionAmt: pos.pa,
@@ -432,8 +473,14 @@ export class PositionManager extends EventEmitter implements PositionTracker {
             updateTime: event.E
           });
 
-          // Check if this position has SL/TP orders
-          this.ensurePositionProtected(symbol, positionSide, positionAmt);
+          // Check if this position has SL/TP orders and if they need adjustment
+          if (sizeChanged) {
+            // Position size changed, need to check and adjust orders
+            await this.checkAndAdjustOrdersForPosition(key);
+          } else {
+            // Just ensure position is protected
+            this.ensurePositionProtected(symbol, positionSide, positionAmt);
+          }
 
           // Broadcast to UI
           if (this.statusBroadcaster) {
@@ -455,6 +502,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
           // Position was closed, clean up
           console.log(`PositionManager: Position ${key} was closed`);
           this.positionOrders.delete(key);
+          this.previousPositionSizes.delete(key);
           // Cancel any remaining SL/TP orders if they exist
           this.cancelProtectiveOrders(key, orders);
         }
@@ -611,6 +659,68 @@ export class PositionManager extends EventEmitter implements PositionTracker {
     }
   }
 
+  // Adjust protective orders when quantities don't match position size
+  private async adjustProtectiveOrders(position: ExchangePosition, currentSlOrder?: ExchangeOrder, currentTpOrder?: ExchangeOrder): Promise<void> {
+    const symbol = position.symbol;
+    const posAmt = parseFloat(position.positionAmt);
+    const positionQty = Math.abs(posAmt);
+    const key = this.getPositionKey(symbol, position.positionSide, posAmt);
+
+    console.log(`PositionManager: Adjusting protective orders for ${symbol} - Position size: ${positionQty}`);
+
+    // Cancel existing orders with wrong quantities
+    const orders = this.positionOrders.get(key) || {};
+    const cancelPromises: Promise<void>[] = [];
+
+    let needNewSL = false;
+    let needNewTP = false;
+
+    // Check and cancel SL if quantity doesn't match
+    if (currentSlOrder) {
+      const slOrderQty = parseFloat(currentSlOrder.origQty);
+      if (Math.abs(slOrderQty - positionQty) > 0.00000001) {
+        console.log(`PositionManager: Cancelling SL order ${currentSlOrder.orderId} (qty: ${slOrderQty}) to replace with correct size`);
+        cancelPromises.push(this.cancelOrderById(symbol, currentSlOrder.orderId));
+        needNewSL = true;
+        delete orders.slOrderId;
+      }
+    } else {
+      needNewSL = true;
+    }
+
+    // Check and cancel TP if quantity doesn't match
+    if (currentTpOrder) {
+      const tpOrderQty = parseFloat(currentTpOrder.origQty);
+      if (Math.abs(tpOrderQty - positionQty) > 0.00000001) {
+        console.log(`PositionManager: Cancelling TP order ${currentTpOrder.orderId} (qty: ${tpOrderQty}) to replace with correct size`);
+        cancelPromises.push(this.cancelOrderById(symbol, currentTpOrder.orderId));
+        needNewTP = true;
+        delete orders.tpOrderId;
+      }
+    } else {
+      needNewTP = true;
+    }
+
+    // Wait for cancellations to complete
+    if (cancelPromises.length > 0) {
+      try {
+        await Promise.all(cancelPromises);
+        console.log(`PositionManager: Cancelled ${cancelPromises.length} order(s) for adjustment`);
+      } catch (error: any) {
+        console.error('PositionManager: Error cancelling orders for adjustment:', error?.response?.data || error?.message);
+        // Continue to try placing new orders even if cancellation failed
+      }
+    }
+
+    // Update our tracking
+    this.positionOrders.set(key, orders);
+
+    // Place new orders with correct quantities
+    if (needNewSL || needNewTP) {
+      await this.placeProtectiveOrders(position, needNewSL, needNewTP);
+    }
+  }
+
   // Place protective orders (SL/TP) for a position
   private async placeProtectiveOrders(position: ExchangePosition, placeSL: boolean, placeTP: boolean): Promise<void> {
     const symbol = position.symbol;
@@ -754,6 +864,123 @@ export class PositionManager extends EventEmitter implements PositionTracker {
     // Implementation depends on balance query
 
     console.log(`PositionManager: Risk check complete`);
+  }
+
+  // Check and adjust all orders periodically
+  private async checkAndAdjustOrders(): Promise<void> {
+    if (this.currentPositions.size === 0) {
+      return; // No positions to check
+    }
+
+    console.log(`PositionManager: Checking ${this.currentPositions.size} position(s) for order adjustments`);
+
+    try {
+      // Get all open orders from exchange
+      const openOrders = await this.getOpenOrdersFromExchange();
+
+      // Check each position
+      for (const [key, position] of this.currentPositions.entries()) {
+        const symbol = position.symbol;
+        const posAmt = parseFloat(position.positionAmt);
+        const positionQty = Math.abs(posAmt);
+
+        // Only manage positions for symbols in our config
+        const symbolConfig = this.config.symbols[symbol];
+        if (!symbolConfig) {
+          continue;
+        }
+
+        // Find SL/TP orders for this position
+        const slOrder = openOrders.find(o =>
+          o.symbol === symbol &&
+          (o.type === 'STOP_MARKET' || o.type === 'STOP') &&
+          o.reduceOnly &&
+          ((posAmt > 0 && o.side === 'SELL') || (posAmt < 0 && o.side === 'BUY'))
+        );
+
+        const tpOrder = openOrders.find(o =>
+          o.symbol === symbol &&
+          (o.type === 'TAKE_PROFIT_MARKET' || o.type === 'TAKE_PROFIT' || o.type === 'LIMIT') &&
+          o.reduceOnly &&
+          ((posAmt > 0 && o.side === 'SELL') || (posAmt < 0 && o.side === 'BUY'))
+        );
+
+        let needsAdjustment = false;
+
+        // Check if SL order quantity matches
+        if (slOrder) {
+          const slOrderQty = parseFloat(slOrder.origQty);
+          if (Math.abs(slOrderQty - positionQty) > 0.00000001) {
+            console.log(`PositionManager: [Periodic Check] SL order ${slOrder.orderId} quantity mismatch - Order: ${slOrderQty}, Position: ${positionQty}`);
+            needsAdjustment = true;
+          }
+        }
+
+        // Check if TP order quantity matches
+        if (tpOrder) {
+          const tpOrderQty = parseFloat(tpOrder.origQty);
+          if (Math.abs(tpOrderQty - positionQty) > 0.00000001) {
+            console.log(`PositionManager: [Periodic Check] TP order ${tpOrder.orderId} quantity mismatch - Order: ${tpOrderQty}, Position: ${positionQty}`);
+            needsAdjustment = true;
+          }
+        }
+
+        // Adjust if needed
+        if (needsAdjustment) {
+          await this.adjustProtectiveOrders(position, slOrder, tpOrder);
+        } else if (!slOrder || !tpOrder) {
+          console.log(`PositionManager: [Periodic Check] Position ${key} missing protection (SL: ${!!slOrder}, TP: ${!!tpOrder})`);
+          await this.placeProtectiveOrders(position, !slOrder, !tpOrder);
+        }
+      }
+    } catch (error: any) {
+      console.error('PositionManager: Error during periodic order check:', error?.response?.data || error?.message);
+    }
+  }
+
+  // Check and adjust orders for a specific position
+  private async checkAndAdjustOrdersForPosition(positionKey: string): Promise<void> {
+    const position = this.currentPositions.get(positionKey);
+    if (!position) {
+      return;
+    }
+
+    const symbol = position.symbol;
+    const posAmt = parseFloat(position.positionAmt);
+    const positionQty = Math.abs(posAmt);
+
+    // Only manage positions for symbols in our config
+    const symbolConfig = this.config.symbols[symbol];
+    if (!symbolConfig) {
+      return;
+    }
+
+    console.log(`PositionManager: Checking orders for position ${positionKey} (size: ${positionQty})`);
+
+    try {
+      // Get all open orders from exchange
+      const openOrders = await this.getOpenOrdersFromExchange();
+
+      // Find SL/TP orders for this position
+      const slOrder = openOrders.find(o =>
+        o.symbol === symbol &&
+        (o.type === 'STOP_MARKET' || o.type === 'STOP') &&
+        o.reduceOnly &&
+        ((posAmt > 0 && o.side === 'SELL') || (posAmt < 0 && o.side === 'BUY'))
+      );
+
+      const tpOrder = openOrders.find(o =>
+        o.symbol === symbol &&
+        (o.type === 'TAKE_PROFIT_MARKET' || o.type === 'TAKE_PROFIT' || o.type === 'LIMIT') &&
+        o.reduceOnly &&
+        ((posAmt > 0 && o.side === 'SELL') || (posAmt < 0 && o.side === 'BUY'))
+      );
+
+      // Always adjust orders when position size changes
+      await this.adjustProtectiveOrders(position, slOrder, tpOrder);
+    } catch (error: any) {
+      console.error(`PositionManager: Error checking orders for position ${positionKey}:`, error?.response?.data || error?.message);
+    }
   }
 
   // Manual methods
