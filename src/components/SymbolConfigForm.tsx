@@ -42,6 +42,11 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
       riskPercent: 2,
       paperMode: true,
       positionMode: 'ONE_WAY',
+      server: {
+        dashboardPassword: '',
+        dashboardPort: 3000,
+        websocketPort: 8080
+      }
     },
     symbols: {},
   });
@@ -374,6 +379,86 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                   </span>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Server Settings Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Server Settings</CardTitle>
+              <CardDescription>
+                Dashboard security and network configuration
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="dashboardPassword">Dashboard Password</Label>
+                <Input
+                  id="dashboardPassword"
+                  type="password"
+                  value={config.global.server?.dashboardPassword || ''}
+                  onChange={(e) => handleGlobalChange('server', {
+                    ...config.global.server,
+                    dashboardPassword: e.target.value
+                  })}
+                  placeholder="Leave empty for no password protection"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Set a password to protect your dashboard when exposing it to external networks
+                </p>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-2">
+                <Label htmlFor="dashboardPort">Dashboard Port</Label>
+                <div className="flex items-center space-x-4">
+                  <Input
+                    id="dashboardPort"
+                    type="number"
+                    value={config.global.server?.dashboardPort || 3000}
+                    onChange={(e) => handleGlobalChange('server', {
+                      ...config.global.server,
+                      dashboardPort: parseInt(e.target.value)
+                    })}
+                    className="w-24"
+                    min="1024"
+                    max="65535"
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    Port for the web dashboard (default: 3000)
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="websocketPort">WebSocket Port</Label>
+                <div className="flex items-center space-x-4">
+                  <Input
+                    id="websocketPort"
+                    type="number"
+                    value={config.global.server?.websocketPort || 8080}
+                    onChange={(e) => handleGlobalChange('server', {
+                      ...config.global.server,
+                      websocketPort: parseInt(e.target.value)
+                    })}
+                    className="w-24"
+                    min="1024"
+                    max="65535"
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    Port for WebSocket server communication (default: 8080)
+                  </span>
+                </div>
+              </div>
+
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Note:</strong> After changing ports, you'll need to restart the application and access it at the new port.
+                  {config.global.server?.dashboardPassword && " Password protection is active - you'll need to login to access the dashboard."}
+                </AlertDescription>
+              </Alert>
             </CardContent>
           </Card>
         </TabsContent>
