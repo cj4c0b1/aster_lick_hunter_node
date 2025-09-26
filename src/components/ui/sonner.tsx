@@ -29,21 +29,19 @@ const Toaster = ({ ...props }: ToasterProps) => {
                 if (toastElement && !toastElement.hasAttribute('data-animated')) {
                   toastElement.setAttribute('data-animated', 'true');
 
-                  // Set initial state for slide-in animation
+                  // Set initial state - only animate opacity and scale to avoid position conflicts
                   gsap.set(toastElement, {
-                    x: 400,
                     opacity: 0,
-                    scale: 0.95,
-                    transformOrigin: "center center"
+                    scale: 0.9,
+                    transformOrigin: "top right"
                   });
 
-                  // Animate in with smooth slide
+                  // Animate in with fade and scale only - let Sonner handle positioning
                   gsap.to(toastElement, {
-                    x: 0,
                     opacity: 1,
                     scale: 1,
-                    duration: 0.4,
-                    ease: "power3.out"
+                    duration: 0.3,
+                    ease: "power2.out"
                   });
                 }
               }
@@ -80,9 +78,6 @@ const Toaster = ({ ...props }: ToasterProps) => {
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
       toastOptions={{
-        style: {
-          transform: "translateX(0)", // Ensure transforms work with GSAP
-        },
         classNames: {
           toast: "group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg",
           description: "group-[.toast]:text-muted-foreground",
@@ -101,7 +96,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       expand={false}
       richColors={true}
       closeButton={true}
-      gap={8}
+      gap={12}
       visibleToasts={10}
       {...props}
     />

@@ -139,15 +139,14 @@
 
 [data-sonner-toast] {
   /* Enable hardware acceleration for smooth animations */
-  transform: translate3d(0, 0, 0);
-  will-change: transform, opacity, scale;
+  /* Remove transform to avoid conflicts with Sonner's positioning */
+  will-change: opacity, scale;
 
-  /* Ensure proper stacking context */
-  position: relative;
-  z-index: auto;
+  /* Let Sonner handle positioning, establish proper stacking context */
+  z-index: 50;
 
-  /* Smooth transitions for any non-GSAP animations */
-  transition: all 0.2s ease-out;
+  /* Smooth transitions for opacity and scale only */
+  transition: opacity 0.2s ease-out, scale 0.2s ease-out;
 
   /* Add subtle backdrop blur for visual depth */
   backdrop-filter: blur(8px);
