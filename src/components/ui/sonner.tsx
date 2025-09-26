@@ -29,18 +29,20 @@ const Toaster = ({ ...props }: ToasterProps) => {
                 if (toastElement && !toastElement.hasAttribute('data-animated')) {
                   toastElement.setAttribute('data-animated', 'true');
 
-                  // Set initial state - only animate opacity and scale to avoid position conflicts
+                  // Set initial state - slide in from right with fade
                   gsap.set(toastElement, {
                     opacity: 0,
-                    scale: 0.9,
+                    x: 50,
+                    scale: 0.95,
                     transformOrigin: "top right"
                   });
 
-                  // Animate in with fade and scale only - let Sonner handle positioning
+                  // Animate in with slide, fade and scale
                   gsap.to(toastElement, {
                     opacity: 1,
+                    x: 0,
                     scale: 1,
-                    duration: 0.3,
+                    duration: 0.35,
                     ease: "power2.out"
                   });
                 }
@@ -93,11 +95,12 @@ const Toaster = ({ ...props }: ToasterProps) => {
         } as React.CSSProperties
       }
       position="top-right"
-      expand={false}
+      expand={true}
       richColors={true}
       closeButton={true}
-      gap={12}
+      gap={16}
       visibleToasts={10}
+      duration={5000}
       {...props}
     />
   )
