@@ -540,6 +540,9 @@ export class PositionManager extends EventEmitter implements PositionTracker {
     if (event.a && event.a.P) {
       const positions = event.a.P;
 
+      // Track previous positions to detect closures
+      const previousPositions = new Map(this.currentPositions);
+
       // Clear and rebuild position map - exchange data is the truth
       this.currentPositions.clear();
 
@@ -548,7 +551,56 @@ export class PositionManager extends EventEmitter implements PositionTracker {
         const symbol = pos.s;
         const positionSide = pos.ps || 'BOTH';
 
-        // Store the full position data from exchange
+        // Check if position is closed (positionAmt = 0)
+        if (Math.abs(positionAmt) === 0) {
+          // Find the previous position key for this symbol/side
+          let previousKey: string | undefined;
+          let previousPosition: ExchangePosition | undefined;
+
+          for (const [key, prevPos] of previousPositions.entries()) {
+            if (prevPos.symbol === symbol && prevPos.positionSide === positionSide) {
+              previousKey = key;
+              previousPosition = prevPos;
+              break;
+            }
+          }
+
+          if (previousKey && previousPosition) {
+            const previousAmt = parseFloat(previousPosition.positionAmt);
+            console.log(`PositionManager: Position ${previousKey} fully closed`);
+
+            // Broadcast position closed event
+            if (this.statusBroadcaster) {
+              this.statusBroadcaster.broadcastPositionClosed({
+                symbol: symbol,
+                side: previousAmt > 0 ? 'LONG' : 'SHORT',
+                quantity: Math.abs(previousAmt),
+                pnl: 0, // Will be updated by ORDER_TRADE_UPDATE
+                reason: 'Position Closed',
+              });
+
+              // Also broadcast position_update with type closed for compatibility
+              this.statusBroadcaster.broadcastPositionUpdate({
+                symbol: symbol,
+                side: previousAmt > 0 ? 'LONG' : 'SHORT',
+                quantity: 0,
+                price: 0,
+                type: 'closed',
+                pnl: 0,
+              });
+            }
+
+            // Clean up tracking
+            this.positionOrders.delete(previousKey);
+            this.previousPositionSizes.delete(previousKey);
+
+            // Trigger immediate balance refresh
+            this.refreshBalance();
+          }
+          return; // Skip adding closed positions to map
+        }
+
+        // Store the full position data from exchange (only for open positions)
         if (Math.abs(positionAmt) > 0) {
           const key = this.getPositionKey(symbol, positionSide, positionAmt);
 
