@@ -246,10 +246,23 @@ class DataStore extends EventEmitter {
       console.log('[DataStore] Position update received, clearing cache and fetching latest positions');
       // Clear positions cache immediately to prevent serving stale data
       this.state.positions.timestamp = 0;
-      // Force fetch to get latest positions
-      this.fetchPositions(true).catch(error => {
-        console.error('[DataStore] Failed to fetch positions after update:', error);
-      });
+      // Add a 1 second delay to allow protective orders to be placed
+      // This ensures SL/TP badges appear correctly in the dashboard
+      setTimeout(() => {
+        // Force fetch to get latest positions with protective orders
+        this.fetchPositions(true).catch(error => {
+          console.error('[DataStore] Failed to fetch positions after update:', error);
+        });
+      }, 1000);
+    } else if (message.type === 'sl_placed' || message.type === 'tp_placed') {
+      // When SL/TP orders are placed, refresh positions to update protection badges
+      console.log(`[DataStore] ${message.type === 'sl_placed' ? 'Stop Loss' : 'Take Profit'} placed, refreshing positions`);
+      // Small delay to ensure order is registered on exchange
+      setTimeout(() => {
+        this.fetchPositions(true).catch(error => {
+          console.error('[DataStore] Failed to fetch positions after SL/TP placement:', error);
+        });
+      }, 500);
     } else if (message.type === 'mark_price_update') {
       if (Array.isArray(message.data)) {
         const priceUpdates: Record<string, number> = {};
