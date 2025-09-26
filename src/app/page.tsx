@@ -180,9 +180,9 @@ export default function DashboardPage() {
       {/* Minimal Bot Status Bar */}
       <MinimalBotStatus />
 
-      <div className="flex h-full">
+      <div className="flex h-full overflow-hidden">
         {/* Main Content */}
-        <div className="flex-1 p-6 space-y-6">
+        <div className="flex-1 p-6 space-y-6 overflow-y-auto">
           {/* Account Summary Cards */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>

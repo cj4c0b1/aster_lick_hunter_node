@@ -148,9 +148,9 @@ export default function LiquidationSidebar({ volumeThresholds = {}, maxEvents = 
   };
 
   return (
-    <div className="w-72 border-l bg-black/95 hidden lg:block">
-      <div className="h-full">
-        <div className="border-b border-gray-800 p-3">
+    <div className="w-72 border-l bg-black/95 hidden lg:block h-full overflow-hidden">
+      <div className="h-full flex flex-col">
+        <div className="border-b border-gray-800 p-3 flex-shrink-0">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium text-gray-200">Liquidations</h3>
             <Badge variant={isConnected ? "default" : "secondary"} className="flex items-center gap-1 text-xs h-5">
@@ -159,7 +159,7 @@ export default function LiquidationSidebar({ volumeThresholds = {}, maxEvents = 
             </Badge>
           </div>
         </div>
-        <div className="overflow-y-auto max-h-[calc(100vh-120px)] scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+        <div className="flex-1 overflow-y-auto scrollbar-hide">
           {isLoading ? (
             Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="flex items-center justify-between px-3 py-1.5 border-b border-gray-900">
