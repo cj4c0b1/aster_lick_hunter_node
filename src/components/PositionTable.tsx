@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { BarChart3, Tag } from 'lucide-react';
+import { BarChart3, Tag, TrendingUp, TrendingDown, Shield, Target, ChevronDown } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import websocketService from '@/lib/services/websocketService';
 import { useConfig } from '@/components/ConfigProvider';
@@ -47,6 +47,7 @@ export default function PositionTable({
   const [isLoading, setIsLoading] = useState(true);
   const [markPrices, setMarkPrices] = useState<Record<string, number>>({});
   const [vwapData, setVwapData] = useState<Record<string, VWAPData>>({});
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const { config } = useConfig();
   const { formatPrice, formatQuantity, formatPriceWithCommas } = useSymbolPrecision();
 
@@ -259,78 +260,45 @@ export default function PositionTable({
 
   return (
     <Card>
-      <CardHeader>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Open Positions</CardTitle>
-              <CardDescription>Manage your active trading positions</CardDescription>
-            </div>
-          </div>
-
-          {/* Position Symbols Badges */}
-          {positionSymbols.length > 0 && (
-            <div className="flex items-center gap-2">
-              <Tag className="h-4 w-4 text-muted-foreground" />
-              <div className="flex flex-wrap gap-1.5">
-                {positionSymbols.map(({ symbol, hasLong, hasShort }) => (
-                  <div key={symbol} className="flex gap-1">
-                    <Badge
-                      variant="outline"
-                      className="text-xs font-medium"
-                    >
-                      {symbol}
-                      {hasLong && hasShort && (
-                        <span className="ml-1 text-[10px]">(L+S)</span>
-                      )}
-                      {hasLong && !hasShort && (
-                        <span className="ml-1 text-[10px] text-green-600 dark:text-green-400">(L)</span>
-                      )}
-                      {!hasLong && hasShort && (
-                        <span className="ml-1 text-[10px] text-red-600 dark:text-red-400">(S)</span>
-                      )}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+      <CardHeader className="pb-3">
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+        >
+          <CardTitle className="text-base font-medium">Positions</CardTitle>
+          <Badge variant="secondary" className="h-5 text-xs px-1.5">
+            {displayPositions.length}
+          </Badge>
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+        </button>
       </CardHeader>
 
-      <CardContent>
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Symbol</TableHead>
-                <TableHead>Side</TableHead>
-                <TableHead className="text-right">Size</TableHead>
-                <TableHead className="text-right">Entry</TableHead>
-                <TableHead className="text-right">Mark</TableHead>
-                <TableHead className="text-right">PnL</TableHead>
-                <TableHead className="text-right">Margin</TableHead>
-                <TableHead className="text-center">VWAP</TableHead>
-                <TableHead className="text-center">Stop Loss</TableHead>
-                <TableHead className="text-center">Take Profit</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-            {isLoading ? (
-              Array.from({ length: 3 }).map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-12" /></TableCell>
-                  <TableCell className="text-right"><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
-                  <TableCell className="text-right"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
-                  <TableCell className="text-right"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
-                  <TableCell className="text-right"><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
-                  <TableCell className="text-right"><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
-                  <TableCell className="text-center"><Skeleton className="h-4 w-12 mx-auto" /></TableCell>
-                  <TableCell className="text-center"><Skeleton className="h-4 w-16 mx-auto" /></TableCell>
-                  <TableCell className="text-center"><Skeleton className="h-4 w-16 mx-auto" /></TableCell>
+      {!isCollapsed && (
+        <CardContent className="pt-0">
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow className="h-8">
+                  <TableHead className="text-xs">Symbol</TableHead>
+                  <TableHead className="text-xs">Side</TableHead>
+                  <TableHead className="text-xs text-right">Size</TableHead>
+                  <TableHead className="text-xs text-right">Entry/Mark</TableHead>
+                  <TableHead className="text-xs text-right">PnL</TableHead>
+                  <TableHead className="text-xs text-center">Protection</TableHead>
                 </TableRow>
-              ))
+              </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <TableRow key={i} className="h-12">
+                    <TableCell className="py-2"><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell className="py-2"><Skeleton className="h-5 w-8" /></TableCell>
+                    <TableCell className="py-2 text-right"><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
+                    <TableCell className="py-2 text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
+                    <TableCell className="py-2 text-right"><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
+                    <TableCell className="py-2 text-center"><Skeleton className="h-5 w-20 mx-auto" /></TableCell>
+                  </TableRow>
+                ))
             ) : displayPositions.map((position) => {
               const key = `${position.symbol}-${position.side}`;
               const vwap = vwapData[position.symbol];
@@ -338,123 +306,155 @@ export default function PositionTable({
               const hasVwapProtection = symbolConfig?.vwapProtection;
 
               return (
-                <TableRow key={key}>
-                  <TableCell className="font-medium">{position.symbol}</TableCell>
-                  <TableCell>
+                <TableRow key={key} className="h-12">
+                  <TableCell className="py-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-medium text-sm">{position.symbol}</span>
+                      <Badge variant="secondary" className="h-4 text-[10px] px-1">
+                        {position.leverage}x
+                      </Badge>
+                    </div>
+                  </TableCell>
+                  <TableCell className="py-2">
                     <Badge
-                      variant={position.side === 'LONG' ? 'default' : 'destructive'}
-                      className="w-14 justify-center"
+                      variant={position.side === 'LONG' ? 'outline' : 'destructive'}
+                      className={`h-5 text-xs px-1.5 ${position.side === 'LONG' ? 'border-green-600 text-green-600 dark:border-green-400 dark:text-green-400' : ''}`}
                     >
-                      {position.side}
+                      {position.side === 'LONG' ? (
+                        <TrendingUp className="h-3 w-3 mr-0.5" />
+                      ) : (
+                        <TrendingDown className="h-3 w-3 mr-0.5" />
+                      )}
+                      {position.side[0]}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {formatQuantity(position.symbol, position.quantity)}
-                  </TableCell>
-                  <TableCell className="text-right font-mono">
-                    ${formatPriceWithCommas(position.symbol, position.entryPrice)}
-                  </TableCell>
-                  <TableCell className="text-right font-mono">
-                    ${formatPriceWithCommas(position.symbol, position.markPrice)}
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    <div className={`${position.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {position.pnl >= 0 ? '+' : ''}${position.pnl.toFixed(2)}
+                  <TableCell className="text-right py-2">
+                    <div className="text-sm font-mono">
+                      {formatQuantity(position.symbol, position.quantity)}
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      ({position.pnlPercent >= 0 ? '+' : ''}{position.pnlPercent.toFixed(2)}%)
+                    <div className="text-[10px] text-muted-foreground">
+                      ${position.margin.toFixed(2)}
                     </div>
                   </TableCell>
-                  <TableCell className="text-right">
-                    <div className="font-mono">${position.margin.toFixed(2)}</div>
-                    <div className="text-xs text-muted-foreground">{position.leverage}x</div>
+                  <TableCell className="text-right py-2">
+                    <div className="text-sm font-mono">
+                      ${formatPriceWithCommas(position.symbol, position.entryPrice)}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      ${formatPriceWithCommas(position.symbol, position.markPrice)}
+                    </div>
                   </TableCell>
-                  <TableCell className="text-center">
-                    {hasVwapProtection ? (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="inline-flex items-center gap-1">
-                              {vwap ? (
-                                <>
-                                  <BarChart3 className="h-4 w-4" />
-                                  <Badge
-                                    variant={vwap.position === 'above' ? 'default' : 'secondary'}
-                                    className="text-xs"
-                                  >
-                                    {vwap.position === 'above' ? '↑' : '↓'} ${formatPrice(position.symbol, vwap.value)}
+                  <TableCell className="text-right py-2">
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span className={`text-sm font-semibold ${position.pnl >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {position.pnl >= 0 ? '+' : ''}${Math.abs(position.pnl).toFixed(2)}
+                      </span>
+                      <Badge
+                        variant={position.pnl >= 0 ? "outline" : "destructive"}
+                        className={`h-3.5 text-[9px] px-1 ${position.pnl >= 0 ? 'border-green-600 text-green-600 dark:border-green-400 dark:text-green-400' : ''}`}
+                      >
+                        {position.pnlPercent >= 0 ? '+' : ''}{position.pnlPercent.toFixed(1)}%
+                      </Badge>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-center py-2">
+                    <div className="flex flex-col items-center gap-0.5">
+                      <div className="flex items-center gap-0.5">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex gap-0.5">
+                                {position.hasStopLoss ? (
+                                  <Badge variant="outline" className="h-5 w-5 p-0 border-green-600">
+                                    <Shield className="h-3 w-3 text-green-600" />
                                   </Badge>
-                                </>
-                              ) : (
-                                <Badge variant="outline" className="text-xs">
-                                  <BarChart3 className="h-3 w-3 mr-1" />
-                                  Loading...
-                                </Badge>
-                              )}
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <div className="text-xs">
-                              {vwap ? (
-                                <>
-                                  <p>VWAP: ${formatPrice(position.symbol, vwap.value)}</p>
-                                  <p>Price is {vwap.position} VWAP</p>
-                                  <p className="text-muted-foreground">
-                                    {position.side === 'LONG' && vwap.position === 'above' && '⚠️ Long above VWAP'}
-                                    {position.side === 'SHORT' && vwap.position === 'below' && '⚠️ Short below VWAP'}
-                                    {position.side === 'LONG' && vwap.position === 'below' && '✅ Long below VWAP'}
-                                    {position.side === 'SHORT' && vwap.position === 'above' && '✅ Short above VWAP'}
-                                  </p>
-                                </>
-                              ) : (
-                                <p>Loading VWAP data...</p>
-                              )}
-                            </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    ) : (
-                      <Badge variant="outline" className="text-xs text-muted-foreground">
-                        Disabled
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {position.hasStopLoss ? (
-                      <Badge variant="default" className="bg-green-600 hover:bg-green-700">
-                        Active
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary">
-                        Inactive
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {position.hasTakeProfit ? (
-                      <Badge variant="default" className="bg-green-600 hover:bg-green-700">
-                        Active
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary">
-                        Inactive
-                      </Badge>
-                    )}
+                                ) : (
+                                  <Badge variant="outline" className="h-5 w-5 p-0">
+                                    <Shield className="h-3 w-3 text-muted-foreground" />
+                                  </Badge>
+                                )}
+                                {position.hasTakeProfit ? (
+                                  <Badge variant="outline" className="h-5 w-5 p-0 border-blue-600">
+                                    <Target className="h-3 w-3 text-blue-600" />
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="h-5 w-5 p-0">
+                                    <Target className="h-3 w-3 text-muted-foreground" />
+                                  </Badge>
+                                )}
+                                {hasVwapProtection && vwap ? (
+                                  <Badge
+                                    variant="outline"
+                                    className={`h-5 w-5 p-0 ${
+                                      (position.side === 'LONG' && vwap.position === 'below') ||
+                                      (position.side === 'SHORT' && vwap.position === 'above')
+                                        ? 'border-green-600'
+                                        : 'border-orange-600'
+                                    }`}
+                                  >
+                                    <BarChart3
+                                      className={`h-3 w-3 ${
+                                        (position.side === 'LONG' && vwap.position === 'below') ||
+                                        (position.side === 'SHORT' && vwap.position === 'above')
+                                          ? 'text-green-600'
+                                          : 'text-orange-600'
+                                      }`}
+                                    />
+                                  </Badge>
+                                ) : hasVwapProtection ? (
+                                  <Badge variant="outline" className="h-5 w-5 p-0">
+                                    <BarChart3 className="h-3 w-3 text-muted-foreground animate-pulse" />
+                                  </Badge>
+                                ) : null}
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <div className="text-xs space-y-1">
+                                <p>Stop Loss: {position.hasStopLoss ? '✅ Active' : '❌ Inactive'}</p>
+                                <p>Take Profit: {position.hasTakeProfit ? '✅ Active' : '❌ Inactive'}</p>
+                                {hasVwapProtection && vwap && (
+                                  <>
+                                    <p>VWAP: ${formatPrice(position.symbol, vwap.value)}</p>
+                                    <p className="text-muted-foreground">
+                                      {position.side === 'LONG' && vwap.position === 'below' && '✅ Long below VWAP (Good)'}
+                                      {position.side === 'LONG' && vwap.position === 'above' && '⚠️ Long above VWAP (Risky)'}
+                                      {position.side === 'SHORT' && vwap.position === 'above' && '✅ Short above VWAP (Good)'}
+                                      {position.side === 'SHORT' && vwap.position === 'below' && '⚠️ Short below VWAP (Risky)'}
+                                    </p>
+                                  </>
+                                )}
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                      {hasVwapProtection && vwap && (
+                        <div className="text-[9px] text-muted-foreground font-mono">
+                          V:${formatPrice(position.symbol, vwap.value)}
+                        </div>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               );
             })}
-            {!isLoading && displayPositions.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
-                  No open positions
-                </TableCell>
-              </TableRow>
-            )}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
+              {!isLoading && displayPositions.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-6">
+                    <div className="flex flex-col items-center gap-1">
+                      <span className="text-sm text-muted-foreground">No open positions</span>
+                      <Badge variant="secondary" className="h-4 text-[10px] px-1.5">
+                        Waiting for trades
+                      </Badge>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      )}
     </Card>
   );
 }

@@ -15,6 +15,7 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -29,6 +30,10 @@ import {
   BarChart3,
   RefreshCw,
   ChevronDown,
+  TrendingUp,
+  TrendingDown,
+  Target,
+  Percent,
 } from 'lucide-react';
 import websocketService from '@/lib/services/websocketService';
 
@@ -289,7 +294,7 @@ export default function PnLChart() {
     }).format(value);
   };
 
-  // Custom tooltip
+  // Custom tooltip - more compact
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
@@ -297,42 +302,24 @@ export default function PnLChart() {
       const displayValue = isDaily ? data.netPnl : data.cumulativePnl;
 
       return (
-        <div className="bg-background border rounded shadow-lg p-2">
-          <p className="text-xs font-semibold">{new Date(label).toLocaleDateString()}</p>
-          <div className="space-y-0.5 mt-1">
-            <div className="flex justify-between gap-3 text-xs">
-              <span className="text-muted-foreground">
-                {isDaily ? 'Net PnL' : 'Cumulative'}
-              </span>
-              <span className={`font-medium ${displayValue >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                {formatTooltipValue(displayValue)}
-              </span>
-            </div>
-            {isDaily && (
-              <>
-                <div className="flex justify-between gap-3 text-xs">
-                  <span className="text-muted-foreground">Realized</span>
-                  <span className={data.realizedPnl >= 0 ? 'text-green-500' : 'text-red-500'}>
-                    {formatTooltipValue(data.realizedPnl)}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-3 text-xs">
-                  <span className="text-muted-foreground">Fees</span>
-                  <span className="text-red-500">{formatTooltipValue(data.commission)}</span>
-                </div>
-                <div className="flex justify-between gap-3 text-xs">
-                  <span className="text-muted-foreground">Funding</span>
-                  <span className={data.fundingFee >= 0 ? 'text-green-500' : 'text-red-500'}>
-                    {formatTooltipValue(data.fundingFee)}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-3 text-xs">
-                  <span className="text-muted-foreground">Trades</span>
-                  <span>{data.tradeCount}</span>
-                </div>
-              </>
+        <div className="bg-background/95 backdrop-blur border rounded-md shadow-lg p-1.5">
+          <p className="text-[10px] font-medium text-muted-foreground">{new Date(label).toLocaleDateString()}</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className={`text-sm font-semibold ${displayValue >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+              {formatTooltipValue(displayValue)}
+            </span>
+            {data.tradeCount > 0 && (
+              <Badge variant="secondary" className="h-3.5 text-[9px] px-1">
+                {data.tradeCount} trades
+              </Badge>
             )}
           </div>
+          {isDaily && (
+            <div className="flex gap-2 mt-1 text-[10px] text-muted-foreground">
+              <span>Real: {formatTooltipValue(data.realizedPnl)}</span>
+              <span>Fee: {formatTooltipValue(Math.abs(data.commission))}</span>
+            </div>
+          )}
         </div>
       );
     }
@@ -356,45 +343,46 @@ export default function PnLChart() {
   if (!pnlData || chartData.length === 0) {
     return (
       <Card>
-        <CardHeader>
+        <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
               className="flex items-center gap-2 hover:opacity-80 transition-opacity"
             >
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5" />
-                Performance Chart
+              <CardTitle className="text-base font-medium flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Performance
               </CardTitle>
-              <ChevronDown className={`h-4 w-4 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
             </button>
             {!isCollapsed && (
-              <div className="flex gap-2">
+              <div className="flex items-center gap-1.5">
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="icon"
+                  className="h-7 w-7"
                   onClick={() => fetchPnLData(true)}
                   disabled={isRefreshing}
                 >
-                  <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
                 </Button>
                 <Select value={timeRange} onValueChange={(value) => setTimeRange(value as TimeRange)}>
-                  <SelectTrigger className="w-32">
+                  <SelectTrigger className="h-7 w-24 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="24h">24 Hours</SelectItem>
-                    <SelectItem value="7d">7 Days</SelectItem>
-                    <SelectItem value="30d">30 Days</SelectItem>
-                    <SelectItem value="90d">90 Days</SelectItem>
-                    <SelectItem value="1y">1 Year</SelectItem>
-                    <SelectItem value="all">All Time</SelectItem>
+                    <SelectItem value="24h">24h</SelectItem>
+                    <SelectItem value="7d">7d</SelectItem>
+                    <SelectItem value="30d">30d</SelectItem>
+                    <SelectItem value="90d">90d</SelectItem>
+                    <SelectItem value="1y">1y</SelectItem>
+                    <SelectItem value="all">All</SelectItem>
                   </SelectContent>
                 </Select>
                 <Tabs value={chartType} onValueChange={(value) => setChartType(value as ChartType)}>
-                  <TabsList>
-                    <TabsTrigger value="daily">Daily</TabsTrigger>
-                    <TabsTrigger value="cumulative">Cumulative</TabsTrigger>
+                  <TabsList className="h-7">
+                    <TabsTrigger value="daily" className="h-6 text-xs">Daily</TabsTrigger>
+                    <TabsTrigger value="cumulative" className="h-6 text-xs">Total</TabsTrigger>
                   </TabsList>
                 </Tabs>
               </div>
@@ -403,15 +391,13 @@ export default function PnLChart() {
         </CardHeader>
         {!isCollapsed && (
           <CardContent>
-            <div className="flex items-center justify-center h-[200px] text-muted-foreground">
+            <div className="flex items-center justify-center h-[150px] text-muted-foreground">
               <div className="text-center space-y-1">
-                <BarChart3 className="h-8 w-8 mx-auto opacity-50" />
-                <p className="text-sm font-medium">No trading data available</p>
-                <p className="text-xs">
-                  {pnlData?.error
-                    ? `Error: ${pnlData.error}`
-                    : `No PnL data found for the selected ${timeRange} period`}
-                </p>
+                <BarChart3 className="h-6 w-6 mx-auto opacity-50" />
+                <p className="text-xs font-medium">No trading data</p>
+                <Badge variant="secondary" className="h-4 text-[10px] px-1.5">
+                  {pnlData?.error ? `Error: ${pnlData.error}` : `${timeRange} period`}
+                </Badge>
               </div>
             </div>
           </CardContent>
@@ -453,45 +439,46 @@ export default function PnLChart() {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
             className="flex items-center gap-2 hover:opacity-80 transition-opacity"
           >
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
-              Performance Chart
+            <CardTitle className="text-base font-medium flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Performance
             </CardTitle>
-            <ChevronDown className={`h-4 w-4 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
           </button>
           {!isCollapsed && (
-            <div className="flex gap-2">
+            <div className="flex items-center gap-1.5">
               <Button
-                variant="outline"
+                variant="ghost"
                 size="icon"
+                className="h-7 w-7"
                 onClick={() => fetchPnLData(true)}
                 disabled={isRefreshing}
               >
-                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
               </Button>
               <Select value={timeRange} onValueChange={(value) => setTimeRange(value as TimeRange)}>
-                <SelectTrigger className="w-32">
+                <SelectTrigger className="h-7 w-24 text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="24h">24 Hours</SelectItem>
-                  <SelectItem value="7d">7 Days</SelectItem>
-                  <SelectItem value="30d">30 Days</SelectItem>
-                  <SelectItem value="90d">90 Days</SelectItem>
-                  <SelectItem value="1y">1 Year</SelectItem>
-                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="24h">24h</SelectItem>
+                  <SelectItem value="7d">7d</SelectItem>
+                  <SelectItem value="30d">30d</SelectItem>
+                  <SelectItem value="90d">90d</SelectItem>
+                  <SelectItem value="1y">1y</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
                 </SelectContent>
               </Select>
               <Tabs value={chartType} onValueChange={(value) => setChartType(value as ChartType)}>
-                <TabsList>
-                  <TabsTrigger value="daily">Daily</TabsTrigger>
-                  <TabsTrigger value="cumulative">Cumulative</TabsTrigger>
+                <TabsList className="h-7">
+                  <TabsTrigger value="daily" className="h-6 text-xs">Daily</TabsTrigger>
+                  <TabsTrigger value="cumulative" className="h-6 text-xs">Total</TabsTrigger>
                 </TabsList>
               </Tabs>
             </div>
@@ -500,30 +487,53 @@ export default function PnLChart() {
       </CardHeader>
       {!isCollapsed && (
         <CardContent>
-        {/* Performance Summary */}
+        {/* Performance Summary - Minimal inline design */}
         {safeMetrics && (
-          <div className="grid grid-cols-4 gap-3 mb-3">
-            <div>
-              <p className="text-xs text-muted-foreground">Total PnL</p>
-              <p className={`text-sm font-semibold ${safeMetrics.totalPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+          <div className="flex flex-wrap items-center gap-3 mb-3 pb-3 border-b">
+            <div className="flex items-center gap-1.5">
+              {safeMetrics.totalPnl >= 0 ? (
+                <TrendingUp className="h-3.5 w-3.5 text-green-600" />
+              ) : (
+                <TrendingDown className="h-3.5 w-3.5 text-red-600" />
+              )}
+              <span className={`text-sm font-semibold ${safeMetrics.totalPnl >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                 {formatTooltipValue(safeMetrics.totalPnl)}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">PnL %</p>
-              <p className={`text-sm font-semibold ${pnlPercentage >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+              </span>
+              <Badge
+                variant={safeMetrics.totalPnl >= 0 ? "outline" : "destructive"}
+                className={`h-4 text-[10px] px-1 ${safeMetrics.totalPnl >= 0 ? 'border-green-600 text-green-600 dark:border-green-400 dark:text-green-400' : ''}`}
+              >
                 {pnlPercentage >= 0 ? '+' : ''}{pnlPercentage.toFixed(2)}%
-              </p>
+              </Badge>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Win Rate</p>
-              <p className="text-sm font-semibold">{safeMetrics.winRate.toFixed(1)}%</p>
+
+            <div className="w-px h-4 bg-border" />
+
+            <div className="flex items-center gap-1">
+              <Target className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Win</span>
+              <Badge variant="secondary" className="h-4 text-[10px] px-1">
+                {safeMetrics.winRate.toFixed(1)}%
+              </Badge>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground">APR %</p>
-              <p className={`text-sm font-semibold ${apr >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+
+            <div className="w-px h-4 bg-border" />
+
+            <div className="flex items-center gap-1">
+              <Percent className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">APR</span>
+              <Badge
+                variant={apr >= 0 ? "outline" : "destructive"}
+                className={`h-4 text-[10px] px-1 ${apr >= 0 ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400' : ''}`}
+              >
                 {apr >= 0 ? '+' : ''}{apr.toFixed(1)}%
-              </p>
+              </Badge>
+            </div>
+
+            <div className="ml-auto flex items-center gap-2 text-[10px] text-muted-foreground">
+              <span>Best: <span className="text-green-600">{safeMetrics.bestDay ? formatTooltipValue(safeMetrics.bestDay.netPnl) : '-'}</span></span>
+              <span>Worst: <span className="text-red-600">{safeMetrics.worstDay ? formatTooltipValue(safeMetrics.worstDay.netPnl) : '-'}</span></span>
+              <span>Avg: {formatTooltipValue(safeMetrics.avgDailyPnl)}</span>
             </div>
           </div>
         )}
@@ -535,7 +545,7 @@ export default function PnLChart() {
               <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           )}
-          <ResponsiveContainer width="100%" height={250}>
+          <ResponsiveContainer width="100%" height={200}>
             {chartType === 'daily' ? (
             <BarChart data={chartData} margin={{ left: 0, right: 10, top: 5, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -581,33 +591,25 @@ export default function PnLChart() {
         </ResponsiveContainer>
         </div>
 
-        {/* Additional Metrics */}
+        {/* Additional Metrics - Inline badges */}
         {safeMetrics && (
-          <div className="grid grid-cols-4 gap-3 mt-3 pt-3 border-t">
-            <div>
-              <p className="text-xs text-muted-foreground">Best Day</p>
-              <p className="text-xs font-medium text-green-500">
-                {safeMetrics.bestDay ? formatTooltipValue(safeMetrics.bestDay.netPnl) : '-'}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Worst Day</p>
-              <p className="text-xs font-medium text-red-500">
-                {safeMetrics.worstDay ? formatTooltipValue(safeMetrics.worstDay.netPnl) : '-'}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Avg Daily</p>
-              <p className="text-xs font-medium">
-                {formatTooltipValue(safeMetrics.avgDailyPnl)}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Max Drawdown</p>
-              <p className="text-xs font-medium text-orange-500">
-                {formatTooltipValue(safeMetrics.maxDrawdown)}
-              </p>
-            </div>
+          <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t">
+            <Badge variant="outline" className="h-5 text-[10px] gap-1">
+              <span className="text-muted-foreground">Profit Factor</span>
+              <span className="font-semibold">{safeMetrics.profitFactor.toFixed(2)}</span>
+            </Badge>
+            <Badge variant="outline" className="h-5 text-[10px] gap-1">
+              <span className="text-muted-foreground">Sharpe</span>
+              <span className="font-semibold">{safeMetrics.sharpeRatio.toFixed(2)}</span>
+            </Badge>
+            <Badge variant="outline" className="h-5 text-[10px] gap-1">
+              <span className="text-muted-foreground">Drawdown</span>
+              <span className="font-semibold text-orange-600">{formatTooltipValue(Math.abs(safeMetrics.maxDrawdown))}</span>
+            </Badge>
+            <Badge variant="outline" className="h-5 text-[10px] gap-1">
+              <span className="text-muted-foreground">Days</span>
+              <span className="font-semibold">{chartData.length}</span>
+            </Badge>
           </div>
         )}
       </CardContent>
