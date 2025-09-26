@@ -10,11 +10,17 @@
       "leverage": 10,
       "tpPercent": 0.1,
       "slPercent": 20
+    },
+    "HYPEUSDT": {
+      "volumeThresholdUSDT": 10000,
+      "tradeSize": 1,
+      "leverage": 10,
+      "tpPercent": 0.1,
+      "slPercent": 2
     }
   },
   "global": {
     "riskPercent": 100,
-    "paperMode": false,
-    "positionMode": "HEDGE"
+    "paperMode": false
   }
 }

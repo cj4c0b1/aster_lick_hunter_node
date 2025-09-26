@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Config, SymbolConfig } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -46,13 +46,26 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
   const [selectedSymbol, setSelectedSymbol] = useState<string>('');
   const [newSymbol, setNewSymbol] = useState<string>('');
   const [showApiSecret, setShowApiSecret] = useState(false);
+  const [availableSymbols, setAvailableSymbols] = useState<any[]>([]);
+  const [loadingSymbols, setLoadingSymbols] = useState(false);
+  const [symbolSearch, setSymbolSearch] = useState('');
+  const [showSymbolPicker, setShowSymbolPicker] = useState(false);
 
-  const defaultSymbolConfig: SymbolConfig = {
-    volumeThresholdUSDT: 100000,
-    leverage: 10,
-    tradeSize: 100,
-    slPercent: 2,
-    tpPercent: 3,
+  // Function to generate default config based on min notional
+  const getDefaultSymbolConfig = (minNotional: number = 10): SymbolConfig => {
+    // Base trade size on minimum notional (use 2x minimum for safety)
+    const tradeSize = Math.max(minNotional * 2, 20);
+
+    return {
+      volumeThresholdUSDT: Math.max(minNotional * 10, 10000), // 10x min notional for volume threshold
+      leverage: 10,
+      tradeSize: parseFloat(tradeSize.toFixed(2)),
+      slPercent: 2,
+      tpPercent: 3,
+      priceOffsetBps: 5,      // 5 basis points offset for limit orders
+      maxSlippageBps: 50,     // 50 basis points max slippage
+      orderType: 'LIMIT' as 'LIMIT',
+    };
   };
 
   const handleGlobalChange = (field: string, value: any) => {
@@ -88,18 +101,41 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
     });
   };
 
-  const addSymbol = () => {
-    if (newSymbol && !config.symbols[newSymbol]) {
+  // Fetch available symbols when the symbols tab is clicked
+  const fetchAvailableSymbols = async () => {
+    if (availableSymbols.length > 0) return; // Already loaded
+
+    setLoadingSymbols(true);
+    try {
+      const response = await fetch('/api/symbols');
+      const data = await response.json();
+      if (data.symbols) {
+        setAvailableSymbols(data.symbols);
+      }
+    } catch (error) {
+      console.error('Failed to fetch symbols:', error);
+      toast.error('Failed to load available symbols');
+    } finally {
+      setLoadingSymbols(false);
+    }
+  };
+
+  const addSymbol = (symbolToAdd?: string, minNotional?: number) => {
+    const symbol = symbolToAdd || newSymbol;
+    if (symbol && !config.symbols[symbol]) {
+      const defaultConfig = getDefaultSymbolConfig(minNotional);
       setConfig({
         ...config,
         symbols: {
           ...config.symbols,
-          [newSymbol]: { ...defaultSymbolConfig },
+          [symbol]: defaultConfig,
         },
       });
-      setSelectedSymbol(newSymbol);
+      setSelectedSymbol(symbol);
       setNewSymbol('');
-      toast.success(`Added ${newSymbol} to configuration`);
+      setShowSymbolPicker(false);
+      setSymbolSearch('');
+      toast.success(`Added ${symbol} to configuration`);
     }
   };
 
@@ -280,7 +316,7 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
           </Card>
         </TabsContent>
 
-        <TabsContent value="symbols" className="space-y-4">
+        <TabsContent value="symbols" className="space-y-4" onFocus={fetchAvailableSymbols}>
           <Card>
             <CardHeader>
               <CardTitle>Symbol Configuration</CardTitle>
@@ -294,14 +330,90 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                   type="text"
                   value={newSymbol}
                   onChange={(e) => setNewSymbol(e.target.value.toUpperCase())}
-                  placeholder="Enter symbol (e.g., BTCUSDT)"
+                  placeholder="Enter symbol manually (e.g., BTCUSDT)"
                   onKeyPress={(e) => e.key === 'Enter' && addSymbol()}
                 />
-                <Button onClick={addSymbol} className="flex items-center gap-2">
+                <Button onClick={() => addSymbol()} className="flex items-center gap-2">
                   <Plus className="h-4 w-4" />
-                  Add Symbol
+                  Add Manual
+                </Button>
+                <Button
+                  onClick={() => {
+                    fetchAvailableSymbols();
+                    setShowSymbolPicker(!showSymbolPicker);
+                  }}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  <Settings2 className="h-4 w-4" />
+                  Browse Symbols
                 </Button>
               </div>
+
+              {/* Symbol Picker */}
+              {showSymbolPicker && (
+                <Card className="border-2">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base">Available Symbols</CardTitle>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowSymbolPicker(false)}
+                      >
+                        ✕
+                      </Button>
+                    </div>
+                    <Input
+                      type="text"
+                      value={symbolSearch}
+                      onChange={(e) => setSymbolSearch(e.target.value.toUpperCase())}
+                      placeholder="Search symbols..."
+                      className="mt-2"
+                    />
+                  </CardHeader>
+                  <CardContent className="max-h-96 overflow-y-auto">
+                    {loadingSymbols ? (
+                      <div className="text-center py-4 text-muted-foreground">
+                        Loading available symbols...
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        {availableSymbols
+                          .filter(s =>
+                            !config.symbols[s.symbol] && // Not already added
+                            (!symbolSearch || s.symbol.includes(symbolSearch))
+                          )
+                          .slice(0, 50) // Show max 50 results
+                          .map((symbolInfo) => (
+                            <div
+                              key={symbolInfo.symbol}
+                              className="flex items-center justify-between p-2 rounded hover:bg-accent cursor-pointer"
+                              onClick={() => addSymbol(symbolInfo.symbol, symbolInfo.minNotional)}
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className="font-medium">{symbolInfo.symbol}</span>
+                                <Badge variant="secondary" className="text-xs">
+                                  Min: ${symbolInfo.minNotional} USDT
+                                </Badge>
+                              </div>
+                              <Button size="sm" variant="ghost">
+                                <Plus className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ))}
+                        {symbolSearch && availableSymbols.filter(s =>
+                          !config.symbols[s.symbol] && s.symbol.includes(symbolSearch)
+                        ).length === 0 && (
+                          <div className="text-center py-4 text-muted-foreground">
+                            No matching symbols found
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
 
               {Object.keys(config.symbols).length > 0 && (
                 <>
