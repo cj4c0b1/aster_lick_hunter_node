@@ -18,10 +18,23 @@ export default function ConfigPage() {
   const handleSave = async (newConfig: any) => {
     setSaveStatus('saving');
     try {
+      const hasApiKeyChanges = config && (
+        newConfig.api.apiKey !== config.api.apiKey ||
+        newConfig.api.secretKey !== config.api.secretKey
+      );
+
       await updateConfig(newConfig);
       setSaveStatus('saved');
       toast.success('Configuration saved successfully');
-      setTimeout(() => setSaveStatus('idle'), 3000);
+
+      // Force refresh if API keys were changed to repull dashboard data
+      if (hasApiKeyChanges) {
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      } else {
+        setTimeout(() => setSaveStatus('idle'), 3000);
+      }
     } catch (error) {
       console.error('Failed to save config:', error);
       setSaveStatus('error');

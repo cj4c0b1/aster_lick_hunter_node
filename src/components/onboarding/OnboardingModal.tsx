@@ -102,11 +102,19 @@ export function OnboardingModal() {
   const handleComplete = () => {
     completeStep('completion');
     skipOnboarding();
+    // Force refresh page to repull dashboard data with new API keys
+    setTimeout(() => {
+      window.location.reload();
+    }, 500);
   };
 
   const handleSkip = () => {
     if (confirm('Are you sure you want to skip the setup? You can always access it later from the help menu.')) {
       skipOnboarding();
+      // Force refresh page to repull dashboard data
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
     }
   };
 
