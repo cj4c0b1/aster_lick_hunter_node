@@ -3,8 +3,13 @@ const path = require('path');
 const crypto = require('crypto');
 const axios = require('axios');
 
-// Load config
-const config = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf-8'));
+// Load config - using user config from parent directory
+const configPath = path.join(__dirname, '..', 'config.user.json');
+if (!fs.existsSync(configPath)) {
+  console.error('config.user.json not found. Please run: npm run setup:config');
+  process.exit(1);
+}
+const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
 const BASE_URL = 'https://fapi.asterdex.com';
 

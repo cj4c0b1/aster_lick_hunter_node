@@ -1,10 +1,9 @@
-const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
 const axios = require('axios');
+const { loadTestConfig } = require('./loadTestConfig');
 
 // Load config
-const config = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf-8'));
+const config = loadTestConfig();
 
 const BASE_URL = 'https://fapi.asterdex.com';
 

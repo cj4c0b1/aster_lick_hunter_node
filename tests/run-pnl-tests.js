@@ -11,15 +11,13 @@
 
 const fs = require('fs');
 const path = require('path');
+const { loadTestConfig } = require('./loadTestConfig');
 
 // Import all test suites
 const { runAllTests: runDataConsistencyTests } = require('./test-pnl-data-consistency');
 const { runChartIntegrationTests } = require('./test-chart-data-integration');
 const { runSessionMergingTests } = require('./test-session-data-merging');
 const { runCacheBehaviorTests } = require('./test-cache-behavior');
-
-// Test configuration
-const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
 
 // Overall test results
 const overallResults = {
@@ -46,25 +44,18 @@ function logSubSection(title) {
 async function checkPrerequisites() {
   logSection('Checking Prerequisites');
 
-  // Check if config.json exists
-  if (!fs.existsSync(CONFIG_PATH)) {
-    console.log('❌ config.json not found!');
-    console.log('   Please ensure config.json exists with API credentials');
-    return false;
-  }
-
+  // Check if config exists and has API credentials
   try {
-    const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
-
+    const config = loadTestConfig();
     if (!config.api || !config.api.apiKey || !config.api.secretKey) {
-      console.log('❌ API credentials not configured in config.json!');
-      console.log('   Please add api.apiKey and api.secretKey to config.json');
+      console.log('❌ API credentials not configured!');
+      console.log('   Please add api.apiKey and api.secretKey to config.user.json');
       return false;
     }
 
-    console.log('✅ config.json found with API credentials');
+    console.log('✅ Configuration loaded with API credentials');
   } catch (error) {
-    console.log('❌ Failed to parse config.json:', error.message);
+    console.log('❌ Failed to load configuration:', error.message);
     return false;
   }
 
@@ -167,7 +158,7 @@ function generateSummaryReport() {
     console.log(`   Please review the detailed report above.`);
     console.log(`   Common issues:`);
     console.log(`   • API server not running (npm run dev)`);
-    console.log(`   • Missing API credentials in config.json`);
+    console.log(`   • Missing API credentials in config.user.json`);
     console.log(`   • Network connectivity issues`);
     console.log(`   • Incorrect data format from API`);
   }

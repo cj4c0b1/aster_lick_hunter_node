@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getTimeRangeIncome, aggregateDailyPnL, calculatePerformanceMetrics } from '@/lib/api/income';
-import fs from 'fs/promises';
-import path from 'path';
+import { configLoader } from '@/lib/config/configLoader';
 
 export async function GET(request: Request) {
   try {
@@ -9,9 +8,10 @@ export async function GET(request: Request) {
     const range = searchParams.get('range') as '24h' | '7d' | '30d' | '90d' | '1y' | 'all' || '7d';
 
     // Load config to get API credentials
-    const configPath = path.join(process.cwd(), 'config.json');
-    const configData = await fs.readFile(configPath, 'utf-8');
-    const config = JSON.parse(configData);
+    let config = configLoader.getConfig();
+    if (!config) {
+      config = await configLoader.loadConfig();
+    }
 
     if (!config.api || !config.api.apiKey || !config.api.secretKey) {
       return NextResponse.json(

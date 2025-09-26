@@ -7,21 +7,13 @@
  */
 
 const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
+const { loadTestConfig } = require('./loadTestConfig');
 
 // Test configuration
 const API_BASE = 'http://localhost:3000/api';
-const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
 
 // Load API credentials from config
-let config;
-try {
-  config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
-} catch (error) {
-  console.error('❌ Failed to load config.json:', error.message);
-  process.exit(1);
-}
+const config = loadTestConfig();
 
 // Test results tracker
 const testResults = {
