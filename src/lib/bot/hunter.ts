@@ -211,7 +211,7 @@ export class Hunter extends EventEmitter {
         // Check symbol-specific margin limit
         if (symbolConfig.maxPositionMarginUSDT) {
           const currentMargin = this.positionTracker.getMarginUsage(symbol);
-          const newTradeMargin = (symbolConfig.tradeSize * entryPrice) / symbolConfig.leverage;
+          const newTradeMargin = symbolConfig.tradeSize;
           const totalMargin = currentMargin + newTradeMargin;
 
           if (totalMargin > symbolConfig.maxPositionMarginUSDT) {
