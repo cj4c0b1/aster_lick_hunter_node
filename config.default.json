@@ -39,7 +39,12 @@
     "riskPercent": 5,
     "paperMode": true,
     "positionMode": "HEDGE",
-    "maxOpenPositions": 10
+    "maxOpenPositions": 10,
+    "server": {
+      "dashboardPassword": "",
+      "dashboardPort": 3000,
+      "websocketPort": 8080
+    }
   },
   "version": "1.0.0"
 }

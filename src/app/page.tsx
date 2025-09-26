@@ -20,6 +20,7 @@ import PerformanceCardInline from '@/components/PerformanceCardInline';
 import { useConfig } from '@/components/ConfigProvider';
 import websocketService from '@/lib/services/websocketService';
 import { useOrderNotifications } from '@/hooks/useOrderNotifications';
+import { useWebSocketUrl } from '@/hooks/useWebSocketUrl';
 import dataStore, { AccountInfo, Position } from '@/lib/services/dataStore';
 
 interface BalanceStatus {
@@ -30,6 +31,7 @@ interface BalanceStatus {
 
 export default function DashboardPage() {
   const { config } = useConfig();
+  const wsUrl = useWebSocketUrl();
   const [accountInfo, setAccountInfo] = useState<AccountInfo>({
     totalBalance: 10000,
     availableBalance: 8500,
@@ -41,8 +43,15 @@ export default function DashboardPage() {
   const [positions, setPositions] = useState<Position[]>([]);
   const [markPrices, setMarkPrices] = useState<Record<string, number>>({});
 
-  // Initialize order notifications
-  useOrderNotifications();
+  // Initialize order notifications with configurable URL
+  useOrderNotifications(wsUrl || undefined);
+
+  useEffect(() => {
+    // Update websocketService URL when wsUrl is available
+    if (wsUrl) {
+      websocketService.setUrl(wsUrl);
+    }
+  }, [wsUrl]);
 
   useEffect(() => {
     // Load initial data from data store

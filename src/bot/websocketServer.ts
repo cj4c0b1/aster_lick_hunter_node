@@ -30,7 +30,7 @@ export class StatusBroadcaster extends EventEmitter {
   };
   private uptimeInterval: NodeJS.Timeout | null = null;
 
-  constructor(private port: number = 8081) {
+  constructor(private port: number = 8080) {
     super();
   }
 

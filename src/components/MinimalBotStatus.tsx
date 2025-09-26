@@ -3,9 +3,11 @@
 import React from 'react';
 import { Circle } from 'lucide-react';
 import { useBotStatus } from '@/hooks/useBotStatus';
+import { useWebSocketUrl } from '@/hooks/useWebSocketUrl';
 
 export default function MinimalBotStatus() {
-  const { status, isConnected } = useBotStatus();
+  const wsUrl = useWebSocketUrl();
+  const { status, isConnected } = useBotStatus(wsUrl || undefined);
 
   const getStatusColor = () => {
     if (!isConnected) return 'bg-red-500';

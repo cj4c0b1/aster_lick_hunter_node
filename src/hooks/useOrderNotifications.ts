@@ -6,7 +6,7 @@ interface OrderEvent {
   data: any;
 }
 
-export function useOrderNotifications(wsUrl: string = 'ws://localhost:8081') {
+export function useOrderNotifications(wsUrl: string = 'ws://localhost:8080') {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 

@@ -38,7 +38,8 @@ class AsterBot {
   private isHedgeMode: boolean = false;
 
   constructor() {
-    this.statusBroadcaster = new StatusBroadcaster();
+    // Will be initialized with config port
+    this.statusBroadcaster = null as any;
   }
 
   async start(): Promise<void> {
@@ -54,13 +55,15 @@ class AsterBot {
       await db.initialize();
       console.log('✅ Database initialized');
 
-      // Start WebSocket server for status broadcasting
-      await this.statusBroadcaster.start();
-      console.log('✅ WebSocket status server started');
-
       // Initialize config manager and load configuration
       this.config = await configManager.initialize();
       console.log('✅ Configuration loaded');
+
+      // Initialize WebSocket server with configured port
+      const wsPort = this.config.global.server?.websocketPort || 8080;
+      this.statusBroadcaster = new StatusBroadcaster(wsPort);
+      await this.statusBroadcaster.start();
+      console.log(`✅ WebSocket status server started on port ${wsPort}`);
       console.log(`📝 Paper Mode: ${this.config.global.paperMode ? 'ENABLED' : 'DISABLED'}`);
       console.log(`💰 Risk Percent: ${this.config.global.riskPercent}%`);
       console.log(`📊 Symbols configured: ${Object.keys(this.config.symbols).join(', ')}`);

@@ -19,7 +19,7 @@ export interface UseBotStatusReturn {
   reconnect: () => void;
 }
 
-export function useBotStatus(url: string = 'ws://localhost:8081'): UseBotStatusReturn {
+export function useBotStatus(url: string = 'ws://localhost:8080'): UseBotStatusReturn {
   const [status, setStatus] = useState<BotStatus | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState<string | null>(null);

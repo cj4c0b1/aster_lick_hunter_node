@@ -15,8 +15,23 @@ class WebSocketService {
   private isConnected = false;
   private connectionListeners: Set<(connected: boolean) => void> = new Set();
 
-  constructor(url: string = 'ws://localhost:8081') {
-    this.url = url;
+  constructor(url?: string) {
+    // Will be set dynamically based on config
+    this.url = url || 'ws://localhost:8080';
+  }
+
+  setUrl(url: string): void {
+    if (this.url !== url) {
+      this.url = url;
+      // If connected, reconnect with new URL
+      if (this.isConnected) {
+        this.disconnect();
+        this.reconnectAttempts = 0;
+        this.connect().catch(error => {
+          console.log('WebSocketService: Reconnection with new URL failed');
+        });
+      }
+    }
   }
 
   connect(): Promise<void> {

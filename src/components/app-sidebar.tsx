@@ -32,6 +32,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useConfig } from "@/components/ConfigProvider"
 import { useBotStatus } from "@/hooks/useBotStatus"
+import { useWebSocketUrl } from '@/hooks/useWebSocketUrl'
 import websocketService from '@/lib/services/websocketService'
 import dataStore from '@/lib/services/dataStore'
 
@@ -57,7 +58,8 @@ const navigation = [
 export function AppSidebar() {
   const pathname = usePathname()
   const { config } = useConfig()
-  const { status, isConnected } = useBotStatus()
+  const wsUrl = useWebSocketUrl()
+  const { status, isConnected } = useBotStatus(wsUrl || undefined)
   const [positions, setPositions] = React.useState<any[]>([])
   const isPaperMode = config?.global?.paperMode
 

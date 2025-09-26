@@ -7,9 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useBotStatus, formatUptime } from '@/hooks/useBotStatus';
+import { useWebSocketUrl } from '@/hooks/useWebSocketUrl';
 
 export default function BotControls() {
-  const { status, isConnected, lastMessage } = useBotStatus();
+  const wsUrl = useWebSocketUrl();
+  const { status, isConnected, lastMessage } = useBotStatus(wsUrl || undefined);
 
   const getConnectionBadge = () => {
     if (!isConnected) {

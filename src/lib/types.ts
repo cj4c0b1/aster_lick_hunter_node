@@ -30,11 +30,18 @@ export interface ApiCredentials {
   secretKey: string;       // Secret Key from Aster Finance exchange
 }
 
+export interface ServerConfig {
+  dashboardPassword?: string;  // Optional password to protect the dashboard
+  dashboardPort?: number;       // Port for the web UI (default: 3000)
+  websocketPort?: number;       // Port for the WebSocket server (default: 8080)
+}
+
 export interface GlobalConfig {
   riskPercent: number;     // Max risk per trade as % of account balance
   paperMode: boolean;      // If true, simulate trades without executing
   positionMode?: 'ONE_WAY' | 'HEDGE'; // Position mode preference (optional)
   maxOpenPositions?: number; // Max number of open positions (hedged pairs count as one)
+  server?: ServerConfig;    // Optional server configuration
 }
 
 export interface Config {

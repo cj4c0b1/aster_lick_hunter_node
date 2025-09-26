@@ -21,14 +21,15 @@ We've updated the configuration system to improve security and make it easier to
 
 ### If you have an existing `config.json`:
 
-1. **Automatic Migration**
+1. **Automatic Migration** (happens automatically on bot startup)
+   - The bot will automatically migrate your `config.json` to `config.user.json`
+   - Add any missing fields from defaults
+   - Keep all your existing settings
+
+   Or run manually:
    ```bash
    npm run setup:config
    ```
-   This will:
-   - Copy your `config.json` to `config.user.json`
-   - Add any missing fields from defaults
-   - Keep all your existing settings
 
 2. **Remove from Git** (if it was tracked)
    ```bash
@@ -43,15 +44,27 @@ We've updated the configuration system to improve security and make it easier to
 
 ### If you're setting up fresh:
 
-1. **Run Setup**
+1. **Run Setup** (or just start the bot - it will create the config automatically)
    ```bash
    npm run setup:config
+   # OR
+   npm run dev  # Config will be created on first run
    ```
 
 2. **Edit your config**
    ```bash
    # Edit config.user.json and add your API keys
    ```
+
+### Automatic Updates on Every Startup
+
+**No manual action needed!** The bot automatically:
+- Checks for missing fields when you start it
+- Adds new fields from `config.default.json`
+- Preserves all your existing settings
+- Updates your `config.user.json` with any new fields
+
+This means when you pull new releases with config changes, your configuration is automatically updated the next time you run the bot.
 
 ## Benefits
 
@@ -73,11 +86,13 @@ We've updated the configuration system to improve security and make it easier to
 
 ### Bot can't find config
 - Make sure `config.user.json` exists
-- Run `npm run setup:config` to create it
+- The bot will create it automatically on startup if missing
+- Or run `npm run setup:config` to create it manually
 
-### Missing new settings
-- The bot automatically adds missing fields from defaults
-- Just restart the bot to get new settings
+### Missing new settings after git pull
+- **This is handled automatically!**
+- The bot adds missing fields from defaults on every startup
+- No manual intervention needed - just start the bot normally
 
 ### Want to reset to defaults
 - Delete `config.user.json`
