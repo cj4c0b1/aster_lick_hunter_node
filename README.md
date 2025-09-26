@@ -23,22 +23,13 @@ An intelligent cryptocurrency trading bot that monitors and capitalizes on liqui
 
 ### Step 1: Install the Bot
 ```bash
-git clone https://github.com/yourusername/aster-lick-hunter-node.git
-cd aster-lick-hunter-node
+git clone https://github.com/CryptoGnome/aster_lick_hunter_node.git
+cd aster_lick_hunter_node
 npm run setup
 ```
 
 ### Step 2: Configure Your API Keys
-1. Get your API keys from [Aster DEX](https://www.asterdex.com/en/referral/3TixB2)
-2. Edit `config.user.json` and add your keys:
-```json
-{
-  "api": {
-    "apiKey": "your-api-key-here",
-    "secretKey": "your-secret-key-here"
-  }
-}
-```
+The Setup Wizard will guide you through configuration, or use the Web UI at http://localhost:3000/config
 
 ### Step 3: Run the Bot
 ```bash
@@ -61,8 +52,8 @@ That's it! Access the dashboard at http://localhost:3000 🎉
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/yourusername/aster-lick-hunter-node.git
-cd aster-lick-hunter-node
+git clone https://github.com/CryptoGnome/aster_lick_hunter_node.git
+cd aster_lick_hunter_node
 ```
 
 ### 2. Install Dependencies
@@ -72,36 +63,31 @@ npm install
 yarn install
 ```
 
-### 3. Setup Configuration
+### 3. Run Setup Wizard
 ```bash
-npm run setup:config
+npm run setup
 ```
-This will create a `config.user.json` file with default settings.
+The Setup Wizard will:
+- Create your configuration file
+- Guide you through initial setup
+- Build the application
+- Enable paper mode for safe testing
 
-### 4. Configure API Credentials
+### 4. Configure Your Bot
 
-#### Getting API Keys from Aster DEX:
+#### Option A: Use the Web UI (Recommended)
+1. Start the bot: `npm run dev`
+2. Open http://localhost:3000
+3. Click the **Config** tab
+4. Add your API keys and adjust settings
+
+#### Option B: Get API Keys Manually
 1. Log in to your [Aster DEX account](https://www.asterdex.com/en/referral/3TixB2)
 2. Navigate to Account Settings → API Management
-3. Create a new API key with trading permissions
-4. **Important:** Enable futures trading permissions
-5. Save your API Key and Secret Key securely
+3. Create a new API key with **futures trading permissions**
+4. Add keys in the Web UI Config page
 
-#### Add Keys to Configuration:
-Edit `config.user.json`:
-```json
-{
-  "api": {
-    "apiKey": "paste-your-api-key-here",
-    "secretKey": "paste-your-secret-key-here"
-  },
-  "global": {
-    "paperMode": true  // Keep this true for testing!
-  }
-}
-```
-
-> ⚠️ **Security Warning:** Never commit your API keys to Git! The `config.user.json` file is automatically excluded from version control.
+> ⚠️ **Security Note:** Your API keys are stored locally in `config.user.json` which is automatically excluded from Git.
 
 ### 5. Build the Application
 ```bash
@@ -135,73 +121,47 @@ npm run test:flow  # Test order flow
 npm run test:all   # Run all test suites
 ```
 
-## ⚙️ Configuration Guide
+## ⚙️ Configuration Made Easy
 
-The bot uses a flexible configuration system with three files:
-
-### Configuration Files
-
-#### `config.user.json` (Your Settings - Not Tracked by Git)
-Your personal configuration with API keys and custom settings.
-
-#### `config.default.json` (Default Template)
-Safe default values used as fallback for missing fields.
-
-### Basic Configuration Structure
-
-```json
-{
-  "api": {
-    "apiKey": "",        // Your Aster DEX API key
-    "secretKey": ""      // Your Aster DEX secret key
-  },
-  "symbols": {
-    "ASTERUSDT": {
-      "longVolumeThresholdUSDT": 1000,   // Min liquidation size for long entries
-      "shortVolumeThresholdUSDT": 2500,  // Min liquidation size for short entries
-      "tradeSize": 0.69,                 // Position size for long trades
-      "shortTradeSize": 0.69,            // Position size for short trades
-      "maxPositionMarginUSDT": 200,      // Max margin per position
-      "leverage": 10,                    // Leverage multiplier
-      "tpPercent": 1,                    // Take profit percentage
-      "slPercent": 20,                   // Stop loss percentage
-      "vwapProtection": true,            // Enable VWAP-based filtering
-      "vwapTimeframe": "5m",             // VWAP calculation timeframe
-      "vwapLookback": 200                // VWAP lookback period
-    }
-  },
-  "global": {
-    "riskPercent": 90,                   // Risk per trade (% of balance)
-    "paperMode": true,                   // Paper trading mode (ALWAYS START WITH TRUE)
-    "positionMode": "HEDGE",             // Position mode (HEDGE or ONE_WAY)
-    "maxOpenPositions": 5,               // Max concurrent positions
-    "server": {
-      "dashboardPort": 3000,             // Web dashboard port
-      "websocketPort": 8080              // Internal WebSocket port
-    }
-  }
-}
+### 🎯 Setup Wizard (Recommended)
+The bot includes an automatic Setup Wizard that runs on first launch:
+```bash
+npm run setup
 ```
+The wizard will:
+- ✅ Create your configuration automatically
+- ✅ Guide you through API key setup
+- ✅ Set safe default trading parameters
+- ✅ Enable paper mode for safe testing
 
-### Adding More Trading Pairs
+### 🖥️ Web UI Configuration
+Once the bot is running, configure everything through the beautiful web interface:
 
-To add more symbols, simply add them to the `symbols` section:
+1. **Start the bot**: `npm run dev`
+2. **Open dashboard**: http://localhost:3000
+3. **Navigate to Settings**: Click the ⚙️ Config tab
 
-```json
-"symbols": {
-  "ASTERUSDT": { ... },
-  "BTCUSDT": {
-    "longVolumeThresholdUSDT": 10000,
-    "shortVolumeThresholdUSDT": 10000,
-    "tradeSize": 0.001,
-    "shortTradeSize": 0.001,
-    "leverage": 5,
-    "tpPercent": 2,
-    "slPercent": 1
-  },
-  "ETHUSDT": { ... }
-}
-```
+#### Features in the Web UI:
+- **API Configuration** - Add/update your Aster DEX API keys
+- **Trading Pairs** - Add symbols and adjust parameters per coin
+- **Risk Management** - Set leverage, stop-loss, and take-profit levels
+- **Paper Mode Toggle** - Switch between testing and live trading
+- **Real-time Updates** - Changes apply immediately without restart
+- **Visual Sliders** - Easy adjustment of all parameters
+- **Validation** - Automatic checking of settings for safety
+
+### 📱 Configuration Options Explained
+
+| Setting | Description | Recommended |
+|---------|-------------|-------------|
+| **Paper Mode** | Test without real money | Start with `ON` |
+| **Leverage** | Position multiplier | 5-10x |
+| **Stop Loss** | Max acceptable loss | 2-5% |
+| **Take Profit** | Target profit | 1-3% |
+| **Volume Threshold** | Min liquidation size to trade | $1000+ |
+| **Trade Size** | Position size per trade | Start small |
+
+> 💡 **Pro Tip**: Start in paper mode with default settings, then gradually adjust based on your risk tolerance and market conditions.
 
 ## 📊 Web Dashboard
 
@@ -336,7 +296,7 @@ Contributions are welcome! Please feel free to submit pull requests.
 
 ## 📞 Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/aster-lick-hunter-node/issues)
+- **Issues**: [GitHub Issues](https://github.com/CryptoGnome/aster_lick_hunter_node/issues)
 - **Discord**: [Join our community](https://discord.gg/P8Ev3Up)
 - **Documentation**: Check the `/docs` folder for detailed API documentation
 
@@ -371,6 +331,6 @@ This bot is provided as-is for educational purposes. The authors are not respons
 
 <p align="center">
   <a href="https://www.asterdex.com/en/referral/3TixB2">Get Started</a> •
-  <a href="https://github.com/yourusername/aster-lick-hunter-node/issues">Report Bug</a> •
+  <a href="https://github.com/CryptoGnome/aster_lick_hunter_node/issues">Report Bug</a> •
   <a href="https://discord.gg/P8Ev3Up">Join Discord</a>
 </p>
