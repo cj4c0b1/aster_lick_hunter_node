@@ -286,7 +286,7 @@ export default function DashboardPage() {
               [symbol]: cfg.volumeThresholdUSDT
             }), {}) : {}
           }
-          maxEvents={10}
+          maxEvents={50}
         />
       </div>
     </DashboardLayout>
