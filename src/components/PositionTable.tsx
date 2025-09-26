@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { TrendingUp, TrendingDown, Wallet, BarChart3 } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, BarChart3, Tag } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import websocketService from '@/lib/services/websocketService';
 import { useConfig } from '@/components/ConfigProvider';
@@ -193,27 +193,73 @@ export default function PositionTable({
   const totalPnL = displayPositions.reduce((sum, p) => sum + p.pnl, 0);
   const totalMargin = displayPositions.reduce((sum, p) => sum + p.margin, 0);
 
+  // Get unique symbols from positions and group by side
+  const positionSymbols = useMemo(() => {
+    const symbolMap = new Map<string, Set<'LONG' | 'SHORT'>>();
+    displayPositions.forEach(position => {
+      if (!symbolMap.has(position.symbol)) {
+        symbolMap.set(position.symbol, new Set());
+      }
+      symbolMap.get(position.symbol)?.add(position.side);
+    });
+    return Array.from(symbolMap.entries()).map(([symbol, sides]) => ({
+      symbol,
+      hasLong: sides.has('LONG'),
+      hasShort: sides.has('SHORT'),
+    }));
+  }, [displayPositions]);
+
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>Open Positions</CardTitle>
-            <CardDescription>Manage your active trading positions</CardDescription>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Open Positions</CardTitle>
+              <CardDescription>Manage your active trading positions</CardDescription>
+            </div>
+            <div className="flex items-center gap-4 text-sm">
+              <Badge variant="outline" className="flex items-center gap-1">
+                <Wallet className="h-3 w-3" />
+                Margin: ${totalMargin.toFixed(2)}
+              </Badge>
+              <Badge
+                variant={totalPnL >= 0 ? "default" : "destructive"}
+                className="flex items-center gap-1"
+              >
+                {totalPnL >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                {totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(2)}
+              </Badge>
+            </div>
           </div>
-          <div className="flex items-center gap-4 text-sm">
-            <Badge variant="outline" className="flex items-center gap-1">
-              <Wallet className="h-3 w-3" />
-              Margin: ${totalMargin.toFixed(2)}
-            </Badge>
-            <Badge
-              variant={totalPnL >= 0 ? "default" : "destructive"}
-              className="flex items-center gap-1"
-            >
-              {totalPnL >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-              {totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(2)}
-            </Badge>
-          </div>
+
+          {/* Position Symbols Badges */}
+          {positionSymbols.length > 0 && (
+            <div className="flex items-center gap-2">
+              <Tag className="h-4 w-4 text-muted-foreground" />
+              <div className="flex flex-wrap gap-1.5">
+                {positionSymbols.map(({ symbol, hasLong, hasShort }) => (
+                  <div key={symbol} className="flex gap-1">
+                    <Badge
+                      variant="outline"
+                      className="text-xs font-medium"
+                    >
+                      {symbol}
+                      {hasLong && hasShort && (
+                        <span className="ml-1 text-[10px]">(L+S)</span>
+                      )}
+                      {hasLong && !hasShort && (
+                        <span className="ml-1 text-[10px] text-green-600 dark:text-green-400">(L)</span>
+                      )}
+                      {!hasLong && hasShort && (
+                        <span className="ml-1 text-[10px] text-red-600 dark:text-red-400">(S)</span>
+                      )}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </CardHeader>
 

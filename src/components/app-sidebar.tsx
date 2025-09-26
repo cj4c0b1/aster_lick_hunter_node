@@ -8,6 +8,7 @@ import {
   Home,
   Settings,
   Zap,
+  Circle,
 } from "lucide-react"
 
 import {
@@ -22,9 +23,12 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  SidebarSeparator,
 } from "@/components/ui/sidebar"
 import { Badge } from "@/components/ui/badge"
 import { useConfig } from "@/components/ConfigProvider"
+import { useBotStatus } from "@/hooks/useBotStatus"
+import websocketService from '@/lib/services/websocketService'
 
 const navigation = [
   {
@@ -43,7 +47,51 @@ const navigation = [
 export function AppSidebar() {
   const pathname = usePathname()
   const { config } = useConfig()
+  const { status, isConnected } = useBotStatus()
+  const [positions, setPositions] = React.useState<any[]>([])
   const isPaperMode = config?.global?.paperMode
+
+  // Load positions and listen for updates
+  React.useEffect(() => {
+    // Load initial positions
+    const loadPositions = async () => {
+      try {
+        const response = await fetch('/api/positions')
+        if (response.ok) {
+          const data = await response.json()
+          setPositions(data)
+        }
+      } catch (error) {
+        console.error('Failed to load positions:', error)
+      }
+    }
+
+    loadPositions()
+
+    // Listen for position updates
+    const handleMessage = (message: any) => {
+      if (message.type === 'position_update') {
+        // Refresh positions when we get updates
+        loadPositions()
+      }
+    }
+
+    const cleanup = websocketService.addMessageHandler(handleMessage)
+    return cleanup
+  }, [])
+
+
+  const getStatusColor = () => {
+    if (!isConnected) return 'bg-red-500'
+    if (!status?.isRunning) return 'bg-yellow-500'
+    return 'bg-green-500'
+  }
+
+  const getStatusText = () => {
+    if (!isConnected) return 'Disconnected'
+    if (!status?.isRunning) return 'Connected'
+    return 'Running'
+  }
 
   return (
     <Sidebar>
@@ -85,13 +133,64 @@ export function AppSidebar() {
 
       </SidebarContent>
 
+      <SidebarSeparator />
+
+      {/* Bot Status Section */}
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Bot Status</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <div className="space-y-3 px-2">
+              {/* Connection Status */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Status</span>
+                <div className="flex items-center gap-2">
+                  <Circle className={`h-2 w-2 fill-current ${getStatusColor()} ${isConnected && status?.isRunning ? 'animate-pulse' : ''}`} />
+                  <span className="text-sm font-medium">{getStatusText()}</span>
+                </div>
+              </div>
+
+              {/* Mode */}
+              {isConnected && status && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Mode</span>
+                    <Badge
+                      variant={status.paperMode ? "secondary" : "default"}
+                      className="h-5 px-2 text-xs font-medium"
+                    >
+                      {status.paperMode ? "Paper" : "Live"}
+                    </Badge>
+                  </div>
+
+                  {/* Positions */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Positions</span>
+                    <span className="text-sm font-medium">{positions.length}</span>
+                  </div>
+                </>
+              )}
+            </div>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+
       <SidebarFooter>
         <div className="px-2 py-1.5 text-xs text-muted-foreground">
           <div className="flex items-center justify-between">
-            <span>Status</span>
+            <span>Connection</span>
             <div className="flex items-center gap-1">
-              <Activity className="h-3 w-3 text-green-500 animate-pulse" />
-              <span className="text-green-500">Connected</span>
+              {isConnected ? (
+                <>
+                  <Activity className="h-3 w-3 text-green-500 animate-pulse" />
+                  <span className="text-green-500">Connected</span>
+                </>
+              ) : (
+                <>
+                  <Activity className="h-3 w-3 text-red-500" />
+                  <span className="text-red-500">Disconnected</span>
+                </>
+              )}
             </div>
           </div>
         </div>
