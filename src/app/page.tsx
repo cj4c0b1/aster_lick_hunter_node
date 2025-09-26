@@ -10,7 +10,8 @@ import {
   TrendingUp,
   TrendingDown,
   Wallet,
-  Activity
+  Activity,
+  Target
 } from 'lucide-react';
 import MinimalBotStatus from '@/components/MinimalBotStatus';
 import LiquidationSidebar from '@/components/LiquidationSidebar';
@@ -316,6 +317,37 @@ export default function DashboardPage() {
 
             {/* Session Performance - Inline */}
             <PerformanceCardInline />
+
+            <div className="w-px h-8 bg-border" />
+
+            {/* Active Trading Symbols */}
+            <div className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-muted-foreground" />
+              <div className="flex flex-col">
+                <span className="text-xs text-muted-foreground">Active Symbols</span>
+                <div className="flex items-center gap-1">
+                  {config?.symbols && Object.keys(config.symbols).length > 0 ? (
+                    <>
+                      <span className="text-lg font-semibold">{Object.keys(config.symbols).length}</span>
+                      <div className="flex gap-1 max-w-[200px] overflow-hidden">
+                        {Object.keys(config.symbols).slice(0, 3).map((symbol, index) => (
+                          <Badge key={symbol} variant="outline" className="h-4 text-[10px] px-1">
+                            {symbol.replace('USDT', '')}
+                          </Badge>
+                        ))}
+                        {Object.keys(config.symbols).length > 3 && (
+                          <Badge variant="outline" className="h-4 text-[10px] px-1">
+                            +{Object.keys(config.symbols).length - 3}
+                          </Badge>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <span className="text-lg font-semibold text-muted-foreground">0</span>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* PnL Chart */}
