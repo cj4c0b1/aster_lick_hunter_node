@@ -354,4 +354,10 @@ export class StatusBroadcaster extends EventEmitter {
       timestamp: new Date(),
     });
   }
+
+  // Broadcast ORDER_TRADE_UPDATE events from user data stream
+  broadcastOrderUpdate(orderEvent: any): void {
+    // Forward the raw ORDER_TRADE_UPDATE event to web UI
+    this._broadcast('order_update', orderEvent);
+  }
 }

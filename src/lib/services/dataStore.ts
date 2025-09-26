@@ -271,6 +271,15 @@ class DataStore extends EventEmitter {
         });
         this.updateMarkPrices(priceUpdates);
       }
+    } else if (message.type === 'order_update' || message.type === 'ORDER_TRADE_UPDATE') {
+      // Forward order updates to orderStore
+      console.log('[DataStore] Forwarding order update to orderStore');
+      // Import orderStore dynamically to avoid circular dependencies
+      import('./orderStore').then(module => {
+        module.default.handleWebSocketMessage(message);
+      }).catch(error => {
+        console.error('[DataStore] Failed to forward order update:', error);
+      });
     }
   }
 }

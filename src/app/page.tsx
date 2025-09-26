@@ -18,6 +18,7 @@ import LiquidationSidebar from '@/components/LiquidationSidebar';
 import PositionTable from '@/components/PositionTable';
 import PnLChart from '@/components/PnLChart';
 import PerformanceCardInline from '@/components/PerformanceCardInline';
+import RecentOrdersTable from '@/components/RecentOrdersTable';
 import { useConfig } from '@/components/ConfigProvider';
 import websocketService from '@/lib/services/websocketService';
 import { useOrderNotifications } from '@/hooks/useOrderNotifications';
@@ -359,6 +360,9 @@ export default function DashboardPage() {
             onUpdateSL={handleUpdateSL}
             onUpdateTP={handleUpdateTP}
           />
+
+          {/* Recent Orders Table */}
+          <RecentOrdersTable maxRows={100} />
         </div>
 
         {/* Liquidation Sidebar */}

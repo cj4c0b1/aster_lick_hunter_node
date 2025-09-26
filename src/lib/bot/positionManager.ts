@@ -638,6 +638,11 @@ export class PositionManager extends EventEmitter implements PositionTracker {
     const pnlService = require('../services/pnlService').default;
     pnlService.updateFromOrderEvent(event);
 
+    // Forward the ORDER_TRADE_UPDATE event to the web UI
+    if (this.statusBroadcaster) {
+      this.statusBroadcaster.broadcastOrderUpdate(event);
+    }
+
     const order = event.o;
     const symbol = order.s;
     const orderType = order.o;
