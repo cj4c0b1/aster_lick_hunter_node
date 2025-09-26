@@ -109,10 +109,6 @@ export function aggregateDailyPnL(records: IncomeRecord[]): DailyPnL[] {
 
     const daily = dailyMap.get(date)!;
 
-    // Log records for today for debugging
-    if (date === todayString) {
-      console.log(`[aggregateDailyPnL] Today's record ${index}: ${record.incomeType} = ${amount} (${new Date(record.time).toISOString()})`);
-    }
 
     switch (record.incomeType) {
       case 'REALIZED_PNL':
@@ -132,28 +128,11 @@ export function aggregateDailyPnL(records: IncomeRecord[]): DailyPnL[] {
   dailyMap.forEach((daily, date) => {
     daily.netPnl = daily.realizedPnl + daily.commission + daily.fundingFee;
 
-    // Log today's aggregated data
-    if (date === todayString) {
-      console.log(`[aggregateDailyPnL] Today's aggregated data:`, {
-        date,
-        realizedPnl: daily.realizedPnl,
-        commission: daily.commission,
-        fundingFee: daily.fundingFee,
-        netPnl: daily.netPnl,
-        tradeCount: daily.tradeCount
-      });
-    }
   });
 
   const result = Array.from(dailyMap.values()).sort((a, b) =>
     a.date.localeCompare(b.date)
   );
-
-  console.log(`[aggregateDailyPnL] Generated ${result.length} daily entries`);
-  if (result.length > 0) {
-    const lastEntry = result[result.length - 1];
-    console.log(`[aggregateDailyPnL] Last entry:`, lastEntry);
-  }
 
   return result;
 }
@@ -290,10 +269,7 @@ export async function getTimeRangeIncome(
   const cacheAge = cached ? Date.now() - cached.timestamp : 0;
 
   if (cached && cacheAge < cacheTTL) {
-    console.log(`[getTimeRangeIncome] Using cached data for ${range} (${cached.data.length} records, age: ${Math.floor(cacheAge / 1000)}s)`);
     return cached.data;
-  } else if (cached) {
-    console.log(`[getTimeRangeIncome] Cache expired for ${range} (age: ${Math.floor(cacheAge / 1000)}s > ${Math.floor(cacheTTL / 1000)}s)`);
   }
 
   const now = Date.now();
@@ -321,9 +297,6 @@ export async function getTimeRangeIncome(
       break;
   }
 
-  console.log(`[getTimeRangeIncome] Range: ${range}`);
-  console.log(`[getTimeRangeIncome] Start time: ${startTime ? new Date(startTime).toISOString() : 'none'}`);
-  console.log(`[getTimeRangeIncome] End time: ${new Date(now).toISOString()}`);
 
   // Use the API's startTime parameter for efficiency
   // The issue: 7d range has too much data and 1000 limit cuts off recent data
@@ -335,19 +308,15 @@ export async function getTimeRangeIncome(
   };
 
   try {
-    console.log(`[getTimeRangeIncome] Making API call for ${range} with limit ${params.limit}`);
     let records = await getIncomeHistory(credentials, params);
-    console.log(`[getTimeRangeIncome] Retrieved ${records.length} records for ${range}`);
 
     // CRITICAL FIX: If we hit the limit and might be missing recent data, fetch more recent data
     if (records.length >= 1000 && ['7d', '30d', '90d', '1y', 'all'].includes(range)) {
-      console.log(`[getTimeRangeIncome] Hit API limit for ${range}, checking if we have today's data`);
 
       const today = new Date().toISOString().split('T')[0];
       const hasToday = records.some(r => new Date(r.time).toISOString().split('T')[0] === today);
 
       if (!hasToday) {
-        console.log(`[getTimeRangeIncome] Missing today's data for ${range}, fetching recent data`);
 
         // Fetch most recent 500 records to ensure we get today
         const recentParams: IncomeHistoryParams = {
@@ -356,7 +325,6 @@ export async function getTimeRangeIncome(
         };
 
         const recentRecords = await getIncomeHistory(credentials, recentParams);
-        console.log(`[getTimeRangeIncome] Retrieved ${recentRecords.length} recent records`);
 
         // Check if recent records have today's data
         const recentHasToday = recentRecords.some(r => new Date(r.time).toISOString().split('T')[0] === today);
@@ -366,46 +334,10 @@ export async function getTimeRangeIncome(
           const timeSet = new Set(records.map(r => r.time));
           const newRecords = recentRecords.filter(r => !timeSet.has(r.time));
           records = [...records, ...newRecords];
-          console.log(`[getTimeRangeIncome] Merged ${newRecords.length} new records, total: ${records.length}`);
         }
       }
     }
 
-    // Detailed logging for debugging
-    if (records.length > 0) {
-      const dates = records.map(r => new Date(r.time).toISOString().split('T')[0]);
-      const uniqueDates = [...new Set(dates)];
-      console.log(`[getTimeRangeIncome] Date range: ${uniqueDates[0]} to ${uniqueDates[uniqueDates.length - 1]} (${uniqueDates.length} days)`);
-
-      // Log recent records for debugging
-      const recent = records.slice(-5);
-      console.log(`[getTimeRangeIncome] Last 5 records for ${range}:`, recent.map(r => ({
-        date: new Date(r.time).toISOString(),
-        type: r.incomeType,
-        amount: parseFloat(r.income),
-        symbol: r.symbol
-      })));
-
-      // Debug today's records specifically
-      const today = new Date().toISOString().split('T')[0];
-      const todayRecords = records.filter(r => new Date(r.time).toISOString().split('T')[0] === today);
-      console.log(`[getTimeRangeIncome] Today (${today}) records in ${range}: ${todayRecords.length}`);
-      if (todayRecords.length > 0) {
-        console.log(`[getTimeRangeIncome] Today's ${range} records:`, todayRecords.map(r => ({
-          date: new Date(r.time).toISOString(),
-          type: r.incomeType,
-          amount: parseFloat(r.income),
-          symbol: r.symbol
-        })));
-      }
-
-      // Log totals by type
-      const totals = records.reduce((acc, r) => {
-        acc[r.incomeType] = (acc[r.incomeType] || 0) + parseFloat(r.income);
-        return acc;
-      }, {} as Record<string, number>);
-      console.log(`[getTimeRangeIncome] Totals by type for ${range}:`, totals);
-    }
 
     // Cache the result
     incomeCache.set(cacheKey, { data: records, timestamp: now });
@@ -421,7 +353,7 @@ export async function getTimeRangeIncome(
 
     return records;
   } catch (error) {
-    console.error(`[getTimeRangeIncome] API call failed for ${range}:`, error);
+    console.error(`API call failed for ${range}:`, error);
     return [];
   }
 }
