@@ -12,6 +12,7 @@ import { getPositionMode, setPositionMode } from '../lib/api/positionMode';
 import { execSync } from 'child_process';
 import { cleanupScheduler } from '../lib/services/cleanupScheduler';
 import { db } from '../lib/db/database';
+import { configManager } from '../lib/services/configManager';
 
 // Helper function to kill all child processes (synchronous for exit handler)
 function killAllProcesses() {
@@ -57,8 +58,8 @@ class AsterBot {
       await this.statusBroadcaster.start();
       console.log('✅ WebSocket status server started');
 
-      // Load configuration
-      this.config = await loadConfig();
+      // Initialize config manager and load configuration
+      this.config = await configManager.initialize();
       console.log('✅ Configuration loaded');
       console.log(`📝 Paper Mode: ${this.config.global.paperMode ? 'ENABLED' : 'DISABLED'}`);
       console.log(`💰 Risk Percent: ${this.config.global.riskPercent}%`);
@@ -68,6 +69,16 @@ class AsterBot {
       this.statusBroadcaster.updateStatus({
         paperMode: this.config.global.paperMode,
         symbols: Object.keys(this.config.symbols),
+      });
+
+      // Listen for config updates
+      configManager.on('config:updated', (newConfig) => {
+        this.handleConfigUpdate(newConfig);
+      });
+
+      configManager.on('config:error', (error) => {
+        console.error('❌ Config error:', error.message);
+        this.statusBroadcaster.addError(`Config: ${error.message}`);
       });
 
       // Check API keys
@@ -326,6 +337,73 @@ class AsterBot {
     }
   }
 
+  private async handleConfigUpdate(newConfig: Config): Promise<void> {
+    console.log('🔄 Applying config update...');
+
+    const oldConfig = this.config;
+    this.config = newConfig;
+
+    try {
+      // Update status broadcaster
+      this.statusBroadcaster.updateStatus({
+        paperMode: newConfig.global.paperMode,
+        symbols: Object.keys(newConfig.symbols),
+      });
+
+      // Notify about critical changes
+      if (oldConfig && oldConfig.global.paperMode !== newConfig.global.paperMode) {
+        console.log(`⚠️  Paper Mode changed: ${oldConfig.global.paperMode} → ${newConfig.global.paperMode}`);
+        this.statusBroadcaster.logActivity(`Config: Paper Mode ${newConfig.global.paperMode ? 'ENABLED' : 'DISABLED'}`);
+      }
+
+      // Update Hunter with new config
+      if (this.hunter) {
+        this.hunter.updateConfig(newConfig);
+        console.log('✅ Hunter config updated');
+      }
+
+      // Update PositionManager with new config
+      if (this.positionManager) {
+        this.positionManager.updateConfig(newConfig);
+        console.log('✅ Position Manager config updated');
+      }
+
+      // Update VWAP streamer with new symbols
+      if (vwapStreamer) {
+        const oldSymbols = new Set(Object.keys(oldConfig?.symbols || {}));
+        const newSymbols = new Set(Object.keys(newConfig.symbols));
+
+        // Check if symbols changed
+        const symbolsChanged = oldSymbols.size !== newSymbols.size ||
+          [...newSymbols].some(s => !oldSymbols.has(s));
+
+        if (symbolsChanged) {
+          await vwapStreamer.updateSymbols(newConfig);
+          console.log('✅ VWAP symbols updated');
+        }
+      }
+
+      // Broadcast config update to web UI
+      this.statusBroadcaster.broadcast('config_updated', {
+        timestamp: new Date(),
+        config: newConfig,
+      });
+
+      console.log('✅ Config update applied successfully');
+      this.statusBroadcaster.logActivity('Config reloaded from file');
+    } catch (error) {
+      console.error('❌ Failed to apply config update:', error);
+      this.statusBroadcaster.addError(`Config update failed: ${error}`);
+
+      // Rollback to old config on error
+      if (oldConfig) {
+        this.config = oldConfig;
+        if (this.hunter) this.hunter.updateConfig(oldConfig);
+        if (this.positionManager) this.positionManager.updateConfig(oldConfig);
+      }
+    }
+  }
+
   async stop(): Promise<void> {
     if (!this.isRunning) return;
 
@@ -364,6 +442,9 @@ class AsterBot {
 
       cleanupScheduler.stop();
       console.log('✅ Cleanup scheduler stopped');
+
+      configManager.stop();
+      console.log('✅ Config manager stopped');
 
       this.statusBroadcaster.stop();
       console.log('✅ WebSocket server stopped');

@@ -43,6 +43,66 @@ export class Hunter extends EventEmitter {
     this.positionTracker = tracker;
   }
 
+  // Update configuration dynamically
+  public updateConfig(newConfig: Config): void {
+    const oldConfig = this.config;
+    this.config = newConfig;
+
+    // Log significant changes
+    if (oldConfig.global.paperMode !== newConfig.global.paperMode) {
+      console.log(`Hunter: Paper mode changed to ${newConfig.global.paperMode}`);
+
+      // If switching from paper mode to live mode, restart WebSocket connection
+      if (oldConfig.global.paperMode && !newConfig.global.paperMode && newConfig.api.apiKey) {
+        console.log('Hunter: Switching from paper mode to live mode');
+        if (this.ws) {
+          this.ws.close();
+          this.ws = null;
+        }
+        if (this.isRunning) {
+          this.connectWebSocket();
+        }
+      }
+      // If switching from live mode to paper mode without API keys
+      else if (!oldConfig.global.paperMode && newConfig.global.paperMode && !newConfig.api.apiKey) {
+        console.log('Hunter: Switching from live mode to paper mode');
+        if (this.ws) {
+          this.ws.close();
+          this.ws = null;
+        }
+        if (this.isRunning) {
+          this.simulateLiquidations();
+        }
+      }
+    }
+
+    // Log symbol changes
+    const oldSymbols = Object.keys(oldConfig.symbols);
+    const newSymbols = Object.keys(newConfig.symbols);
+    const addedSymbols = newSymbols.filter(s => !oldSymbols.includes(s));
+    const removedSymbols = oldSymbols.filter(s => !newSymbols.includes(s));
+
+    if (addedSymbols.length > 0) {
+      console.log(`Hunter: Added symbols: ${addedSymbols.join(', ')}`);
+    }
+    if (removedSymbols.length > 0) {
+      console.log(`Hunter: Removed symbols: ${removedSymbols.join(', ')}`);
+    }
+
+    // Check for threshold changes
+    for (const symbol of newSymbols) {
+      if (oldConfig.symbols[symbol]) {
+        const oldSym = oldConfig.symbols[symbol];
+        const newSym = newConfig.symbols[symbol];
+
+        if (oldSym.longVolumeThresholdUSDT !== newSym.longVolumeThresholdUSDT ||
+            oldSym.shortVolumeThresholdUSDT !== newSym.shortVolumeThresholdUSDT) {
+          console.log(`Hunter: ${symbol} volume thresholds updated`);
+        }
+      }
+    }
+  }
+
   start(): void {
     if (this.isRunning) return;
     this.isRunning = true;

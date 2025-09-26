@@ -84,6 +84,83 @@ export class PositionManager extends EventEmitter implements PositionTracker {
     this.statusBroadcaster = broadcaster;
   }
 
+  // Update configuration dynamically
+  public updateConfig(newConfig: Config): void {
+    const oldConfig = this.config;
+    this.config = newConfig;
+
+    // Log significant changes
+    if (oldConfig.global.riskPercent !== newConfig.global.riskPercent) {
+      console.log(`PositionManager: Risk percent changed from ${oldConfig.global.riskPercent}% to ${newConfig.global.riskPercent}%`);
+    }
+
+    if (oldConfig.global.maxOpenPositions !== newConfig.global.maxOpenPositions) {
+      console.log(`PositionManager: Max open positions changed from ${oldConfig.global.maxOpenPositions} to ${newConfig.global.maxOpenPositions}`);
+    }
+
+    // Check for symbol parameter changes that affect existing positions
+    for (const [posKey, position] of this.currentPositions) {
+      const symbol = position.symbol;
+
+      if (oldConfig.symbols[symbol] && newConfig.symbols[symbol]) {
+        const oldSym = oldConfig.symbols[symbol];
+        const newSym = newConfig.symbols[symbol];
+
+        // Log changes that would affect new SL/TP orders
+        if (oldSym.tpPercent !== newSym.tpPercent) {
+          console.log(`PositionManager: ${symbol} TP percent changed from ${oldSym.tpPercent}% to ${newSym.tpPercent}%`);
+        }
+        if (oldSym.slPercent !== newSym.slPercent) {
+          console.log(`PositionManager: ${symbol} SL percent changed from ${oldSym.slPercent}% to ${newSym.slPercent}%`);
+        }
+
+        // Note: We don't modify existing SL/TP orders - changes only apply to new positions
+        console.log(`PositionManager: Note: Existing SL/TP orders for ${symbol} remain unchanged`);
+      }
+    }
+
+    // If paper mode changed and we have an active websocket, we may need to restart
+    if (oldConfig.global.paperMode !== newConfig.global.paperMode) {
+      console.log(`PositionManager: Paper mode changed to ${newConfig.global.paperMode}`);
+
+      // If switching modes with active connection, restart the connection
+      if (this.isRunning && newConfig.api.apiKey && newConfig.api.secretKey) {
+        console.log('PositionManager: Restarting connection due to mode change...');
+        this.restartConnection();
+      }
+    }
+  }
+
+  private async restartConnection(): Promise<void> {
+    // Close existing connection
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+
+    // Clear intervals
+    if (this.keepaliveInterval) {
+      clearInterval(this.keepaliveInterval);
+    }
+    if (this.riskCheckInterval) {
+      clearInterval(this.riskCheckInterval);
+    }
+    if (this.orderCheckInterval) {
+      clearInterval(this.orderCheckInterval);
+    }
+
+    // Wait a bit before reconnecting
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Reconnect
+    try {
+      await this.syncWithExchange();
+      await this.startUserDataStream();
+    } catch (error) {
+      console.error('PositionManager: Failed to restart connection:', error);
+    }
+  }
+
   async start(): Promise<void> {
     if (this.isRunning) return;
     this.isRunning = true;

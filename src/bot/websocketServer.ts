@@ -48,6 +48,46 @@ export class StatusBroadcaster extends EventEmitter {
           data: this.status,
         }));
 
+        // Handle incoming messages from web UI
+        ws.on('message', async (data: Buffer) => {
+          try {
+            const message = JSON.parse(data.toString());
+
+            switch (message.type) {
+              case 'reload_config':
+                console.log('📝 Config reload requested from web UI');
+                this.broadcast('config_reloading', { timestamp: new Date() });
+
+                // Trigger config reload through configManager
+                const { configManager } = await import('../lib/services/configManager');
+                try {
+                  const newConfig = await configManager.reloadConfig();
+                  this.broadcast('config_reload_success', {
+                    timestamp: new Date(),
+                    config: newConfig,
+                  });
+                  console.log('✅ Config reloaded via WebSocket command');
+                } catch (error: any) {
+                  this.broadcast('config_reload_error', {
+                    timestamp: new Date(),
+                    error: error.message,
+                  });
+                  console.error('❌ Config reload failed:', error);
+                }
+                break;
+
+              case 'ping':
+                ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
+                break;
+
+              default:
+                console.log('Unknown message type:', message.type);
+            }
+          } catch (error) {
+            console.error('Failed to parse WebSocket message:', error);
+          }
+        });
+
         ws.on('close', () => {
           console.log('📱 Web UI disconnected');
           this.clients.delete(ws);
@@ -122,6 +162,11 @@ export class StatusBroadcaster extends EventEmitter {
   clearErrors(): void {
     this.status.errors = [];
     this._broadcast('status', this.status);
+  }
+
+  // Public broadcast method for external use
+  public broadcast(type: string, data: any): void {
+    this._broadcast(type, data);
   }
 
   private _broadcast(type: string, data: any): void {
@@ -295,17 +340,6 @@ export class StatusBroadcaster extends EventEmitter {
     this._broadcast('order_failed', {
       ...data,
       timestamp: new Date(),
-    });
-  }
-
-  // Public broadcast method for external use
-  broadcast(type: string, data: any): void {
-    const message = JSON.stringify({ type, data });
-
-    this.clients.forEach(client => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(message);
-      }
     });
   }
 }

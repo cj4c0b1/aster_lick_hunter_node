@@ -295,6 +295,73 @@ export class VWAPStreamer extends EventEmitter {
   public getAllVWAP(): Map<string, VWAPData> {
     return new Map(this.vwapValues);
   }
+
+  public async updateSymbols(config: Config): Promise<void> {
+    console.log('📊 VWAP Streamer: Updating monitored symbols...');
+
+    const oldSymbols = new Set(this.symbolConfigs.keys());
+    const newSymbolConfigs = new Map<string, {timeframe: string, lookback: number}>();
+
+    // Collect new symbols with VWAP protection
+    for (const [symbol, symbolConfig] of Object.entries(config.symbols)) {
+      if (symbolConfig.vwapProtection) {
+        const timeframe = symbolConfig.vwapTimeframe || '1m';
+        const lookback = symbolConfig.vwapLookback || 100;
+        newSymbolConfigs.set(symbol, { timeframe, lookback });
+      }
+    }
+
+    const newSymbols = new Set(newSymbolConfigs.keys());
+
+    // Find added and removed symbols
+    const addedSymbols = [...newSymbols].filter(s => !oldSymbols.has(s));
+    const removedSymbols = [...oldSymbols].filter(s => !newSymbols.has(s));
+
+    // Update configuration
+    this.symbolConfigs = newSymbolConfigs;
+
+    // Remove data for removed symbols
+    for (const symbol of removedSymbols) {
+      this.klineBuffers.delete(symbol);
+      this.vwapValues.delete(symbol);
+      console.log(`📊 VWAP Streamer: Stopped monitoring ${symbol}`);
+    }
+
+    // Add new symbols
+    for (const symbol of addedSymbols) {
+      const config = newSymbolConfigs.get(symbol)!;
+      this.klineBuffers.set(symbol, []);
+      console.log(`📊 VWAP Streamer: Started monitoring ${symbol} with ${config.timeframe} timeframe, ${config.lookback} lookback`);
+
+      // Load initial data for new symbol
+      try {
+        const klines = await getKlines(symbol, config.timeframe, config.lookback);
+        if (klines && klines.length > 0) {
+          const buffer: Array<{high: number, low: number, close: number, volume: number, quoteVolume: number}> = [];
+          for (const kline of klines) {
+            buffer.push({
+              high: parseFloat(kline.high),
+              low: parseFloat(kline.low),
+              close: parseFloat(kline.close),
+              volume: parseFloat(kline.volume),
+              quoteVolume: parseFloat(kline.volume) * parseFloat(kline.close) // Estimate
+            });
+          }
+          this.klineBuffers.set(symbol, buffer);
+        }
+      } catch (error) {
+        console.error(`📊 VWAP Streamer: Failed to load initial data for ${symbol}:`, error);
+      }
+    }
+
+    // Restart WebSocket if symbols changed
+    if (addedSymbols.length > 0 || removedSymbols.length > 0) {
+      if (this.ws) {
+        this.ws.close();
+        // Will automatically reconnect with new symbols
+      }
+    }
+  }
 }
 
 // Export singleton instance
