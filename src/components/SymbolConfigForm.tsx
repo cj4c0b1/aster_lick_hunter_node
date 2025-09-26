@@ -47,22 +47,20 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
   const [newSymbol, setNewSymbol] = useState<string>('');
   const [showApiSecret, setShowApiSecret] = useState(false);
   const [availableSymbols, setAvailableSymbols] = useState<any[]>([]);
+  const [symbolDetails, setSymbolDetails] = useState<any>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
   const [loadingSymbols, setLoadingSymbols] = useState(false);
   const [symbolSearch, setSymbolSearch] = useState('');
   const [showSymbolPicker, setShowSymbolPicker] = useState(false);
 
-  // Function to generate default config based on min notional
-  const getDefaultSymbolConfig = (minNotional: number = 10): SymbolConfig => {
-    // Base trade size on minimum notional (use 2x minimum for safety)
-    const tradeSize = Math.max(minNotional * 2, 20);
-    const defaultThreshold = Math.max(minNotional * 10, 10000);
-
+  // Function to generate default config
+  const getDefaultSymbolConfig = (): SymbolConfig => {
     return {
-      longVolumeThresholdUSDT: defaultThreshold,  // For long positions (buy on sell liquidations)
-      shortVolumeThresholdUSDT: defaultThreshold, // For short positions (sell on buy liquidations)
+      longVolumeThresholdUSDT: 10000,  // For long positions (buy on sell liquidations)
+      shortVolumeThresholdUSDT: 10000, // For short positions (sell on buy liquidations)
       leverage: 10,
-      tradeSize: parseFloat(tradeSize.toFixed(2)),
-      maxPositionMarginUSDT: parseFloat((tradeSize * 100).toFixed(2)), // Default to 100x trade size
+      tradeSize: 100,
+      maxPositionMarginUSDT: 10000,
       slPercent: 2,
       tpPercent: 3,
       priceOffsetBps: 5,      // 5 basis points offset for limit orders
@@ -123,10 +121,10 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
     }
   };
 
-  const addSymbol = (symbolToAdd?: string, minNotional?: number) => {
+  const addSymbol = (symbolToAdd?: string) => {
     const symbol = symbolToAdd || newSymbol;
     if (symbol && !config.symbols[symbol]) {
-      const defaultConfig = getDefaultSymbolConfig(minNotional);
+      const defaultConfig = getDefaultSymbolConfig();
       setConfig({
         ...config,
         symbols: {
@@ -156,6 +154,42 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
 
   const handleSave = () => {
     onSave(config);
+  };
+
+  // Fetch symbol details when selecting a symbol
+  const fetchSymbolDetails = async (symbol: string) => {
+    setLoadingDetails(true);
+    try {
+      const response = await fetch(`/api/symbol-details/${symbol}`);
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch symbol details');
+      }
+      setSymbolDetails(data);
+    } catch (error) {
+      console.error('Failed to fetch symbol details:', error);
+      setSymbolDetails(null);
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
+  // Effect to fetch details when selected symbol changes
+  useEffect(() => {
+    if (selectedSymbol && config.symbols[selectedSymbol]) {
+      fetchSymbolDetails(selectedSymbol);
+    } else {
+      setSymbolDetails(null);
+    }
+  }, [selectedSymbol]);
+
+  // Calculate minimum margin based on leverage
+  const getMinimumMargin = () => {
+    if (!symbolDetails || !selectedSymbol || !config.symbols[selectedSymbol]) {
+      return null;
+    }
+    const leverage = config.symbols[selectedSymbol].leverage || 1;
+    return symbolDetails.minNotional / leverage;
   };
 
   return (
@@ -411,13 +445,10 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                             <div
                               key={symbolInfo.symbol}
                               className="flex items-center justify-between p-2 rounded hover:bg-accent cursor-pointer"
-                              onClick={() => addSymbol(symbolInfo.symbol, symbolInfo.minNotional)}
+                              onClick={() => addSymbol(symbolInfo.symbol)}
                             >
                               <div className="flex items-center gap-3">
                                 <span className="font-medium">{symbolInfo.symbol}</span>
-                                <Badge variant="secondary" className="text-xs">
-                                  Min: ${symbolInfo.minNotional} USDT
-                                </Badge>
                               </div>
                               <Button size="sm" variant="ghost">
                                 <Plus className="h-3 w-3" />
@@ -517,9 +548,31 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                             onChange={(e) => handleSymbolChange(selectedSymbol, 'tradeSize', parseFloat(e.target.value))}
                             min="0"
                           />
-                          <p className="text-xs text-muted-foreground">
-                            Position size in USDT
-                          </p>
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">
+                              Position size in USDT
+                            </p>
+                            {symbolDetails && !loadingDetails && getMinimumMargin() && (
+                              <div className="flex items-center gap-2">
+                                <Badge
+                                  variant={config.symbols[selectedSymbol].tradeSize >= getMinimumMargin()! ? "default" : "destructive"}
+                                  className="text-xs"
+                                >
+                                  Min: ${getMinimumMargin()!.toFixed(2)} USDT @ {config.symbols[selectedSymbol].leverage}x
+                                </Badge>
+                                {config.symbols[selectedSymbol].tradeSize < getMinimumMargin()! && (
+                                  <Badge variant="destructive" className="text-xs">
+                                    Below minimum!
+                                  </Badge>
+                                )}
+                              </div>
+                            )}
+                            {loadingDetails && (
+                              <p className="text-xs text-muted-foreground">
+                                Loading minimum requirements...
+                              </p>
+                            )}
+                          </div>
                         </div>
 
                         <div className="space-y-2">
