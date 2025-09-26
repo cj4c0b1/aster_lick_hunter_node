@@ -23,6 +23,9 @@ A smart trading bot that monitors and trades liquidation events on Aster DEX. Fe
 
 ## 🚀 Quick Start
 
+### 📹 Video Setup Guide
+**[🎥 Watch Complete Setup Tutorial](https://www.youtube.com/watch?v=Np9LZpWUhXY)** - Follow along with this step-by-step video guide!
+
 ### Prerequisites
 - [Node.js 20+](https://nodejs.org/)
 - [Aster DEX Account](https://www.asterdex.com/en/referral/3TixB2)
