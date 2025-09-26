@@ -5,7 +5,6 @@ import { Config } from '@/lib/types';
 import { OnboardingProvider } from './onboarding/OnboardingProvider';
 import { OnboardingModal } from './onboarding/OnboardingModal';
 import { TutorialOverlay } from './onboarding/TutorialOverlay';
-import { HelpButton } from './HelpButton';
 
 interface ConfigContextType {
   config: Config | null;
@@ -111,7 +110,6 @@ export default function ConfigProvider({ children }: { children: React.ReactNode
         {children}
         <OnboardingModal />
         <TutorialOverlay />
-        <HelpButton />
       </OnboardingProvider>
     </ConfigContext.Provider>
   );
