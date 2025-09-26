@@ -36,6 +36,7 @@ import {
   Percent,
 } from 'lucide-react';
 import websocketService from '@/lib/services/websocketService';
+import { useConfig } from '@/components/ConfigProvider';
 
 type TimeRange = '24h' | '7d' | '30d' | '90d' | '1y' | 'all';
 type ChartType = 'daily' | 'cumulative';
@@ -71,6 +72,7 @@ interface PnLData {
 }
 
 export default function PnLChart() {
+  const { config } = useConfig();
   const [timeRange, setTimeRange] = useState<TimeRange>('7d');
   const [chartType, setChartType] = useState<ChartType>('cumulative');
   const [displayMode, setDisplayMode] = useState<DisplayMode>('usdt');
@@ -80,6 +82,9 @@ export default function PnLChart() {
   const [realtimePnL, setRealtimePnL] = useState<any>(null);
   const [totalBalance, setTotalBalance] = useState<number>(0);
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Check if API keys are configured
+  const hasApiKeys = config?.api?.apiKey && config?.api?.secretKey;
 
   // Data validation helper
   const validateDailyPnLData = (data: any[]): DailyPnL[] => {
@@ -141,11 +146,18 @@ export default function PnLChart() {
 
   // Fetch historical PnL data on mount and when timeRange changes
   useEffect(() => {
-    fetchPnLData();
-  }, [timeRange]);
+    if (hasApiKeys) {
+      fetchPnLData();
+    } else {
+      setIsLoading(false);
+      setPnlData(null);
+    }
+  }, [timeRange, hasApiKeys]);
 
   // Fetch initial real-time session data and balance
   useEffect(() => {
+    if (!hasApiKeys) return;
+
     const fetchRealtimeData = async () => {
       try {
         // Fetch realtime PnL
@@ -167,7 +179,7 @@ export default function PnLChart() {
     };
 
     fetchRealtimeData();
-  }, []);
+  }, [hasApiKeys]);
 
   // Subscribe to real-time PnL updates
   useEffect(() => {
@@ -341,6 +353,8 @@ export default function PnLChart() {
 
   // Handle empty data state
   if (!pnlData || chartData.length === 0) {
+    const isApiKeysMissing = !hasApiKeys;
+
     return (
       <Card>
         <CardHeader className="pb-2">
@@ -355,7 +369,7 @@ export default function PnLChart() {
               </CardTitle>
               <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
             </button>
-            {!isCollapsed && (
+            {!isCollapsed && !isApiKeysMissing && (
               <div className="flex items-center gap-1.5">
                 <Button
                   variant="ghost"
@@ -394,9 +408,16 @@ export default function PnLChart() {
             <div className="flex items-center justify-center h-[150px] text-muted-foreground">
               <div className="text-center space-y-1">
                 <BarChart3 className="h-6 w-6 mx-auto opacity-50" />
-                <p className="text-xs font-medium">No trading data</p>
+                <p className="text-xs font-medium">
+                  {isApiKeysMissing ? 'API keys required' : 'No trading data'}
+                </p>
                 <Badge variant="secondary" className="h-4 text-[10px] px-1.5">
-                  {pnlData?.error ? `Error: ${pnlData.error}` : `${timeRange} period`}
+                  {isApiKeysMissing
+                    ? 'Complete setup to view data'
+                    : pnlData?.error
+                      ? `Error: ${pnlData.error}`
+                      : `${timeRange} period`
+                  }
                 </Badge>
               </div>
             </div>

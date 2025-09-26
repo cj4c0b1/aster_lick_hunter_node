@@ -77,27 +77,57 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   const [showTutorial, setShowTutorial] = useState(false);
   const [isNewUser, setIsNewUser] = useState(false);
 
+  // Check if API keys are configured
+  const checkApiKeysConfigured = async () => {
+    try {
+      const response = await fetch('/api/config');
+      if (response.ok) {
+        const config = await response.json();
+        const hasApiKeys = config?.api?.apiKey && config?.api?.secretKey;
+        return hasApiKeys;
+      }
+    } catch (error) {
+      console.error('Failed to check API keys:', error);
+    }
+    return false;
+  };
+
   // Load onboarding state from localStorage
   useEffect(() => {
-    const savedState = localStorage.getItem(ONBOARDING_STORAGE_KEY);
-    const isComplete = localStorage.getItem(ONBOARDING_COMPLETE_KEY) === 'true';
-    const hasSetup = localStorage.getItem('aster_setup_complete') === 'true';
+    const initializeOnboarding = async () => {
+      const savedState = localStorage.getItem(ONBOARDING_STORAGE_KEY);
+      const isComplete = localStorage.getItem(ONBOARDING_COMPLETE_KEY) === 'true';
+      const hasSetup = localStorage.getItem('aster_setup_complete') === 'true';
 
-    if (!isComplete && !hasSetup) {
-      setIsNewUser(true);
-      // Auto-start onboarding for new users
-      setIsOnboarding(true);
-    }
+      // Check if API keys are configured
+      const hasApiKeys = await checkApiKeysConfigured();
 
-    if (savedState) {
-      try {
-        const parsed = JSON.parse(savedState);
-        setSteps(parsed.steps || initialSteps);
-        setCurrentStep(parsed.currentStep || 0);
-      } catch (error) {
-        console.error('Failed to parse onboarding state:', error);
+      if (!hasApiKeys) {
+        // No API keys configured - force onboarding
+        setIsNewUser(true);
+        setIsOnboarding(true);
+        setCurrentStep(1); // Start at API key step
+        return;
       }
-    }
+
+      if (!isComplete && !hasSetup) {
+        setIsNewUser(true);
+        // Auto-start onboarding for new users
+        setIsOnboarding(true);
+      }
+
+      if (savedState) {
+        try {
+          const parsed = JSON.parse(savedState);
+          setSteps(parsed.steps || initialSteps);
+          setCurrentStep(parsed.currentStep || 0);
+        } catch (error) {
+          console.error('Failed to parse onboarding state:', error);
+        }
+      }
+    };
+
+    initializeOnboarding();
   }, []);
 
   // Listen for restart onboarding event
