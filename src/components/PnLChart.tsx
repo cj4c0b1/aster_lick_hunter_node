@@ -28,6 +28,7 @@ import { Button } from '@/components/ui/button';
 import {
   BarChart3,
   RefreshCw,
+  ChevronDown,
 } from 'lucide-react';
 import websocketService from '@/lib/services/websocketService';
 
@@ -73,6 +74,7 @@ export default function PnLChart() {
   const [pnlData, setPnlData] = useState<PnLData | null>(null);
   const [realtimePnL, setRealtimePnL] = useState<any>(null);
   const [totalBalance, setTotalBalance] = useState<number>(0);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Data validation helper
   const validateDailyPnLData = (data: any[]): DailyPnL[] => {
@@ -356,54 +358,64 @@ export default function PnLChart() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
-              Performance Chart
-            </CardTitle>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => fetchPnLData(true)}
-                disabled={isRefreshing}
-              >
-                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-              </Button>
-              <Select value={timeRange} onValueChange={(value) => setTimeRange(value as TimeRange)}>
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="24h">24 Hours</SelectItem>
-                  <SelectItem value="7d">7 Days</SelectItem>
-                  <SelectItem value="30d">30 Days</SelectItem>
-                  <SelectItem value="90d">90 Days</SelectItem>
-                  <SelectItem value="1y">1 Year</SelectItem>
-                  <SelectItem value="all">All Time</SelectItem>
-                </SelectContent>
-              </Select>
-              <Tabs value={chartType} onValueChange={(value) => setChartType(value as ChartType)}>
-                <TabsList>
-                  <TabsTrigger value="daily">Daily</TabsTrigger>
-                  <TabsTrigger value="cumulative">Cumulative</TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
+            <button
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+            >
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5" />
+                Performance Chart
+              </CardTitle>
+              <ChevronDown className={`h-4 w-4 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+            </button>
+            {!isCollapsed && (
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => fetchPnLData(true)}
+                  disabled={isRefreshing}
+                >
+                  <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                </Button>
+                <Select value={timeRange} onValueChange={(value) => setTimeRange(value as TimeRange)}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="24h">24 Hours</SelectItem>
+                    <SelectItem value="7d">7 Days</SelectItem>
+                    <SelectItem value="30d">30 Days</SelectItem>
+                    <SelectItem value="90d">90 Days</SelectItem>
+                    <SelectItem value="1y">1 Year</SelectItem>
+                    <SelectItem value="all">All Time</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Tabs value={chartType} onValueChange={(value) => setChartType(value as ChartType)}>
+                  <TabsList>
+                    <TabsTrigger value="daily">Daily</TabsTrigger>
+                    <TabsTrigger value="cumulative">Cumulative</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+            )}
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center h-[400px] text-muted-foreground">
-            <div className="text-center space-y-2">
-              <BarChart3 className="h-12 w-12 mx-auto opacity-50" />
-              <p className="text-lg font-medium">No trading data available</p>
-              <p className="text-sm">
-                {pnlData?.error
-                  ? `Error: ${pnlData.error}`
-                  : `No PnL data found for the selected ${timeRange} period`}
-              </p>
+        {!isCollapsed && (
+          <CardContent>
+            <div className="flex items-center justify-center h-[400px] text-muted-foreground">
+              <div className="text-center space-y-2">
+                <BarChart3 className="h-12 w-12 mx-auto opacity-50" />
+                <p className="text-lg font-medium">No trading data available</p>
+                <p className="text-sm">
+                  {pnlData?.error
+                    ? `Error: ${pnlData.error}`
+                    : `No PnL data found for the selected ${timeRange} period`}
+                </p>
+              </div>
             </div>
-          </div>
-        </CardContent>
+          </CardContent>
+        )}
       </Card>
     );
   }
@@ -443,42 +455,51 @@ export default function PnLChart() {
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
-            Performance Chart
-          </CardTitle>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => fetchPnLData(true)}
-              disabled={isRefreshing}
-            >
-              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            </Button>
-            <Select value={timeRange} onValueChange={(value) => setTimeRange(value as TimeRange)}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="24h">24 Hours</SelectItem>
-                <SelectItem value="7d">7 Days</SelectItem>
-                <SelectItem value="30d">30 Days</SelectItem>
-                <SelectItem value="90d">90 Days</SelectItem>
-                <SelectItem value="1y">1 Year</SelectItem>
-                <SelectItem value="all">All Time</SelectItem>
-              </SelectContent>
-            </Select>
-            <Tabs value={chartType} onValueChange={(value) => setChartType(value as ChartType)}>
-              <TabsList>
-                <TabsTrigger value="daily">Daily</TabsTrigger>
-                <TabsTrigger value="cumulative">Cumulative</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+          >
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              Performance Chart
+            </CardTitle>
+            <ChevronDown className={`h-4 w-4 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+          </button>
+          {!isCollapsed && (
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => fetchPnLData(true)}
+                disabled={isRefreshing}
+              >
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              </Button>
+              <Select value={timeRange} onValueChange={(value) => setTimeRange(value as TimeRange)}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="24h">24 Hours</SelectItem>
+                  <SelectItem value="7d">7 Days</SelectItem>
+                  <SelectItem value="30d">30 Days</SelectItem>
+                  <SelectItem value="90d">90 Days</SelectItem>
+                  <SelectItem value="1y">1 Year</SelectItem>
+                  <SelectItem value="all">All Time</SelectItem>
+                </SelectContent>
+              </Select>
+              <Tabs value={chartType} onValueChange={(value) => setChartType(value as ChartType)}>
+                <TabsList>
+                  <TabsTrigger value="daily">Daily</TabsTrigger>
+                  <TabsTrigger value="cumulative">Cumulative</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+          )}
         </div>
       </CardHeader>
-      <CardContent>
+      {!isCollapsed && (
+        <CardContent>
         {/* Performance Summary */}
         {safeMetrics && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -590,6 +611,7 @@ export default function PnLChart() {
           </div>
         )}
       </CardContent>
+      )}
     </Card>
   );
 }
