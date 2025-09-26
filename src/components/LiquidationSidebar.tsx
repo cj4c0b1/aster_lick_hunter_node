@@ -282,7 +282,7 @@ function LiquidationItem({
 
       // Choose animation based on volume
       if (event.volume >= 5000000) {
-        // Mega liquidation - explosive entrance
+        // Mega liquidation - explosive entrance with neon wave effect
         gsap.fromTo(element,
           {
             scale: 0,
@@ -298,19 +298,63 @@ function LiquidationItem({
             duration: 0.8,
             ease: "elastic.out(1, 0.5)",
             onComplete: () => {
-              // Pulse glow effect
+              // Neon wave effect - create a traveling wave across the card
+              const waveTimeline = gsap.timeline();
+
+              // Create wave effect with multiple gradient positions
+              waveTimeline
+                .to(element, {
+                  background: isLongLiquidation
+                    ? "linear-gradient(90deg, rgba(34,197,94,0.1) 0%, rgba(34,197,94,0.8) 20%, rgba(34,197,94,0.9) 40%, rgba(34,197,94,0.8) 60%, rgba(34,197,94,0.1) 100%)"
+                    : "linear-gradient(90deg, rgba(239,68,68,0.1) 0%, rgba(239,68,68,0.8) 20%, rgba(239,68,68,0.9) 40%, rgba(239,68,68,0.8) 60%, rgba(239,68,68,0.1) 100%)",
+                  duration: 0.3,
+                  ease: "power2.inOut"
+                })
+                .to(element, {
+                  background: isLongLiquidation
+                    ? "linear-gradient(90deg, rgba(34,197,94,0.1) 20%, rgba(34,197,94,0.9) 40%, rgba(34,197,94,1) 60%, rgba(34,197,94,0.9) 80%, rgba(34,197,94,0.1) 100%)"
+                    : "linear-gradient(90deg, rgba(239,68,68,0.1) 20%, rgba(239,68,68,0.9) 40%, rgba(239,68,68,1) 60%, rgba(239,68,68,0.9) 80%, rgba(239,68,68,0.1) 100%)",
+                  duration: 0.3,
+                  ease: "power2.inOut"
+                })
+                .to(element, {
+                  background: isLongLiquidation
+                    ? "linear-gradient(90deg, rgba(34,197,94,0.1) 40%, rgba(34,197,94,0.8) 60%, rgba(34,197,94,0.9) 80%, rgba(34,197,94,0.8) 100%, rgba(34,197,94,0.1) 120%)"
+                    : "linear-gradient(90deg, rgba(239,68,68,0.1) 40%, rgba(239,68,68,0.8) 60%, rgba(239,68,68,0.9) 80%, rgba(239,68,68,0.8) 100%, rgba(239,68,68,0.1) 120%)",
+                  duration: 0.3,
+                  ease: "power2.inOut"
+                })
+                .to(element, {
+                  backgroundColor: isLongLiquidation ? "rgba(34, 197, 94, 0.25)" : "rgba(239, 68, 68, 0.25)",
+                  duration: 0.4,
+                  ease: "power2.out"
+                });
+
+              // Add intense pulsing glow
               gsap.to(element, {
-                boxShadow: "0 0 30px rgba(250, 204, 21, 0.6)",
-                duration: 0.5,
+                boxShadow: isLongLiquidation
+                  ? "0 0 40px rgba(34, 197, 94, 0.8), 0 0 20px rgba(34, 197, 94, 0.6)"
+                  : "0 0 40px rgba(239, 68, 68, 0.8), 0 0 20px rgba(239, 68, 68, 0.6)",
+                duration: 0.6,
                 yoyo: true,
-                repeat: 3,
+                repeat: 5,
                 ease: "power2.inOut"
+              });
+
+              // Breathing effect that continues
+              gsap.to(element, {
+                scale: 1.02,
+                duration: 1.5,
+                yoyo: true,
+                repeat: -1,
+                ease: "sine.inOut",
+                delay: 1.5
               });
             }
           }
         );
       } else if (event.volume >= 1000000) {
-        // Large liquidation - bounce in with flash
+        // Large liquidation - enhanced bounce with strong pulse
         gsap.fromTo(element,
           {
             y: -50,
@@ -324,19 +368,67 @@ function LiquidationItem({
             duration: 0.6,
             ease: "bounce.out",
             onComplete: () => {
+              // Enhanced pulsing effect
+              const pulseTimeline = gsap.timeline();
+
+              pulseTimeline
+                .to(element, {
+                  scale: 1.08,
+                  backgroundColor: isLongLiquidation
+                    ? "rgba(34, 197, 94, 0.5)"
+                    : "rgba(239, 68, 68, 0.5)",
+                  boxShadow: isLongLiquidation
+                    ? "0 0 25px rgba(34, 197, 94, 0.6)"
+                    : "0 0 25px rgba(239, 68, 68, 0.6)",
+                  duration: 0.3,
+                  ease: "power2.out"
+                })
+                .to(element, {
+                  scale: 0.98,
+                  backgroundColor: isLongLiquidation
+                    ? "rgba(34, 197, 94, 0.2)"
+                    : "rgba(239, 68, 68, 0.2)",
+                  boxShadow: isLongLiquidation
+                    ? "0 0 10px rgba(34, 197, 94, 0.3)"
+                    : "0 0 10px rgba(239, 68, 68, 0.3)",
+                  duration: 0.4,
+                  ease: "power2.inOut"
+                })
+                .to(element, {
+                  scale: 1.05,
+                  backgroundColor: isLongLiquidation
+                    ? "rgba(34, 197, 94, 0.35)"
+                    : "rgba(239, 68, 68, 0.35)",
+                  boxShadow: isLongLiquidation
+                    ? "0 0 20px rgba(34, 197, 94, 0.5)"
+                    : "0 0 20px rgba(239, 68, 68, 0.5)",
+                  duration: 0.3,
+                  ease: "power2.out"
+                })
+                .to(element, {
+                  scale: 1,
+                  backgroundColor: isLongLiquidation
+                    ? "rgba(34, 197, 94, 0.2)"
+                    : "rgba(239, 68, 68, 0.2)",
+                  boxShadow: "none",
+                  duration: 0.5,
+                  ease: "power2.out"
+                });
+
+              // Subtle continuing pulse
               gsap.to(element, {
-                backgroundColor: isLongLiquidation
-                  ? "rgba(34, 197, 94, 0.3)"
-                  : "rgba(239, 68, 68, 0.3)",
-                duration: 0.3,
+                scale: 1.01,
+                duration: 2,
                 yoyo: true,
-                repeat: 1
+                repeat: 3,
+                ease: "sine.inOut",
+                delay: 1.5
               });
             }
           }
         );
       } else if (event.volume >= 500000) {
-        // Medium liquidation - slide and zoom
+        // Medium liquidation - slide and zoom with gentle pulse
         gsap.fromTo(element,
           {
             x: 300,
@@ -349,6 +441,19 @@ function LiquidationItem({
             scale: 1,
             duration: 0.5,
             ease: "power3.out",
+            onComplete: () => {
+              // Gentle pulse for medium liquidations
+              gsap.to(element, {
+                scale: 1.03,
+                backgroundColor: isLongLiquidation
+                  ? "rgba(34, 197, 94, 0.3)"
+                  : "rgba(239, 68, 68, 0.3)",
+                duration: 0.4,
+                yoyo: true,
+                repeat: 1,
+                ease: "power2.inOut"
+              });
+            }
           }
         );
       } else if (event.volume >= 100000) {
@@ -365,8 +470,67 @@ function LiquidationItem({
             ease: "power2.out",
           }
         );
+      } else if (event.volume >= 10000) {
+        // Notable liquidation ($10K+) - slide in with subtle glow
+        gsap.fromTo(element,
+          {
+            x: 50,
+            opacity: 0,
+            scale: 0.9,
+          },
+          {
+            x: 0,
+            opacity: 1,
+            scale: 1,
+            duration: 0.35,
+            ease: "power2.out",
+            onComplete: () => {
+              // Subtle highlight effect
+              gsap.to(element, {
+                backgroundColor: isLongLiquidation
+                  ? "rgba(34, 197, 94, 0.15)"
+                  : "rgba(239, 68, 68, 0.15)",
+                boxShadow: isLongLiquidation
+                  ? "0 0 8px rgba(34, 197, 94, 0.2)"
+                  : "0 0 8px rgba(239, 68, 68, 0.2)",
+                duration: 0.3,
+                yoyo: true,
+                repeat: 1,
+                ease: "power2.inOut"
+              });
+            }
+          }
+        );
+      } else if (event.volume >= 1000) {
+        // Small liquidation ($1K+) - gentle slide with micro scale
+        gsap.fromTo(element,
+          {
+            x: 20,
+            opacity: 0,
+            scale: 0.95,
+          },
+          {
+            x: 0,
+            opacity: 1,
+            scale: 1,
+            duration: 0.25,
+            ease: "power1.out",
+            onComplete: () => {
+              // Very subtle flash
+              gsap.to(element, {
+                backgroundColor: isLongLiquidation
+                  ? "rgba(34, 197, 94, 0.08)"
+                  : "rgba(239, 68, 68, 0.08)",
+                duration: 0.2,
+                yoyo: true,
+                repeat: 1,
+                ease: "power1.inOut"
+              });
+            }
+          }
+        );
       } else {
-        // Small liquidation - simple fade
+        // Tiny liquidation - simple fade
         gsap.fromTo(element,
           {
             opacity: 0,
@@ -381,12 +545,13 @@ function LiquidationItem({
         );
       }
 
-      // Shake animation for very large liquidations
+      // Enhanced shake animation for very large liquidations
       if (event.volume >= 1000000) {
         gsap.to(element, {
-          x: "+=2",
-          duration: 0.1,
-          repeat: 5,
+          x: "+=3",
+          rotation: "+=1",
+          duration: 0.08,
+          repeat: 7,
           yoyo: true,
           ease: "power1.inOut",
           delay: 0.5
