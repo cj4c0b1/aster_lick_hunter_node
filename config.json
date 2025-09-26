@@ -16,7 +16,7 @@
       "tradeSize": 1,
       "leverage": 10,
       "tpPercent": 0.1,
-      "slPercent": 2
+      "slPercent": 20
     }
   },
   "global": {

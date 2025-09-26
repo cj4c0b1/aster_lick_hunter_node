@@ -627,12 +627,29 @@ export class PositionManager extends EventEmitter {
     try {
       // Place Stop Loss
       if (placeSL) {
+        // Get current market price to avoid "Order would immediately trigger" error
+        const ticker = await axios.get(`https://fapi.asterdex.com/fapi/v1/ticker/price?symbol=${symbol}`);
+        const currentPrice = parseFloat(ticker.data.price);
+
         const rawSlPrice = isLong
           ? entryPrice * (1 - symbolConfig.slPercent / 100)
           : entryPrice * (1 + symbolConfig.slPercent / 100);
 
+        // Check if the position is already beyond the stop level
+        let adjustedSlPrice = rawSlPrice;
+        if ((isLong && rawSlPrice >= currentPrice) || (!isLong && rawSlPrice <= currentPrice)) {
+          // Position is already at a loss beyond the intended stop
+          // Place stop slightly beyond current price to avoid immediate trigger
+          const bufferPercent = 0.1; // 0.1% buffer
+          adjustedSlPrice = isLong
+            ? currentPrice * (1 - bufferPercent / 100)
+            : currentPrice * (1 + bufferPercent / 100);
+
+          console.log(`PositionManager: Position ${symbol} is underwater. Adjusting SL from ${rawSlPrice.toFixed(4)} to ${adjustedSlPrice.toFixed(4)} (current: ${currentPrice.toFixed(4)})`);
+        }
+
         // Format price and quantity according to symbol precision
-        const slPrice = symbolPrecision.formatPrice(symbol, rawSlPrice);
+        const slPrice = symbolPrecision.formatPrice(symbol, adjustedSlPrice);
         const formattedQuantity = symbolPrecision.formatQuantity(symbol, quantity);
 
         // Determine position side for the SL order
