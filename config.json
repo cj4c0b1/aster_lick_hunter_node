@@ -6,7 +6,7 @@
   "symbols": {
     "ASTERUSDT": {
       "longVolumeThresholdUSDT": 100,
-      "shortVolumeThresholdUSDT": 10000,
+      "shortVolumeThresholdUSDT": 1000,
       "tradeSize": 1,
       "maxPositionMarginUSDT": 500,
       "leverage": 10,

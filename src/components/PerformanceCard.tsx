@@ -6,61 +6,84 @@ import { TrendingUp, TrendingDown, Activity, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import websocketService from '@/lib/services/websocketService';
 
-interface SessionPnL {
-  startTime: number;
-  startBalance: number;
-  currentBalance: number;
+interface DailyPnL {
+  date: string;
   realizedPnl: number;
-  unrealizedPnl: number;
-  totalPnl: number;
   commission: number;
   fundingFee: number;
+  netPnl: number;
   tradeCount: number;
-  winCount: number;
-  lossCount: number;
 }
 
-interface SessionMetrics {
-  duration: number;
-  returnPercent: number;
+interface PnLMetrics {
+  totalPnl: number;
+  totalRealizedPnl: number;
+  totalCommission: number;
+  totalFundingFee: number;
   winRate: number;
-  avgWin: number;
-  avgLoss: number;
+  profitableDays: number;
+  lossDays: number;
+  bestDay: DailyPnL | null;
+  worstDay: DailyPnL | null;
+  avgDailyPnl: number;
+  maxDrawdown: number;
   profitFactor: number;
+  sharpeRatio: number;
+}
+
+interface BalanceData {
+  totalWalletBalance: number;
+  totalUnrealizedProfit: number;
+  totalMarginBalance: number;
+  availableBalance: number;
 }
 
 export default function PerformanceCard() {
-  const [sessionPnL, setSessionPnL] = useState<SessionPnL | null>(null);
-  const [sessionMetrics, setSessionMetrics] = useState<SessionMetrics | null>(null);
+  const [pnlData, setPnlData] = useState<{ dailyPnL: DailyPnL[], metrics: PnLMetrics } | null>(null);
+  const [balanceData, setBalanceData] = useState<BalanceData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch initial session data
+  // Fetch initial 24h data and balance data
   useEffect(() => {
-    const fetchSessionData = async () => {
+    const fetchData = async () => {
       try {
-        const response = await fetch('/api/pnl/realtime');
-        if (response.ok) {
-          const data = await response.json();
-          setSessionPnL(data.session);
-          setSessionMetrics(data.metrics);
+        // Fetch both 24h PnL and balance data
+        const [pnlResponse, balanceResponse] = await Promise.all([
+          fetch('/api/income?range=24h'),
+          fetch('/api/balance')
+        ]);
+
+        if (pnlResponse.ok) {
+          const pnlData = await pnlResponse.json();
+          setPnlData(pnlData);
+        }
+
+        if (balanceResponse.ok) {
+          const balanceData = await balanceResponse.json();
+          setBalanceData(balanceData);
         }
       } catch (error) {
-        console.error('Failed to fetch session PnL:', error);
+        console.error('Failed to fetch data:', error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchSessionData();
+    fetchData();
   }, []);
 
-  // Subscribe to real-time updates
+  // Subscribe to real-time updates to refresh 24h data and balance
   useEffect(() => {
     const handleMessage = (message: any) => {
-      if (message.type === 'pnl_update') {
-        if (message.data?.session) {
-          setSessionPnL(message.data.session);
-        }
+      if (message.type === 'pnl_update' || message.type === 'trade_update' || message.type === 'balance_update') {
+        // Refresh both 24h data and balance when trades occur
+        Promise.all([
+          fetch('/api/income?range=24h').then(r => r.json()),
+          fetch('/api/balance').then(r => r.json())
+        ]).then(([pnlData, balanceData]) => {
+          setPnlData(pnlData);
+          setBalanceData(balanceData);
+        }).catch(error => console.error('Failed to refresh data:', error));
       }
     };
 
@@ -86,11 +109,11 @@ export default function PerformanceCard() {
     return `${minutes}m`;
   };
 
-  if (isLoading || !sessionPnL) {
+  if (isLoading || !pnlData || !balanceData) {
     return (
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base font-medium">Session Performance</CardTitle>
+          <CardTitle className="text-base font-medium">24-Hour Performance</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="animate-pulse space-y-2">
@@ -102,19 +125,25 @@ export default function PerformanceCard() {
     );
   }
 
-  const totalPnL = sessionPnL.realizedPnl + sessionPnL.unrealizedPnl;
-  const returnPercent = sessionMetrics?.returnPercent || 0;
+  // Calculate 24h totals
+  const totalPnL = pnlData.metrics.totalPnl;
+  const totalRealizedPnL = pnlData.metrics.totalRealizedPnl;
+  const totalTrades = pnlData.dailyPnL.reduce((sum, day) => sum + day.tradeCount, 0);
   const isProfit = totalPnL >= 0;
+
+  // Calculate return percentage based on total wallet balance
+  const totalBalance = balanceData.totalWalletBalance;
+  const returnPercent = totalBalance > 0 ? (totalPnL / totalBalance) * 100 : 0;
 
   return (
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-medium">Session Performance</CardTitle>
-          {sessionPnL.tradeCount > 0 && (
+          <CardTitle className="text-base font-medium">24-Hour Performance</CardTitle>
+          {totalTrades > 0 && (
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <Activity className="h-3 w-3" />
-              {sessionPnL.tradeCount} trades
+              {totalTrades} trades
             </div>
           )}
         </div>
@@ -150,60 +179,29 @@ export default function PerformanceCard() {
               <p className="text-muted-foreground">Realized</p>
               <p className={cn(
                 "font-medium",
-                sessionPnL.realizedPnl >= 0 ? "text-green-500" : "text-red-500"
+                totalRealizedPnL >= 0 ? "text-green-500" : "text-red-500"
               )}>
-                {formatCurrency(sessionPnL.realizedPnl)}
+                {formatCurrency(totalRealizedPnL)}
               </p>
             </div>
             <div>
-              <p className="text-muted-foreground">Unrealized</p>
+              <p className="text-muted-foreground">Fees</p>
               <p className={cn(
                 "font-medium",
-                sessionPnL.unrealizedPnl >= 0 ? "text-green-500" : "text-red-500"
+                (pnlData.metrics.totalCommission + pnlData.metrics.totalFundingFee) >= 0 ? "text-green-500" : "text-red-500"
               )}>
-                {formatCurrency(sessionPnL.unrealizedPnl)}
+                {formatCurrency(pnlData.metrics.totalCommission + pnlData.metrics.totalFundingFee)}
               </p>
             </div>
           </div>
 
-          {/* Stats */}
-          {sessionPnL.tradeCount > 0 && (
-            <div className="pt-2 border-t">
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div>
-                  <p className="text-muted-foreground">Win Rate</p>
-                  <p className="font-medium">
-                    {(sessionMetrics?.winRate || 0).toFixed(1)}%
-                  </p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Win/Loss</p>
-                  <p className="font-medium">
-                    {sessionPnL.winCount || 0}/{sessionPnL.lossCount || 0}
-                  </p>
-                </div>
-              </div>
-              {sessionMetrics && sessionMetrics.profitFactor != null && sessionMetrics.profitFactor > 0 && (
-                <div className="mt-2">
-                  <p className="text-sm text-muted-foreground">Profit Factor</p>
-                  <p className="text-sm font-medium">
-                    {sessionMetrics.profitFactor === Infinity
-                      ? '∞'
-                      : sessionMetrics.profitFactor.toFixed(2)}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
 
-          {/* Session Duration */}
-          {sessionMetrics && (
-            <div className="pt-2 border-t">
-              <p className="text-xs text-muted-foreground">
-                Session: {formatDuration(sessionMetrics.duration)}
-              </p>
-            </div>
-          )}
+          {/* Time Period */}
+          <div className="pt-2 border-t">
+            <p className="text-xs text-muted-foreground">
+              24-Hour Period
+            </p>
+          </div>
         </div>
       </CardContent>
     </Card>

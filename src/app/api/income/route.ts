@@ -50,25 +50,28 @@ export async function GET(request: Request) {
     const dailyPnL = aggregateDailyPnL(records);
     console.log(`[Income API] Daily PnL entries: ${dailyPnL.length}`);
 
-    // Ensure today is included even if no trades yet
+    // Debug today's data availability
     const today = new Date().toISOString().split('T')[0];
     const hasToday = dailyPnL.some(d => d.date === today);
     console.log(`[Income API] Today (${today}) in data: ${hasToday}`);
 
-    // Only add today if we're showing a range that should include it
-    const shouldIncludeToday = range !== 'all' || dailyPnL.length === 0;
-    if (!hasToday && shouldIncludeToday) {
-      dailyPnL.push({
-        date: today,
-        realizedPnl: 0,
-        commission: 0,
-        fundingFee: 0,
-        netPnl: 0,
-        tradeCount: 0,
-      });
-      // Re-sort after adding today
-      dailyPnL.sort((a, b) => a.date.localeCompare(b.date));
+    if (hasToday) {
+      const todayData = dailyPnL.find(d => d.date === today);
+      console.log(`[Income API] Today's data from ${range}:`, todayData);
+    } else {
+      console.log(`[Income API] No today data found in ${range} - API returned ${records.length} records`);
+
+      // Check if any records are from today
+      const todayRecords = records.filter(r => new Date(r.time).toISOString().split('T')[0] === today);
+      console.log(`[Income API] Today's raw records in ${range}: ${todayRecords.length}`);
+      if (todayRecords.length > 0) {
+        console.log(`[Income API] Today's raw record sample:`, todayRecords.slice(0, 3));
+      }
     }
+
+    // CRITICAL FIX: Don't artificially add today's zeros - this causes inconsistency
+    // Let the data be what the exchange API actually returns
+    // If today has no trades, then today shouldn't appear in historical data
 
     // Calculate performance metrics
     const metrics = calculatePerformanceMetrics(dailyPnL);

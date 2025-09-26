@@ -4,6 +4,35 @@ import { ApiCredentials } from '../types';
 
 const BASE_URL = 'https://fapi.asterdex.com';
 
+// Simple cache to prevent duplicate API calls
+const incomeCache = new Map<string, { data: IncomeRecord[]; timestamp: number }>();
+
+// Different cache TTL based on range - shorter ranges need fresher data
+const getCacheTTL = (range: string): number => {
+  switch (range) {
+    case '24h':
+      return 1 * 60 * 1000; // 1 minute for 24h
+    case '7d':
+      return 2 * 60 * 1000; // 2 minutes for 7d
+    case '30d':
+      return 5 * 60 * 1000; // 5 minutes for 30d
+    default:
+      return 10 * 60 * 1000; // 10 minutes for longer ranges
+  }
+};
+
+// Function to invalidate cache when new trading activity occurs
+export function invalidateIncomeCache(): void {
+  console.log('[Income Cache] Invalidating all cache due to new trading activity');
+  incomeCache.clear();
+}
+
+// Temporary function to clear cache for debugging
+export function clearIncomeCache(): void {
+  console.log('[Income Cache] Clearing all cache for debugging');
+  incomeCache.clear();
+}
+
 export type IncomeType =
   | 'TRANSFER'
   | 'WELCOME_BONUS'
@@ -61,9 +90,11 @@ export interface DailyPnL {
 
 export function aggregateDailyPnL(records: IncomeRecord[]): DailyPnL[] {
   const dailyMap = new Map<string, DailyPnL>();
+  const todayString = new Date().toISOString().split('T')[0];
 
-  records.forEach(record => {
+  records.forEach((record, index) => {
     const date = new Date(record.time).toISOString().split('T')[0];
+    const amount = parseFloat(record.income);
 
     if (!dailyMap.has(date)) {
       dailyMap.set(date, {
@@ -77,7 +108,11 @@ export function aggregateDailyPnL(records: IncomeRecord[]): DailyPnL[] {
     }
 
     const daily = dailyMap.get(date)!;
-    const amount = parseFloat(record.income);
+
+    // Log records for today for debugging
+    if (date === todayString) {
+      console.log(`[aggregateDailyPnL] Today's record ${index}: ${record.incomeType} = ${amount} (${new Date(record.time).toISOString()})`);
+    }
 
     switch (record.incomeType) {
       case 'REALIZED_PNL':
@@ -94,14 +129,33 @@ export function aggregateDailyPnL(records: IncomeRecord[]): DailyPnL[] {
   });
 
   // Calculate net PnL for each day
-  dailyMap.forEach(daily => {
+  dailyMap.forEach((daily, date) => {
     daily.netPnl = daily.realizedPnl + daily.commission + daily.fundingFee;
+
+    // Log today's aggregated data
+    if (date === todayString) {
+      console.log(`[aggregateDailyPnL] Today's aggregated data:`, {
+        date,
+        realizedPnl: daily.realizedPnl,
+        commission: daily.commission,
+        fundingFee: daily.fundingFee,
+        netPnl: daily.netPnl,
+        tradeCount: daily.tradeCount
+      });
+    }
   });
 
-  // Sort by date ascending
-  return Array.from(dailyMap.values()).sort((a, b) =>
+  const result = Array.from(dailyMap.values()).sort((a, b) =>
     a.date.localeCompare(b.date)
   );
+
+  console.log(`[aggregateDailyPnL] Generated ${result.length} daily entries`);
+  if (result.length > 0) {
+    const lastEntry = result[result.length - 1];
+    console.log(`[aggregateDailyPnL] Last entry:`, lastEntry);
+  }
+
+  return result;
 }
 
 export interface PerformanceMetrics {
@@ -224,11 +278,24 @@ export function calculatePerformanceMetrics(dailyPnL: DailyPnL[]): PerformanceMe
   };
 }
 
-// Helper function to get income for a specific time range
+// Helper function to get income for a specific time range with proper API limits and caching
 export async function getTimeRangeIncome(
   credentials: ApiCredentials,
   range: '24h' | '7d' | '30d' | '90d' | '1y' | 'all'
 ): Promise<IncomeRecord[]> {
+  // Check cache first with range-specific TTL
+  const cacheKey = `${range}_${credentials.apiKey.slice(-8)}`;
+  const cached = incomeCache.get(cacheKey);
+  const cacheTTL = getCacheTTL(range);
+  const cacheAge = cached ? Date.now() - cached.timestamp : 0;
+
+  if (cached && cacheAge < cacheTTL) {
+    console.log(`[getTimeRangeIncome] Using cached data for ${range} (${cached.data.length} records, age: ${Math.floor(cacheAge / 1000)}s)`);
+    return cached.data;
+  } else if (cached) {
+    console.log(`[getTimeRangeIncome] Cache expired for ${range} (age: ${Math.floor(cacheAge / 1000)}s > ${Math.floor(cacheTTL / 1000)}s)`);
+  }
+
   const now = Date.now();
   let startTime: number | undefined;
 
@@ -249,83 +316,112 @@ export async function getTimeRangeIncome(
       startTime = now - 365 * 24 * 60 * 60 * 1000;
       break;
     case 'all':
-      // No start time - get all available data
+      // For 'all', limit to last 2 years to prevent excessive data
+      startTime = now - 2 * 365 * 24 * 60 * 60 * 1000;
       break;
   }
 
   console.log(`[getTimeRangeIncome] Range: ${range}`);
   console.log(`[getTimeRangeIncome] Start time: ${startTime ? new Date(startTime).toISOString() : 'none'}`);
-  console.log(`[getTimeRangeIncome] End time: ${new Date(now).toISOString()}`)
+  console.log(`[getTimeRangeIncome] End time: ${new Date(now).toISOString()}`);
 
-  const allRecords: IncomeRecord[] = [];
-  let currentEndTime = now;
-  let batchNumber = 0;
+  // Use the API's startTime parameter for efficiency
+  // The issue: 7d range has too much data and 1000 limit cuts off recent data
+  // Solution: For 7d, fetch in reverse chronological order or use pagination
+  const params: IncomeHistoryParams = {
+    startTime: startTime,
+    endTime: now,
+    limit: 1000,
+  };
 
-  // Fetch in reverse chronological order (newest to oldest)
-  // Don't set startTime in params - we'll filter locally instead
-  while (true) {
-    batchNumber++;
-    const params: IncomeHistoryParams = {
-      endTime: currentEndTime,
-      limit: 1000,
-    };
+  try {
+    console.log(`[getTimeRangeIncome] Making API call for ${range} with limit ${params.limit}`);
+    let records = await getIncomeHistory(credentials, params);
+    console.log(`[getTimeRangeIncome] Retrieved ${records.length} records for ${range}`);
 
-    console.log(`[getTimeRangeIncome] Batch ${batchNumber}: fetching up to ${new Date(currentEndTime).toISOString()}`);
+    // CRITICAL FIX: If we hit the limit and might be missing recent data, fetch more recent data
+    if (records.length >= 1000 && ['7d', '30d', '90d', '1y', 'all'].includes(range)) {
+      console.log(`[getTimeRangeIncome] Hit API limit for ${range}, checking if we have today's data`);
 
-    const records = await getIncomeHistory(credentials, params);
-    console.log(`[getTimeRangeIncome] Batch ${batchNumber}: returned ${records.length} records`);
+      const today = new Date().toISOString().split('T')[0];
+      const hasToday = records.some(r => new Date(r.time).toISOString().split('T')[0] === today);
 
-    if (records.length === 0) {
-      break;
-    }
+      if (!hasToday) {
+        console.log(`[getTimeRangeIncome] Missing today's data for ${range}, fetching recent data`);
 
-    // If we have a start time, filter out records that are too old
-    if (startTime) {
-      const filteredRecords = records.filter(r => r.time >= startTime);
-      allRecords.push(...filteredRecords);
+        // Fetch most recent 500 records to ensure we get today
+        const recentParams: IncomeHistoryParams = {
+          endTime: now,
+          limit: 500,
+        };
 
-      // If we got some records that are older than startTime, we're done
-      if (filteredRecords.length < records.length) {
-        console.log(`[getTimeRangeIncome] Batch ${batchNumber}: reached start time boundary, keeping ${filteredRecords.length}/${records.length} records`);
-        break;
+        const recentRecords = await getIncomeHistory(credentials, recentParams);
+        console.log(`[getTimeRangeIncome] Retrieved ${recentRecords.length} recent records`);
+
+        // Check if recent records have today's data
+        const recentHasToday = recentRecords.some(r => new Date(r.time).toISOString().split('T')[0] === today);
+
+        if (recentHasToday) {
+          // Merge recent records with historical, removing duplicates based on time
+          const timeSet = new Set(records.map(r => r.time));
+          const newRecords = recentRecords.filter(r => !timeSet.has(r.time));
+          records = [...records, ...newRecords];
+          console.log(`[getTimeRangeIncome] Merged ${newRecords.length} new records, total: ${records.length}`);
+        }
       }
-    } else {
-      allRecords.push(...records);
     }
 
-    // If we got less than limit, we've reached the end
-    if (records.length < 1000) {
-      console.log(`[getTimeRangeIncome] Batch ${batchNumber}: reached end of available data`);
-      break;
+    // Detailed logging for debugging
+    if (records.length > 0) {
+      const dates = records.map(r => new Date(r.time).toISOString().split('T')[0]);
+      const uniqueDates = [...new Set(dates)];
+      console.log(`[getTimeRangeIncome] Date range: ${uniqueDates[0]} to ${uniqueDates[uniqueDates.length - 1]} (${uniqueDates.length} days)`);
+
+      // Log recent records for debugging
+      const recent = records.slice(-5);
+      console.log(`[getTimeRangeIncome] Last 5 records for ${range}:`, recent.map(r => ({
+        date: new Date(r.time).toISOString(),
+        type: r.incomeType,
+        amount: parseFloat(r.income),
+        symbol: r.symbol
+      })));
+
+      // Debug today's records specifically
+      const today = new Date().toISOString().split('T')[0];
+      const todayRecords = records.filter(r => new Date(r.time).toISOString().split('T')[0] === today);
+      console.log(`[getTimeRangeIncome] Today (${today}) records in ${range}: ${todayRecords.length}`);
+      if (todayRecords.length > 0) {
+        console.log(`[getTimeRangeIncome] Today's ${range} records:`, todayRecords.map(r => ({
+          date: new Date(r.time).toISOString(),
+          type: r.incomeType,
+          amount: parseFloat(r.income),
+          symbol: r.symbol
+        })));
+      }
+
+      // Log totals by type
+      const totals = records.reduce((acc, r) => {
+        acc[r.incomeType] = (acc[r.incomeType] || 0) + parseFloat(r.income);
+        return acc;
+      }, {} as Record<string, number>);
+      console.log(`[getTimeRangeIncome] Totals by type for ${range}:`, totals);
     }
 
-    // Get the oldest record from this batch
-    const oldestTime = records[records.length - 1].time;
+    // Cache the result
+    incomeCache.set(cacheKey, { data: records, timestamp: now });
 
-    // Check if we've gone past our start time
-    if (startTime && oldestTime <= startTime) {
-      console.log(`[getTimeRangeIncome] Batch ${batchNumber}: oldest record is at or before start time`);
-      break;
+    // Clean up old cache entries
+    for (const [key, value] of incomeCache.entries()) {
+      const keyRange = key.split('_')[0];
+      const keyTTL = getCacheTTL(keyRange);
+      if (now - value.timestamp > keyTTL) {
+        incomeCache.delete(key);
+      }
     }
 
-    // Continue fetching older records
-    currentEndTime = oldestTime - 1;
-
-    // Safety limit for 'all' range
-    if (range === 'all' && allRecords.length >= 10000) {
-      console.log('[getTimeRangeIncome] Reached maximum record limit for "all" range');
-      break;
-    }
+    return records;
+  } catch (error) {
+    console.error(`[getTimeRangeIncome] API call failed for ${range}:`, error);
+    return [];
   }
-
-  console.log(`[getTimeRangeIncome] Total records fetched: ${allRecords.length}`);
-
-  // Log date summary
-  if (allRecords.length > 0) {
-    const dates = allRecords.map(r => new Date(r.time).toISOString().split('T')[0]);
-    const uniqueDates = [...new Set(dates)];
-    console.log(`[getTimeRangeIncome] Dates included: ${uniqueDates.sort().join(', ')}`);
-  }
-
-  return allRecords;
 }
