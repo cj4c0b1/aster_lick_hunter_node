@@ -228,8 +228,11 @@ export class PositionManager extends EventEmitter implements PositionTracker {
       // Order check every 30 seconds to ensure SL/TP quantities match positions
       this.orderCheckInterval = setInterval(() => this.checkAndAdjustOrders(), 30 * 1000);
 
-      // Clean up orphaned orders every 2 minutes
-      setInterval(() => this.cleanupOrphanedOrders(), 2 * 60 * 1000);
+      // Clean up orphaned orders immediately on startup, then every 30 seconds
+      this.cleanupOrphanedOrders().catch(error => {
+        console.error('PositionManager: Initial cleanup failed:', error);
+      });
+      setInterval(() => this.cleanupOrphanedOrders(), 30 * 1000);
     });
 
     this.ws.on('message', (data: Buffer) => {
@@ -1322,6 +1325,12 @@ export class PositionManager extends EventEmitter implements PositionTracker {
     } catch (error: any) {
       console.error(`PositionManager: Error checking orders for position ${positionKey}:`, error?.response?.data || error?.message);
     }
+  }
+
+  // Manual cleanup method to immediately clean up orphaned/duplicate orders
+  public async manualCleanup(): Promise<void> {
+    console.log('PositionManager: Manual cleanup triggered');
+    await this.cleanupOrphanedOrders();
   }
 
   // Manual methods
