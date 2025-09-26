@@ -5,14 +5,14 @@
   },
   "symbols": {
     "ASTERUSDT": {
-      "volumeThresholdUSDT": 500,
+      "volumeThresholdUSDT": 2000,
       "tradeSize": 3,
       "leverage": 10,
       "tpPercent": 0.1,
       "slPercent": 20
     },
     "HYPEUSDT": {
-      "volumeThresholdUSDT": 10000,
+      "volumeThresholdUSDT": 5000,
       "tradeSize": 1,
       "leverage": 10,
       "tpPercent": 0.1,

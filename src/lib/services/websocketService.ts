@@ -38,11 +38,12 @@ class WebSocketService {
         resolve();
       };
 
-      const onError = (error: Event) => {
-        console.error('WebSocketService: Connection error:', error);
+      const onError = () => {
+        // WebSocket errors don't provide useful information
+        console.log('WebSocketService: Connection failed');
         this.ws!.removeEventListener('open', onOpen);
         this.ws!.removeEventListener('error', onError);
-        reject(error);
+        reject(new Error('WebSocket connection failed'));
       };
 
       this.ws.addEventListener('open', onOpen);
@@ -75,18 +76,22 @@ class WebSocketService {
   disconnect(): void {
     console.log('WebSocketService: Disconnecting');
 
+    // Mark for disconnection to prevent reconnection attempts
+    this.reconnectAttempts = this.maxReconnectAttempts;
+
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
 
     if (this.ws) {
-      this.ws.close();
+      // Remove all listeners before closing
+      const ws = this.ws;
       this.ws = null;
+      ws.close();
     }
 
     this.isConnected = false;
-    this.reconnectAttempts = 0;
     this.notifyConnectionChange(false);
   }
 
@@ -95,8 +100,10 @@ class WebSocketService {
 
     // Auto-connect if not already connected
     if (!this.isConnected && !this.ws) {
+      // Reset reconnect attempts when adding new handler
+      this.reconnectAttempts = 0;
       this.connect().catch(error => {
-        console.error('WebSocketService: Auto-connect failed:', error);
+        console.log('WebSocketService: Auto-connect failed, will retry');
       });
     }
 
@@ -140,7 +147,7 @@ class WebSocketService {
     }
 
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('WebSocketService: Max reconnection attempts reached');
+      console.log('WebSocketService: Max reconnection attempts reached');
       return;
     }
 

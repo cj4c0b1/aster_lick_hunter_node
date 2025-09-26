@@ -28,8 +28,16 @@ export function useBotStatus(url: string = 'ws://localhost:8081'): UseBotStatusR
   const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
+    // Prevent multiple connection attempts
+    if (wsRef.current?.readyState === WebSocket.OPEN ||
+        wsRef.current?.readyState === WebSocket.CONNECTING) {
       return;
+    }
+
+    // Clear any existing reconnect timeout
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
     }
 
     try {
@@ -92,14 +100,20 @@ export function useBotStatus(url: string = 'ws://localhost:8081'): UseBotStatusR
           pingIntervalRef.current = null;
         }
 
-        // Attempt to reconnect after 3 seconds
-        reconnectTimeoutRef.current = setTimeout(() => {
-          connect();
-        }, 3000);
+        // Only attempt to reconnect if component is still mounted
+        if (!reconnectTimeoutRef.current) {
+          reconnectTimeoutRef.current = setTimeout(() => {
+            reconnectTimeoutRef.current = null;
+            connect();
+          }, 3000);
+        }
       };
 
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+      ws.onerror = () => {
+        // WebSocket errors don't provide useful information, just log connection issue
+        if (ws.readyState === WebSocket.CONNECTING) {
+          console.log('Bot WebSocket: Connection failed');
+        }
         setIsConnected(false);
       };
 
@@ -107,33 +121,52 @@ export function useBotStatus(url: string = 'ws://localhost:8081'): UseBotStatusR
       console.error('Failed to connect to bot WebSocket:', error);
       setIsConnected(false);
 
-      // Retry connection after 3 seconds
-      reconnectTimeoutRef.current = setTimeout(() => {
-        connect();
-      }, 3000);
+      // Retry connection after 3 seconds if still mounted
+      if (!reconnectTimeoutRef.current) {
+        reconnectTimeoutRef.current = setTimeout(() => {
+          reconnectTimeoutRef.current = null;
+          connect();
+        }, 3000);
+      }
     }
   }, [url]);
 
   const reconnect = useCallback(() => {
+    // Clear any pending reconnect
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
     if (wsRef.current) {
       wsRef.current.close();
     }
-    connect();
+    // Small delay to ensure cleanup
+    setTimeout(() => {
+      connect();
+    }, 100);
   }, [connect]);
 
   useEffect(() => {
-    connect();
+    // Small delay to prevent race conditions during navigation
+    const connectTimeout = setTimeout(() => {
+      connect();
+    }, 100);
 
     // Cleanup on unmount
     return () => {
+      clearTimeout(connectTimeout);
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
       }
       if (pingIntervalRef.current) {
         clearInterval(pingIntervalRef.current);
+        pingIntervalRef.current = null;
       }
       if (wsRef.current) {
-        wsRef.current.close();
+        const ws = wsRef.current;
+        wsRef.current = null;
+        ws.close();
       }
     };
   }, [url]); // eslint-disable-line react-hooks/exhaustive-deps

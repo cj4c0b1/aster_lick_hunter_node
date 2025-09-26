@@ -34,8 +34,16 @@ export function useOrderNotifications(wsUrl: string = 'ws://localhost:8081') {
   };
 
   const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
+    // Prevent multiple connection attempts
+    if (wsRef.current?.readyState === WebSocket.OPEN ||
+        wsRef.current?.readyState === WebSocket.CONNECTING) {
       return;
+    }
+
+    // Clear any existing reconnect timeout
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
     }
 
     try {
@@ -181,32 +189,50 @@ export function useOrderNotifications(wsUrl: string = 'ws://localhost:8081') {
 
       ws.onclose = () => {
         wsRef.current = null;
-        reconnectTimeoutRef.current = setTimeout(() => {
-          connect();
-        }, 3000);
+        // Only reconnect if the component is still mounted
+        if (!reconnectTimeoutRef.current) {
+          reconnectTimeoutRef.current = setTimeout(() => {
+            reconnectTimeoutRef.current = null;
+            connect();
+          }, 3000);
+        }
       };
 
-      ws.onerror = (error) => {
-        console.error('Order notifications WebSocket error:', error);
+      ws.onerror = () => {
+        // WebSocket errors don't provide useful information, just log connection issue
+        if (ws.readyState === WebSocket.CONNECTING) {
+          console.log('Order notifications WebSocket: Connection failed');
+        }
       };
 
     } catch (error) {
       console.error('Failed to connect order notifications:', error);
-      reconnectTimeoutRef.current = setTimeout(() => {
-        connect();
-      }, 3000);
+      // Only reconnect if component is still mounted
+      if (!reconnectTimeoutRef.current) {
+        reconnectTimeoutRef.current = setTimeout(() => {
+          reconnectTimeoutRef.current = null;
+          connect();
+        }, 3000);
+      }
     }
   }, [wsUrl]);
 
   useEffect(() => {
-    connect();
+    // Small delay to prevent race conditions during navigation
+    const connectTimeout = setTimeout(() => {
+      connect();
+    }, 100);
 
     return () => {
+      clearTimeout(connectTimeout);
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
       }
       if (wsRef.current) {
-        wsRef.current.close();
+        const ws = wsRef.current;
+        wsRef.current = null;
+        ws.close();
       }
     };
   }, [wsUrl]); // eslint-disable-line react-hooks/exhaustive-deps
