@@ -7,10 +7,10 @@
     "ASTERUSDT": {
       "longVolumeThresholdUSDT": 100,
       "shortVolumeThresholdUSDT": 10000,
-      "tradeSize": 0.6,
+      "tradeSize": 1,
       "maxPositionMarginUSDT": 500,
       "leverage": 10,
-      "tpPercent": 0.1,
+      "tpPercent": 0.25,
       "slPercent": 20,
       "vwapProtection": true,
       "vwapTimeframe": "1m",
@@ -22,7 +22,7 @@
       "tradeSize": 0.6,
       "maxPositionMarginUSDT": 200,
       "leverage": 10,
-      "tpPercent": 0.1,
+      "tpPercent": 0.25,
       "slPercent": 20,
       "vwapProtection": true,
       "vwapLookback": 200

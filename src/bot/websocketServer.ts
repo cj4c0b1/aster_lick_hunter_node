@@ -248,6 +248,18 @@ export class StatusBroadcaster extends EventEmitter {
     });
   }
 
+  // Broadcast PnL updates to web UI
+  broadcastPnLUpdate(data: {
+    session: any;
+    snapshot: any;
+    reason?: string;
+  }): void {
+    this._broadcast('pnl_update', {
+      ...data,
+      timestamp: new Date(),
+    });
+  }
+
   // Broadcast when an order is placed
   broadcastOrderPlaced(data: {
     symbol: string;

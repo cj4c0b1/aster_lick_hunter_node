@@ -13,6 +13,7 @@ import { execSync } from 'child_process';
 import { cleanupScheduler } from '../lib/services/cleanupScheduler';
 import { db } from '../lib/db/database';
 import { configManager } from '../lib/services/configManager';
+import pnlService from '../lib/services/pnlService';
 
 // Helper function to kill all child processes (synchronous for exit handler)
 function killAllProcesses() {
@@ -116,8 +117,17 @@ class AsterBot {
           await initializeBalanceService(this.config.api);
           console.log('✅ Real-time balance service started');
 
-          // Listen for balance updates and broadcast to web UI
+          // Initialize PnL tracking service
           const balanceService = getBalanceService();
+          if (balanceService) {
+            const currentBalance = balanceService.getCurrentBalance();
+            if (currentBalance) {
+              pnlService.resetSession(currentBalance.totalBalance);
+              console.log('✅ PnL tracking service initialized');
+            }
+          }
+
+          // Listen for balance updates and broadcast to web UI
           if (balanceService) {
             balanceService.on('balanceUpdate', (balanceData) => {
               this.statusBroadcaster.broadcastBalance({

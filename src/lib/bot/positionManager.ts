@@ -508,6 +508,21 @@ export class PositionManager extends EventEmitter implements PositionTracker {
   private handleAccountUpdate(event: any): void {
     console.log('PositionManager: Account update received');
 
+    // Forward to PnL service for tracking
+    const pnlService = require('../services/pnlService').default;
+    pnlService.updateFromAccountEvent(event);
+
+    // Broadcast PnL update if we have a broadcaster
+    if (this.statusBroadcaster && this.statusBroadcaster.broadcastPnLUpdate) {
+      const session = pnlService.getSessionPnL();
+      const snapshot = pnlService.getLatestSnapshot();
+      this.statusBroadcaster.broadcastPnLUpdate({
+        session,
+        snapshot,
+        reason: event.a?.m,
+      });
+    }
+
     // Update our position map from the authoritative source (exchange)
     if (event.a && event.a.P) {
       const positions = event.a.P;
@@ -597,6 +612,10 @@ export class PositionManager extends EventEmitter implements PositionTracker {
   }
 
   private handleOrderUpdate(event: any): void {
+    // Forward to PnL service for commission tracking
+    const pnlService = require('../services/pnlService').default;
+    pnlService.updateFromOrderEvent(event);
+
     const order = event.o;
     const symbol = order.s;
     const orderType = order.o;

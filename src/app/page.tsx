@@ -14,6 +14,8 @@ import {
 import MinimalBotStatus from '@/components/MinimalBotStatus';
 import LiquidationSidebar from '@/components/LiquidationSidebar';
 import PositionTable from '@/components/PositionTable';
+import PnLChart from '@/components/PnLChart';
+import PerformanceCard from '@/components/PerformanceCard';
 import { useConfig } from '@/components/ConfigProvider';
 import websocketService from '@/lib/services/websocketService';
 import { useOrderNotifications } from '@/hooks/useOrderNotifications';
@@ -186,7 +188,7 @@ export default function DashboardPage() {
         {/* Main Content */}
         <div className="flex-1 p-6 space-y-6 overflow-y-auto">
           {/* Account Summary Cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
@@ -199,7 +201,7 @@ export default function DashboardPage() {
                   <>
                     <div className="text-2xl font-bold">{formatCurrency(liveAccountInfo.totalBalance)}</div>
                     <p className="text-xs text-muted-foreground">
-                      +20.1% from last month
+                      Account equity
                     </p>
                   </>
                 )}
@@ -273,7 +275,13 @@ export default function DashboardPage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Session Performance Card */}
+            <PerformanceCard />
           </div>
+
+          {/* PnL Chart */}
+          <PnLChart />
 
           {/* Positions Table */}
           <PositionTable

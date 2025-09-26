@@ -19,7 +19,8 @@
       "Bash(npm run build:*)",
       "Bash(python:*)",
       "Bash(dir:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(node:*)"
     ],
     "deny": [],
     "ask": []
