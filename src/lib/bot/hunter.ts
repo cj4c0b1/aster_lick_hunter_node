@@ -4,16 +4,19 @@ import { Config, LiquidationEvent, SymbolConfig } from '../types';
 import { getMarkPrice } from '../api/market';
 import { placeOrder, setLeverage } from '../api/orders';
 import { calculateOptimalPrice, validateOrderParams, analyzeOrderBookDepth } from '../api/pricing';
+import { getPositionSide } from '../api/positionMode';
 
 export class Hunter extends EventEmitter {
   private ws: WebSocket | null = null;
   private config: Config;
   private isRunning = false;
   private statusBroadcaster: any; // Will be injected
+  private isHedgeMode: boolean;
 
-  constructor(config: Config) {
+  constructor(config: Config, isHedgeMode: boolean = false) {
     super();
     this.config = config;
+    this.isHedgeMode = isHedgeMode;
   }
 
   // Set status broadcaster for order events
@@ -230,7 +233,7 @@ export class Hunter extends EventEmitter {
         side,
         type: orderType,
         quantity: symbolConfig.tradeSize,
-        positionSide: 'BOTH', // Adjust for hedge if needed
+        positionSide: getPositionSide(this.isHedgeMode, side),
       };
 
       // Add price for limit orders
@@ -291,7 +294,7 @@ export class Hunter extends EventEmitter {
             side,
             type: 'MARKET',
             quantity: symbolConfig.tradeSize,
-            positionSide: 'BOTH',
+            positionSide: getPositionSide(this.isHedgeMode, side),
           }, this.config.api);
 
           console.log(`Hunter: Fallback market order placed for ${symbol}, orderId: ${fallbackOrder.orderId}`);

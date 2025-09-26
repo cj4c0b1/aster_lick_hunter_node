@@ -20,6 +20,7 @@ export interface ApiCredentials {
 export interface GlobalConfig {
   riskPercent: number;     // Max risk per trade as % of account balance
   paperMode: boolean;      // If true, simulate trades without executing
+  positionMode?: 'ONE_WAY' | 'HEDGE'; // Position mode preference (optional)
 }
 
 export interface Config {

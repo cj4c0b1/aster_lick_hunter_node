@@ -6,6 +6,7 @@ import { getSignedParams, paramsToQuery } from '../api/auth';
 import { getExchangeInfo } from '../api/market';
 import { placeOrder, cancelOrder } from '../api/orders';
 import { symbolPrecision } from '../utils/symbolPrecision';
+import { getPositionSide, getOppositePositionSide } from '../api/positionMode';
 
 // Minimal local state - only track order IDs linked to positions
 interface PositionOrders {
@@ -61,10 +62,12 @@ export class PositionManager extends EventEmitter {
   private riskCheckInterval?: NodeJS.Timeout;
   private isRunning = false;
   private statusBroadcaster: any; // Will be injected
+  private isHedgeMode: boolean;
 
-  constructor(config: Config) {
+  constructor(config: Config, isHedgeMode: boolean = false) {
     super();
     this.config = config;
+    this.isHedgeMode = isHedgeMode;
   }
 
   // Set status broadcaster for position updates
@@ -215,6 +218,14 @@ export class PositionManager extends EventEmitter {
         if (Math.abs(posAmt) > 0) {
           const key = this.getPositionKey(position.symbol, position.positionSide, posAmt);
           this.currentPositions.set(key, position);
+
+          // Only manage positions for symbols in our config
+          const symbolConfig = this.config.symbols[position.symbol];
+          if (!symbolConfig) {
+            console.log(`PositionManager: Found position ${key}: ${posAmt} @ ${position.entryPrice} (not managed - symbol not in config)`);
+            continue;
+          }
+
           console.log(`PositionManager: Found position ${key}: ${posAmt} @ ${position.entryPrice}`);
 
           // Find SL/TP orders for this position
@@ -556,7 +567,9 @@ export class PositionManager extends EventEmitter {
 
     // For paper mode, simulate the position
     if (this.config.global.paperMode) {
-      const positionSide = 'BOTH'; // Paper mode uses one-way mode
+      // Use the proper position side based on hedge mode
+      const positionSide = this.isHedgeMode ?
+        (data.side === 'BUY' ? 'LONG' : 'SHORT') : 'BOTH';
       const key = `${data.symbol}_${positionSide}`;
 
       // Simulate the position in our map
@@ -612,18 +625,21 @@ export class PositionManager extends EventEmitter {
         const slPrice = symbolPrecision.formatPrice(symbol, rawSlPrice);
         const formattedQuantity = symbolPrecision.formatQuantity(symbol, quantity);
 
-        // In Hedge Mode (positionSide != BOTH), we cannot use reduceOnly
+        // Determine position side for the SL order
+        const orderPositionSide = position.positionSide || 'BOTH';
+
         const orderParams: any = {
           symbol,
           side: isLong ? 'SELL' : 'BUY', // Opposite side to close
           type: 'STOP_MARKET',
           quantity: formattedQuantity,
           stopPrice: slPrice,
-          positionSide: (position.positionSide || 'BOTH') as 'BOTH' | 'LONG' | 'SHORT',
+          positionSide: orderPositionSide as 'BOTH' | 'LONG' | 'SHORT',
         };
 
         // Only add reduceOnly in One-way mode (positionSide == BOTH)
-        if (!position.positionSide || position.positionSide === 'BOTH') {
+        // In Hedge Mode, the opposite positionSide naturally closes the position
+        if (orderPositionSide === 'BOTH') {
           orderParams.reduceOnly = true;
         }
 
@@ -654,7 +670,9 @@ export class PositionManager extends EventEmitter {
         const formattedQuantity = symbolPrecision.formatQuantity(symbol, quantity);
 
         // Use LIMIT order for take profit (more control, better fills)
-        // In Hedge Mode (positionSide != BOTH), we cannot use reduceOnly
+        // Determine position side for the TP order
+        const orderPositionSide = position.positionSide || 'BOTH';
+
         const tpParams: any = {
           symbol,
           side: isLong ? 'SELL' : 'BUY',
@@ -662,11 +680,12 @@ export class PositionManager extends EventEmitter {
           quantity: formattedQuantity,
           price: tpPrice,
           timeInForce: 'GTC',
-          positionSide: (position.positionSide || 'BOTH') as 'BOTH' | 'LONG' | 'SHORT',
+          positionSide: orderPositionSide as 'BOTH' | 'LONG' | 'SHORT',
         };
 
         // Only add reduceOnly in One-way mode (positionSide == BOTH)
-        if (!position.positionSide || position.positionSide === 'BOTH') {
+        // In Hedge Mode, the opposite positionSide naturally closes the position
+        if (orderPositionSide === 'BOTH') {
           tpParams.reduceOnly = true;
         }
 
@@ -740,8 +759,9 @@ export class PositionManager extends EventEmitter {
       side: closeSide,
       type: 'MARKET',
       quantity: quantity,
-      reduceOnly: true,
       positionSide: (targetPosition.positionSide || 'BOTH') as 'BOTH' | 'LONG' | 'SHORT',
+      // Only use reduceOnly in One-way mode
+      ...(targetPosition.positionSide === 'BOTH' ? { reduceOnly: true } : {}),
     }, this.config.api);
 
     // Remove from our maps (will be confirmed by ACCOUNT_UPDATE)

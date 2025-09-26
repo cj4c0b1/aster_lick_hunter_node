@@ -7,6 +7,7 @@ import { Config } from '../lib/types';
 import { StatusBroadcaster } from './websocketServer';
 import { initializeBalanceService, stopBalanceService, getBalanceService } from '../lib/services/balanceService';
 import { initializePriceService, stopPriceService, getPriceService } from '../lib/services/priceService';
+import { getPositionMode, setPositionMode } from '../lib/api/positionMode';
 import { execSync } from 'child_process';
 
 // Helper function to kill all child processes (synchronous for exit handler)
@@ -30,6 +31,7 @@ class AsterBot {
   private config: Config | null = null;
   private isRunning = false;
   private statusBroadcaster: StatusBroadcaster;
+  private isHedgeMode: boolean = false;
 
   constructor() {
     this.statusBroadcaster = new StatusBroadcaster();
@@ -70,6 +72,27 @@ class AsterBot {
           throw new Error('API keys required for live trading');
         }
       } else {
+        // Check and set position mode
+        try {
+          this.isHedgeMode = await getPositionMode(this.config.api);
+          console.log(`📊 Position Mode: ${this.isHedgeMode ? 'HEDGE MODE' : 'ONE-WAY MODE'}`);
+
+          // If config specifies a position mode and it differs from current, optionally set it
+          if (this.config.global.positionMode) {
+            const wantHedgeMode = this.config.global.positionMode === 'HEDGE';
+            if (wantHedgeMode !== this.isHedgeMode) {
+              console.log(`⚠️  Config specifies ${this.config.global.positionMode} mode but account is in ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'} mode`);
+              // Uncomment the next lines to automatically change position mode
+              // await setPositionMode(wantHedgeMode, this.config.api);
+              // this.isHedgeMode = wantHedgeMode;
+              // console.log(`✅ Position mode changed to ${this.config.global.positionMode}`);
+            }
+          }
+        } catch (error) {
+          console.error('⚠️  Failed to check position mode, assuming ONE-WAY mode:', error);
+          this.isHedgeMode = false;
+        }
+
         // Initialize real-time balance service if API keys are available
         try {
           await initializeBalanceService(this.config.api);
@@ -139,7 +162,7 @@ class AsterBot {
       }
 
       // Initialize Position Manager
-      this.positionManager = new PositionManager(this.config);
+      this.positionManager = new PositionManager(this.config, this.isHedgeMode);
 
       // Inject status broadcaster for real-time position updates
       this.positionManager.setStatusBroadcaster(this.statusBroadcaster);
@@ -169,7 +192,7 @@ class AsterBot {
       }
 
       // Initialize Hunter
-      this.hunter = new Hunter(this.config);
+      this.hunter = new Hunter(this.config, this.isHedgeMode);
 
       // Inject status broadcaster for order events
       this.hunter.setStatusBroadcaster(this.statusBroadcaster);

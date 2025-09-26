@@ -13,7 +13,8 @@
     }
   },
   "global": {
-    "riskPercent": 75,
-    "paperMode": false
+    "riskPercent": 100,
+    "paperMode": false,
+    "positionMode": "HEDGE"
   }
 }
