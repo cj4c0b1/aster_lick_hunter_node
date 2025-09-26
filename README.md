@@ -10,13 +10,16 @@ A smart trading bot that monitors and trades liquidation events on Aster DEX. Fe
 
 *Using our referral link costs you nothing extra but helps fund continued development. Thank you!*
 
-## ✨ Key Features
+## 🎯 What Makes This Bot Special
 
-- **Smart Trading** - Automatically trades liquidation events
-- **Risk Management** - Built-in stop-loss and take-profit
-- **Paper Trading** - Test safely without real money
-- **Web Dashboard** - Beautiful UI for monitoring and configuration
-- **Easy Setup** - Setup wizard and web-based configuration
+📈 **Real-time Liquidation Hunting** - Monitors and instantly trades liquidation events
+💰 **Smart Position Management** - Automatic stop-loss and take-profit on every trade
+🧪 **Paper Trading Mode** - Test strategies safely with simulated trades
+🎨 **Beautiful Web Dashboard** - Monitor everything from a clean, modern UI
+⚡ **One-Click Setup** - Get running in under 2 minutes
+🔄 **Auto-Reconnection** - Never miss a trade due to connection issues
+📊 **VWAP Protection** - Avoid bad entries with volume-weighted analysis
+🛡️ **Risk Controls** - Position limits and leverage management built-in
 
 ## 🚀 Quick Start
 
@@ -87,10 +90,23 @@ All settings available in the web UI:
 2. **API Security** - Never share your API keys
 3. **Risk Warning** - Crypto trading involves significant risk
 
-## 🤝 Support
+## 🤝 Need Help or Want to Contribute?
 
-- **Issues**: [GitHub Issues](https://github.com/CryptoGnome/aster_lick_hunter_node/issues)
-- **Discord**: [Join Community](https://discord.gg/P8Ev3Up)
+### 🐛 Found a Bug?
+[**Create an Issue**](https://github.com/CryptoGnome/aster_lick_hunter_node/issues/new) - We'll fix it ASAP!
+
+### 💡 Have an Idea?
+[**Request a Feature**](https://github.com/CryptoGnome/aster_lick_hunter_node/issues/new?title=Feature%20Request:%20) - We love new ideas!
+
+### 🔧 Want to Contribute?
+1. Fork the repo
+2. Create your feature branch (`git checkout -b feature/YourFeature`)
+3. Commit changes (`git commit -m 'Add YourFeature'`)
+4. Push (`git push origin feature/YourFeature`)
+5. [Open a Pull Request](https://github.com/CryptoGnome/aster_lick_hunter_node/pulls)
+
+### 💬 Join the Community
+[**Discord Server**](https://discord.gg/P8Ev3Up) - Get help, share strategies, and chat with other traders!
 
 ## 📄 License
 
