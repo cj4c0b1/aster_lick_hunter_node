@@ -194,20 +194,31 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
       fetchSymbolDetails(selectedSymbol);
       // Sync input states with config values
       const symbolConfig = config.symbols[selectedSymbol];
-      setLongTradeSizeInput((symbolConfig.longTradeSize ?? symbolConfig.tradeSize).toString());
-      setShortTradeSizeInput((symbolConfig.shortTradeSize ?? symbolConfig.tradeSize).toString());
+      const hasLongSize = symbolConfig.longTradeSize !== undefined;
+      const hasShortSize = symbolConfig.shortTradeSize !== undefined;
+
+      // Update the toggle state for this symbol
+      setUseSeparateTradeSizes(prev => ({
+        ...prev,
+        [selectedSymbol]: hasLongSize || hasShortSize
+      }));
+
+      setLongTradeSizeInput((hasLongSize ? symbolConfig.longTradeSize : symbolConfig.tradeSize).toString());
+      setShortTradeSizeInput((hasShortSize ? symbolConfig.shortTradeSize : symbolConfig.tradeSize).toString());
     } else {
       setSymbolDetails(null);
     }
-  }, [selectedSymbol]);
+  }, [selectedSymbol, config.symbols]);
 
   // Initialize separate trade sizes state based on existing config
   useEffect(() => {
     const separateSizes: Record<string, boolean> = {};
     Object.keys(config.symbols).forEach(symbol => {
       const symbolConfig = config.symbols[symbol];
-      // Check for undefined specifically, not falsy values (0 is valid)
-      separateSizes[symbol] = symbolConfig.longTradeSize !== undefined || symbolConfig.shortTradeSize !== undefined;
+      // Check if either longTradeSize or shortTradeSize exists (not undefined)
+      const hasLongSize = symbolConfig.longTradeSize !== undefined;
+      const hasShortSize = symbolConfig.shortTradeSize !== undefined;
+      separateSizes[symbol] = hasLongSize || hasShortSize;
     });
     setUseSeparateTradeSizes(separateSizes);
   }, [config.symbols]);
@@ -700,18 +711,31 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                                 if (checked) {
                                   // Initialize separate values with current tradeSize when toggling on
                                   const currentTradeSize = config.symbols[selectedSymbol].tradeSize;
-                                  if (!config.symbols[selectedSymbol].longTradeSize) {
-                                    handleSymbolChange(selectedSymbol, 'longTradeSize', currentTradeSize);
-                                    setLongTradeSizeInput(currentTradeSize.toString());
-                                  }
-                                  if (!config.symbols[selectedSymbol].shortTradeSize) {
-                                    handleSymbolChange(selectedSymbol, 'shortTradeSize', currentTradeSize);
-                                    setShortTradeSizeInput(currentTradeSize.toString());
-                                  }
+                                  const existingLongSize = config.symbols[selectedSymbol].longTradeSize;
+                                  const existingShortSize = config.symbols[selectedSymbol].shortTradeSize;
+
+                                  // Use existing values if they exist, otherwise use tradeSize
+                                  const longSize = existingLongSize !== undefined ? existingLongSize : currentTradeSize;
+                                  const shortSize = existingShortSize !== undefined ? existingShortSize : currentTradeSize;
+
+                                  handleSymbolChange(selectedSymbol, 'longTradeSize', longSize);
+                                  handleSymbolChange(selectedSymbol, 'shortTradeSize', shortSize);
+                                  setLongTradeSizeInput(longSize.toString());
+                                  setShortTradeSizeInput(shortSize.toString());
                                 } else {
-                                  // Clear separate values when toggling off
-                                  handleSymbolChange(selectedSymbol, 'longTradeSize', undefined);
-                                  handleSymbolChange(selectedSymbol, 'shortTradeSize', undefined);
+                                  // Remove separate values when toggling off
+                                  const { longTradeSize, shortTradeSize, ...restConfig } = config.symbols[selectedSymbol];
+                                  setConfig({
+                                    ...config,
+                                    symbols: {
+                                      ...config.symbols,
+                                      [selectedSymbol]: restConfig,
+                                    },
+                                  });
+                                  // Reset input fields to tradeSize
+                                  const currentTradeSize = config.symbols[selectedSymbol].tradeSize;
+                                  setLongTradeSizeInput(currentTradeSize.toString());
+                                  setShortTradeSizeInput(currentTradeSize.toString());
                                 }
                               }}
                             />

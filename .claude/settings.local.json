@@ -23,7 +23,8 @@
       "Bash(node:*)",
       "Bash(tree:*)",
       "WebSearch",
-      "WebFetch(domain:sonner.emilkowal.ski)"
+      "WebFetch(domain:sonner.emilkowal.ski)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []
