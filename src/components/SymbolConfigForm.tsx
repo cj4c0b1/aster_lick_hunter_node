@@ -45,7 +45,9 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
       server: {
         dashboardPassword: '',
         dashboardPort: 3000,
-        websocketPort: 8080
+        websocketPort: 8080,
+        useRemoteWebSocket: false,
+        websocketHost: null
       }
     },
     symbols: {},
@@ -502,6 +504,50 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                     Port for WebSocket server communication (default: 8080)
                   </span>
                 </div>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="useRemoteWebSocket"
+                    checked={config.global.server?.useRemoteWebSocket || false}
+                    onCheckedChange={(checked) => {
+                      handleGlobalChange('server', {
+                        ...config.global.server,
+                        useRemoteWebSocket: checked
+                      });
+                    }}
+                  />
+                  <Label htmlFor="useRemoteWebSocket" className="cursor-pointer">
+                    Enable Remote WebSocket Access
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Allow the dashboard to connect to the bot from remote machines. When enabled, the WebSocket will automatically use the browser&apos;s hostname instead of localhost.
+                </p>
+
+                {config.global.server?.useRemoteWebSocket && (
+                  <div className="space-y-2 pl-6">
+                    <Label htmlFor="websocketHost">WebSocket Host (Optional)</Label>
+                    <Input
+                      id="websocketHost"
+                      type="text"
+                      value={config.global.server?.websocketHost || ''}
+                      onChange={(e) => {
+                        handleGlobalChange('server', {
+                          ...config.global.server,
+                          websocketHost: e.target.value || null
+                        });
+                      }}
+                      placeholder="Auto-detect from browser (recommended)"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Leave empty to auto-detect the host from your browser&apos;s location. Only set this if you need a specific hostname or IP address.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <Alert>

@@ -36,6 +36,8 @@ export interface ServerConfig {
   dashboardPassword?: string;  // Optional password to protect the dashboard
   dashboardPort?: number;       // Port for the web UI (default: 3000)
   websocketPort?: number;       // Port for the WebSocket server (default: 8080)
+  useRemoteWebSocket?: boolean; // Enable remote WebSocket access (default: false)
+  websocketHost?: string | null; // Optional WebSocket host override (null for auto-detect)
 }
 
 export interface RateLimitConfig {

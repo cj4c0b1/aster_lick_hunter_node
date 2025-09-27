@@ -26,7 +26,9 @@
     "server": {
       "dashboardPassword": "",
       "dashboardPort": 3000,
-      "websocketPort": 8080
+      "websocketPort": 8080,
+      "useRemoteWebSocket": false,
+      "websocketHost": null
     },
     "rateLimit": {
       "maxRequestWeight": 2400,
