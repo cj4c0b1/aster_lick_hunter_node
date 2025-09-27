@@ -19,6 +19,7 @@ import {
   PricePrecisionError,
   QuantityPrecisionError
 } from '../errors/TradingErrors';
+import { errorLogger } from '../services/errorLogger';
 
 export class Hunter extends EventEmitter {
   private ws: WebSocket | null = null;
@@ -159,6 +160,16 @@ export class Hunter extends EventEmitter {
         this.handleLiquidationEvent(event);
       } catch (error) {
         console.error('Hunter: WS message parse error:', error);
+        // Log to error database
+        errorLogger.logError(error instanceof Error ? error : new Error(String(error)), {
+          type: 'websocket',
+          severity: 'low',
+          context: {
+            component: 'Hunter',
+            userAction: 'Processing WebSocket message',
+            metadata: { rawMessage: data.toString() }
+          }
+        });
         // Broadcast error to UI
         if (this.statusBroadcaster) {
           this.statusBroadcaster.broadcastWebSocketError(
@@ -175,6 +186,12 @@ export class Hunter extends EventEmitter {
 
     this.ws.on('error', (error) => {
       console.error('Hunter WS error:', error);
+      // Log to error database
+      errorLogger.logWebSocketError(
+        'wss://fstream.asterdex.com/ws/!forceOrder@arr',
+        error instanceof Error ? error : new Error(String(error)),
+        1
+      );
       // Broadcast error to UI
       if (this.statusBroadcaster) {
         this.statusBroadcaster.broadcastWebSocketError(
@@ -238,6 +255,17 @@ export class Hunter extends EventEmitter {
     // Store liquidation in database (non-blocking)
     liquidationStorage.saveLiquidation(liquidation, volumeUSDT).catch(error => {
       console.error('Hunter: Failed to store liquidation:', error);
+      // Log to error database
+      errorLogger.logError(error instanceof Error ? error : new Error(String(error)), {
+        type: 'general',
+        severity: 'low',
+        context: {
+          component: 'Hunter',
+          symbol: liquidation.symbol,
+          userAction: 'Storing liquidation event',
+          metadata: { volumeUSDT }
+        }
+      });
       // Non-critical error, don't broadcast to UI to avoid spam
     });
 
@@ -606,6 +634,23 @@ export class Hunter extends EventEmitter {
         leverage: symbolConfig.leverage
       });
 
+      // Log to error database
+      await errorLogger.logTradingError(
+        `placeTrade-${side}`,
+        symbol,
+        tradingError,
+        {
+          side,
+          quantity,
+          price: currentPrice,
+          leverage: symbolConfig.leverage,
+          tradeSizeUSDT,
+          notionalUSDT,
+          errorCode: tradingError.code,
+          errorType: tradingError.constructor.name
+        }
+      );
+
       // Special handling for specific error types
       if (tradingError instanceof NotionalError) {
         const errorMsg = `Required: ${tradingError.requiredNotional} USDT, Actual: ${tradingError.actualNotional.toFixed(2)} USDT`;
@@ -824,6 +869,23 @@ export class Hunter extends EventEmitter {
             price: fallbackPrice,
             leverage: symbolConfig.leverage
           });
+
+          // Log fallback error to database
+          await errorLogger.logTradingError(
+            `placeTrade-fallback-${side}`,
+            symbol,
+            fallbackTradingError,
+            {
+              side,
+              quantity: fallbackQuantity,
+              price: fallbackPrice,
+              leverage: symbolConfig.leverage,
+              tradeSizeUSDT,
+              errorCode: fallbackTradingError.code,
+              errorType: fallbackTradingError.constructor.name,
+              isFallbackAttempt: true
+            }
+          );
 
           if (fallbackTradingError instanceof NotionalError) {
             const errorMsg = `Required: ${fallbackTradingError.requiredNotional} USDT, Actual: ${fallbackTradingError.actualNotional.toFixed(2)} USDT (fallback attempt)`;
