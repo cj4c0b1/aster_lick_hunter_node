@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 
-import { getPositionRisk, getOpenOrders, getAccountInfo } from '../src/lib/api/market';
+import { getPositionRisk, getOpenOrders } from '../src/lib/api/market';
 import { loadConfig } from '../src/lib/bot/config';
 import { cancelOrder } from '../src/lib/api/orders';
 

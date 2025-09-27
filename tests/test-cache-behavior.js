@@ -32,7 +32,7 @@ function logTest(name, passed, details = '') {
   }
 }
 
-function assertEqual(actual, expected, message) {
+function _assertEqual(actual, expected, message) {
   const passed = actual === expected;
   logTest(message, passed, passed ? '' : `Expected: ${expected}, Got: ${actual}`);
   return passed;

@@ -8,8 +8,8 @@
  */
 
 const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
+// const fs = require('fs');
+// const path = require('path');
 
 // Test configuration
 const API_BASE = 'http://localhost:3000/api';
@@ -50,7 +50,7 @@ function processChartData(pnlData, realtimePnL, timeRange) {
 
     if (todayIndex >= 0) {
       // Replace today's data with session data (authoritative source)
-      const existingToday = processedData[todayIndex];
+      // const existingToday = processedData[todayIndex];
       console.log(`[Chart Test] Replacing today's historical data with current session state`);
 
       processedData[todayIndex] = {
