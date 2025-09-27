@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /**
  * Test PnL Data Consistency Between Time Ranges
  *
@@ -13,7 +15,7 @@ const { loadTestConfig } = require('./loadTestConfig');
 const API_BASE = 'http://localhost:3000/api';
 
 // Load API credentials from config
-const config = loadTestConfig();
+const _config = loadTestConfig();
 
 // Test results tracker
 const testResults = {

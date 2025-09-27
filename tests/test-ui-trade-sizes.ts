@@ -23,7 +23,7 @@ function simulateToggleOn(config: UISymbolConfig): UISymbolConfig {
 
 function simulateToggleOff(config: UISymbolConfig): UISymbolConfig {
   // When toggling off, clear separate values
-  const { longTradeSize, shortTradeSize, ...rest } = config;
+  const { longTradeSize: _longTradeSize, shortTradeSize: _shortTradeSize, ...rest } = config;
   return rest;
 }
 

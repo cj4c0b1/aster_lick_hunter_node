@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { TrendingUp, TrendingDown, Activity, Target } from 'lucide-react';
+import { TrendingUp, TrendingDown, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import websocketService from '@/lib/services/websocketService';
 import dataStore from '@/lib/services/dataStore';
@@ -105,7 +105,7 @@ export default function PerformanceCard() {
     }).format(value);
   };
 
-  const formatDuration = (ms: number) => {
+  const _formatDuration = (ms: number) => {
     const hours = Math.floor(ms / (1000 * 60 * 60));
     const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
     if (hours > 0) {

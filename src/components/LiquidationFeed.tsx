@@ -39,7 +39,7 @@ export default function LiquidationFeed({ volumeThresholds = {}, maxEvents = 50 
     largestLiquidation: 0,
     totalEvents: 0,
   });
-  const { formatPrice, formatQuantity, formatPriceWithCommas } = useSymbolPrecision();
+  const { formatQuantity, formatPriceWithCommas } = useSymbolPrecision();
 
   // Load historical liquidations on mount
   useEffect(() => {
@@ -147,7 +147,7 @@ export default function LiquidationFeed({ volumeThresholds = {}, maxEvents = 50 
       cleanupMessageHandler();
       cleanupConnectionListener();
     };
-  }, [volumeThresholds]);
+  }, [volumeThresholds, maxEvents]);
 
   const formatTime = (timestamp: Date | number): string => {
     const date = timestamp instanceof Date ? timestamp : new Date(timestamp);

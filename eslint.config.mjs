@@ -28,6 +28,13 @@ const eslintConfig = [
         "varsIgnorePattern": "^_",
         "caughtErrorsIgnorePattern": "^_"
       }],
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
+  {
+    files: ["src/app/wiki/**/*.tsx"],
+    rules: {
+      "react/no-unescaped-entities": "off",
     },
   },
 ];

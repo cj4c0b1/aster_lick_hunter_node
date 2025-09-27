@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+/* eslint-disable @typescript-eslint/no-require-imports */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 
 const { exec } = require('child_process');
 const os = require('os');
@@ -45,7 +47,7 @@ function killProcessTree(pid, signal = 'SIGTERM', callback) {
       // Then kill the parent
       try {
         process.kill(pid, signal);
-      } catch (e) {
+      } catch (_e) {
         // Process might already be dead
       }
 

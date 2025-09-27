@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Area,
   AreaChart,
@@ -76,7 +76,7 @@ export default function PnLChart() {
   const { config } = useConfig();
   const [timeRange, setTimeRange] = useState<TimeRange>('7d');
   const [chartType, setChartType] = useState<ChartType>('cumulative');
-  const [displayMode, setDisplayMode] = useState<DisplayMode>('usdt');
+  const [displayMode, _setDisplayMode] = useState<DisplayMode>('usdt');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pnlData, setPnlData] = useState<PnLData | null>(null);
@@ -108,7 +108,7 @@ export default function PnLChart() {
   };
 
   // Fetch PnL data function
-  const fetchPnLData = async (isRefresh = false) => {
+  const fetchPnLData = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
       setIsRefreshing(true);
     } else {
@@ -143,7 +143,7 @@ export default function PnLChart() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  };
+  }, [timeRange]);
 
   // Fetch historical PnL data on mount and when timeRange changes
   useEffect(() => {
@@ -153,7 +153,7 @@ export default function PnLChart() {
       setIsLoading(false);
       setPnlData(null);
     }
-  }, [timeRange, hasApiKeys]);
+  }, [timeRange, hasApiKeys, fetchPnLData]);
 
   // Fetch initial real-time session data and balance
   useEffect(() => {
@@ -269,7 +269,7 @@ export default function PnLChart() {
   }, [pnlData, realtimePnL, chartType, timeRange]);
 
   // Format value based on display mode
-  const formatValue = (value: number) => {
+  const _formatValue = (value: number) => {
     if (displayMode === 'percent') {
       return `${value.toFixed(2)}%`;
     }

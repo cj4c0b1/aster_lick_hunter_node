@@ -28,7 +28,6 @@ import {
   XCircle,
   AlertCircle,
   RefreshCw,
-  Filter,
   ChevronDown
 } from 'lucide-react';
 import orderStore from '@/lib/services/orderStore';
@@ -96,7 +95,7 @@ export default function RecentOrdersTable({ maxRows = 50 }: RecentOrdersTablePro
 
   // Subscribe to order updates
   useEffect(() => {
-    const handleOrdersUpdate = (updatedOrders: Order[]) => {
+    const handleOrdersUpdate = (_updatedOrders: Order[]) => {
       let filtered = orderStore.getFilteredOrders();
       // Filter by configured symbols only
       if (availableSymbols.length > 0) {

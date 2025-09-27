@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { BarChart3, Tag, TrendingUp, TrendingDown, Shield, Target, ChevronDown } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, Shield, Target, ChevronDown } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import websocketService from '@/lib/services/websocketService';
 import { useConfig } from '@/components/ConfigProvider';
@@ -41,7 +41,7 @@ interface PositionTableProps {
 
 export default function PositionTable({
   positions = [],
-  onClosePosition,
+  onClosePosition: _onClosePosition,
 }: PositionTableProps) {
   const [realPositions, setRealPositions] = useState<Position[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -173,7 +173,7 @@ export default function PositionTable({
   }, [positions.length]); // Only re-run when positions prop changes
 
   // Initial load of VWAP data (fallback for when WebSocket is not yet connected)
-  const loadVWAPData = async () => {
+  const loadVWAPData = useCallback(async () => {
     try {
       // Only fetch for symbols with VWAP protection enabled
       const symbolsWithVWAP = Object.entries(config?.symbols || {})
@@ -212,7 +212,7 @@ export default function PositionTable({
     } catch (error) {
       console.error('Failed to load VWAP data:', error);
     }
-  };
+  }, [config?.symbols]);
 
   // Use passed positions if available, otherwise use fetched positions
   // Apply live mark prices to calculate real-time PnL
@@ -239,11 +239,11 @@ export default function PositionTable({
     return position;
   });
 
-  const totalPnL = displayPositions.reduce((sum, p) => sum + p.pnl, 0);
-  const totalMargin = displayPositions.reduce((sum, p) => sum + p.margin, 0);
+  const _totalPnL = displayPositions.reduce((sum, p) => sum + p.pnl, 0);
+  const _totalMargin = displayPositions.reduce((sum, p) => sum + p.margin, 0);
 
   // Get unique symbols from positions and group by side
-  const positionSymbols = useMemo(() => {
+  const _positionSymbols = useMemo(() => {
     const symbolMap = new Map<string, Set<'LONG' | 'SHORT'>>();
     displayPositions.forEach(position => {
       if (!symbolMap.has(position.symbol)) {

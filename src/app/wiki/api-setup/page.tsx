@@ -46,7 +46,7 @@ export default function ApiSetupPage() {
 
             <div className="bg-muted p-4 rounded-lg">
               <p className="text-sm text-muted-foreground">
-                <strong>Note:</strong> After creating your account, you'll need to navigate to the API management section to generate your trading keys.
+                <strong>Note:</strong> After creating your account, you&apos;ll need to navigate to the API management section to generate your trading keys.
               </p>
             </div>
           </div>
@@ -63,10 +63,10 @@ export default function ApiSetupPage() {
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Badge>2.1</Badge>
-                <span className="font-medium">Click "Create API" Button</span>
+                <span className="font-medium">Click &quot;Create API&quot; Button</span>
               </div>
               <p className="text-sm text-muted-foreground ml-10">
-                Look for the "Create API" or "Generate API Key" button on the page
+                Look for the &quot;Create API&quot; or &quot;Generate API Key&quot; button on the page
               </p>
             </div>
 
@@ -76,7 +76,7 @@ export default function ApiSetupPage() {
                 <span className="font-medium">Set API Label</span>
               </div>
               <p className="text-sm text-muted-foreground ml-10">
-                Give your API a descriptive name like "Liquidation Hunter Bot" to identify it later
+                Give your API a descriptive name like &quot;Liquidation Hunter Bot&quot; to identify it later
               </p>
             </div>
 
@@ -103,7 +103,7 @@ export default function ApiSetupPage() {
           <Alert className="border-red-500/50 bg-red-500/10">
             <AlertTriangle className="h-4 w-4 text-red-500" />
             <AlertDescription>
-              <strong>Critical:</strong> The Secret Key is shown only once! Copy it immediately or you'll need to create a new API key.
+              <strong>Critical:</strong> The Secret Key is shown only once! Copy it immediately or you&apos;ll need to create a new API key.
             </AlertDescription>
           </Alert>
 
@@ -242,7 +242,7 @@ export default function ApiSetupPage() {
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" />
-              <span className="text-sm">Green "Connected" status in the sidebar</span>
+              <span className="text-sm">Green &quot;Connected&quot; status in the sidebar</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" />
@@ -256,7 +256,7 @@ export default function ApiSetupPage() {
 
           <Alert>
             <AlertDescription>
-              If you see connection errors, verify your API keys are correct and that you've enabled the proper permissions.
+              If you see connection errors, verify your API keys are correct and that you&apos;ve enabled the proper permissions.
             </AlertDescription>
           </Alert>
         </CardContent>

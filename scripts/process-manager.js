@@ -1,7 +1,8 @@
 #!/usr/bin/env node
+/* eslint-disable @typescript-eslint/no-require-imports */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 
 const { spawn } = require('child_process');
-const path = require('path');
 const os = require('os');
 const { killProcessTree } = require('./kill-process-tree');
 
@@ -90,7 +91,7 @@ function killAllProcesses(signal = 'SIGTERM') {
             // Process might already be dead
           }
         });
-      } catch (e) {
+      } catch (_e) {
         // Process might already be dead
       }
     }

@@ -81,7 +81,7 @@ export function CompletionStep({ onComplete, isPaperMode, hasApiKeys }: Completi
       {isPaperMode && (
         <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
           <p className="text-sm text-center">
-            <strong>Paper Mode Tip:</strong> Test your strategies risk-free. When you're ready,
+            <strong>Paper Mode Tip:</strong> Test your strategies risk-free. When you&apos;re ready,
             switch to live trading in the Configuration page.
           </p>
         </div>

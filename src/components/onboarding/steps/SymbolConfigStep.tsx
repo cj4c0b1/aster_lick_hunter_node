@@ -1,18 +1,10 @@
 import React, { useState } from 'react';
-import { Settings, TrendingUp, AlertTriangle, Info, DollarSign } from 'lucide-react';
+import { Settings, AlertTriangle, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Tooltip,
   TooltipContent,
@@ -112,7 +104,7 @@ export function SymbolConfigStep({ onNext, onBack, isPaperMode }: SymbolConfigSt
     ));
   };
 
-  const updateConfig = (symbol: string, field: keyof SymbolConfig, value: any) => {
+  const _updateConfig = (symbol: string, field: keyof SymbolConfig, value: any) => {
     setConfigs(configs.map(config =>
       config.symbol === symbol ? { ...config, [field]: value } : config
     ));
@@ -240,7 +232,7 @@ export function SymbolConfigStep({ onNext, onBack, isPaperMode }: SymbolConfigSt
           <Alert className="bg-yellow-500/10 border-yellow-500/20">
             <AlertTriangle className="h-4 w-4 text-yellow-500" />
             <AlertDescription>
-              <strong>Live Trading:</strong> These settings will affect real trades. Start with conservative settings until you're comfortable.
+              <strong>Live Trading:</strong> These settings will affect real trades. Start with conservative settings until you&apos;re comfortable.
             </AlertDescription>
           </Alert>
         )}

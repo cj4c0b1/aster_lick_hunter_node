@@ -1,9 +1,8 @@
 #!/usr/bin/env tsx
 
-import { getOrderBook, getBookTicker, getExchangeInfo, getMarkPrice } from '../src/lib/api/market';
+import { getOrderBook, getBookTicker, getMarkPrice } from '../src/lib/api/market';
 import { calculateOptimalPrice, validateOrderParams, analyzeOrderBookDepth, getSymbolFilters } from '../src/lib/api/pricing';
 import { loadConfig } from '../src/lib/bot/config';
-import { placeOrder } from '../src/lib/api/orders';
 
 // Terminal colors
 const colors = {

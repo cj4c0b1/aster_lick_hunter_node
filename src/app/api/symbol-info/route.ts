@@ -51,8 +51,8 @@ export async function GET() {
       return NextResponse.json(Object.fromEntries(symbolInfoCache));
     }
 
-    // Load config to get API credentials
-    const config = await loadConfig();
+    // Load config to get API credentials (not currently used but kept for future needs)
+    await loadConfig();
 
     // Fetch exchange info
     const exchangeInfo = await getExchangeInfo();

@@ -203,8 +203,8 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
         [selectedSymbol]: hasLongSize || hasShortSize
       }));
 
-      setLongTradeSizeInput((hasLongSize ? symbolConfig.longTradeSize : symbolConfig.tradeSize).toString());
-      setShortTradeSizeInput((hasShortSize ? symbolConfig.shortTradeSize : symbolConfig.tradeSize).toString());
+      setLongTradeSizeInput((hasLongSize && symbolConfig.longTradeSize !== undefined ? symbolConfig.longTradeSize : symbolConfig.tradeSize).toString());
+      setShortTradeSizeInput((hasShortSize && symbolConfig.shortTradeSize !== undefined ? symbolConfig.shortTradeSize : symbolConfig.tradeSize).toString());
     } else {
       setSymbolDetails(null);
     }
@@ -507,7 +507,7 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  <strong>Note:</strong> After changing ports, you'll need to restart the application and access it at the new port.
+                  <strong>Note:</strong> After changing ports, you&apos;ll need to restart the application and access it at the new port.
                   {config.global.server?.dashboardPassword && " Password protection is active - you'll need to login to access the dashboard."}
                 </AlertDescription>
               </Alert>
@@ -724,7 +724,7 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                                   setShortTradeSizeInput(shortSize.toString());
                                 } else {
                                   // Remove separate values when toggling off
-                                  const { longTradeSize, shortTradeSize, ...restConfig } = config.symbols[selectedSymbol];
+                                  const { longTradeSize: _longTradeSize, shortTradeSize: _shortTradeSize, ...restConfig } = config.symbols[selectedSymbol];
                                   setConfig({
                                     ...config,
                                     symbols: {

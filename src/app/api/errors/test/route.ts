@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { errorLogsDb } from '@/lib/db/errorLogsDb';
 import { errorLogger } from '@/lib/services/errorLogger';
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     // Only allow in development or paper mode
     const isDev = process.env.NODE_ENV === 'development';
@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function DELETE(request: NextRequest) {
+export async function DELETE(_request: NextRequest) {
   try {
     // Clear all errors (for testing)
     const deleted = await errorLogsDb.clearOldErrors(0);

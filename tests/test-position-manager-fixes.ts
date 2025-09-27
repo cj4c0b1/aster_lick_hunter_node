@@ -108,7 +108,7 @@ async function testLockMechanism() {
       broadcastPositionClosed: (_: any) => {},
     });
 
-    const mockPosition = {
+    const _mockPosition = {
       symbol: 'BTCUSDT',
       positionAmt: '1.0',
       entryPrice: '50000',

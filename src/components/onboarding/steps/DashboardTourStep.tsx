@@ -88,7 +88,7 @@ export function DashboardTourStep({ onNext, onBack, onStartTour }: DashboardTour
         <Info className="h-5 w-5 text-muted-foreground mt-0.5" />
         <div className="flex-1">
           <p className="text-sm">
-            <strong>Interactive Tour:</strong> Click "Start Tour" to see these features highlighted on your actual dashboard with helpful tooltips.
+            <strong>Interactive Tour:</strong> Click &quot;Start Tour&quot; to see these features highlighted on your actual dashboard with helpful tooltips.
           </p>
         </div>
       </div>

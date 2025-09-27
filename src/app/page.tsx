@@ -149,6 +149,15 @@ export default function DashboardPage() {
     return `${value >= 0 ? '+' : '-'}${formatted}%`;
   };
 
+  // Memoize volumeThresholds to prevent unnecessary re-fetching
+  const volumeThresholds = useMemo(() => {
+    if (!config?.symbols) return {};
+    return Object.entries(config.symbols).reduce((acc, [symbol, cfg]) => ({
+      ...acc,
+      [symbol]: cfg.volumeThresholdUSDT
+    }), {});
+  }, [config?.symbols]);
+
   // Calculate live account info with real-time mark prices
   // This supplements the official balance data with live price updates
   const liveAccountInfo = useMemo(() => {
@@ -201,7 +210,7 @@ export default function DashboardPage() {
     }
   };
 
-  const handleUpdateSL = async (_symbol: string, _side: 'LONG' | 'SHORT', _price: number) => {
+  const _handleUpdateSL = async (_symbol: string, _side: 'LONG' | 'SHORT', _price: number) => {
     try {
       // TODO: Implement stop loss update API call
       // For now, just log the action
@@ -209,7 +218,7 @@ export default function DashboardPage() {
     }
   };
 
-  const handleUpdateTP = async (_symbol: string, _side: 'LONG' | 'SHORT', _price: number) => {
+  const _handleUpdateTP = async (_symbol: string, _side: 'LONG' | 'SHORT', _price: number) => {
     try {
       // TODO: Implement take profit update API call
       // For now, just log the action
@@ -373,12 +382,7 @@ export default function DashboardPage() {
 
         {/* Liquidation Sidebar */}
         <LiquidationSidebar
-          volumeThresholds={config?.symbols ?
-            Object.entries(config.symbols).reduce((acc, [symbol, cfg]) => ({
-              ...acc,
-              [symbol]: cfg.volumeThresholdUSDT
-            }), {}) : {}
-          }
+          volumeThresholds={volumeThresholds}
           maxEvents={50}
         />
       </div>
