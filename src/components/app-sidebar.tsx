@@ -12,6 +12,7 @@ import {
   BookOpen,
   HelpCircle,
   RefreshCw,
+  Bug,
 } from "lucide-react"
 
 import {
@@ -51,6 +52,11 @@ const navigation = [
     title: "Wiki & Help",
     icon: BookOpen,
     href: "/wiki",
+  },
+  {
+    title: "Error Logs",
+    icon: Bug,
+    href: "/errors",
   },
 ]
 

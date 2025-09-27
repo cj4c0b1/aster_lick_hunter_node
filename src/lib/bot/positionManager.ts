@@ -8,6 +8,7 @@ import { placeOrder, cancelOrder } from '../api/orders';
 import { placeStopLossAndTakeProfit } from '../api/batchOrders';
 import { symbolPrecision } from '../utils/symbolPrecision';
 import { getBalanceService } from '../services/balanceService';
+import { errorLogger } from '../services/errorLogger';
 
 // Minimal local state - only track order IDs linked to positions
 interface PositionOrders {
@@ -248,6 +249,12 @@ export class PositionManager extends EventEmitter implements PositionTracker {
 
     this.ws.on('error', (error) => {
       console.error('PositionManager WS error:', error);
+      // Log to error database
+      errorLogger.logWebSocketError(
+        `wss://fstream.asterdex.com/ws/${this.listenKey}`,
+        error instanceof Error ? error : new Error(String(error)),
+        1
+      );
       // Broadcast error to UI
       if (this.statusBroadcaster) {
         this.statusBroadcaster.broadcastWebSocketError(
@@ -293,6 +300,14 @@ export class PositionManager extends EventEmitter implements PositionTracker {
       console.log('PositionManager: Keepalive sent');
     } catch (error) {
       console.error('PositionManager: Keepalive error:', error);
+      // Log to error database
+      errorLogger.logApiError(
+        '/fapi/v1/listenKey',
+        'PUT',
+        error instanceof Error ? 0 : (error as any)?.response?.status || 0,
+        error,
+        { component: 'PositionManager', userAction: 'Keepalive' }
+      );
     }
   }
 
@@ -1093,6 +1108,17 @@ export class PositionManager extends EventEmitter implements PositionTracker {
       }
     } catch (error: any) {
       console.error('PositionManager: Failed to check existing orders, proceeding with placement:', error?.response?.data || error?.message);
+      // Log to error database
+      errorLogger.logError(error instanceof Error ? error : new Error(String(error)), {
+        type: 'api',
+        severity: 'low',
+        context: {
+          component: 'PositionManager',
+          symbol: position.symbol,
+          userAction: 'Checking existing orders',
+          metadata: error?.response?.data
+        }
+      });
     }
 
     try {
@@ -1313,6 +1339,22 @@ export class PositionManager extends EventEmitter implements PositionTracker {
       const errorMsg = error.response?.data?.msg || error.message || 'Unknown error';
       console.error(`PositionManager: Failed to place protective orders for ${symbol}:`, error.response?.data || error.message);
 
+      // Log to error database
+      await errorLogger.logTradingError(
+        'placeProtectiveOrders',
+        symbol,
+        error instanceof Error ? error : new Error(errorMsg),
+        {
+          entryPrice,
+          quantity,
+          isLong,
+          slPercent: symbolConfig.slPercent,
+          tpPercent: symbolConfig.tpPercent,
+          errorCode: error.response?.data?.code,
+          errorDetails: error.response?.data
+        }
+      );
+
       // Broadcast error to UI
       if (this.statusBroadcaster) {
         this.statusBroadcaster.broadcastTradingError(
@@ -1460,6 +1502,17 @@ export class PositionManager extends EventEmitter implements PositionTracker {
               console.log(`PositionManager: Orphaned order ${order.symbol} #${order.orderId} already filled/cancelled`);
             } else {
               console.error(`PositionManager: Failed to cancel orphaned order ${order.symbol} #${order.orderId}:`, error?.response?.data || error?.message);
+              // Log non-critical cancellation errors
+              errorLogger.logError(error instanceof Error ? error : new Error(String(error)), {
+                type: 'api',
+                severity: 'low',
+                context: {
+                  component: 'PositionManager',
+                  symbol: order.symbol,
+                  userAction: 'Cancelling orphaned order',
+                  metadata: { orderId: order.orderId, orderType: order.type }
+                }
+              });
             }
           }
         }
@@ -1508,6 +1561,16 @@ export class PositionManager extends EventEmitter implements PositionTracker {
       }
     } catch (error: any) {
       console.error('PositionManager: Error during orphaned order cleanup:', error?.response?.data || error?.message);
+      // Log to error database
+      errorLogger.logError(error instanceof Error ? error : new Error(String(error)), {
+        type: 'general',
+        severity: 'medium',
+        context: {
+          component: 'PositionManager',
+          userAction: 'Cleaning up orphaned orders',
+          metadata: error?.response?.data
+        }
+      });
     }
   }
 
@@ -1625,6 +1688,17 @@ export class PositionManager extends EventEmitter implements PositionTracker {
       await this.adjustProtectiveOrders(position, slOrder, tpOrder);
     } catch (error: any) {
       console.error(`PositionManager: Error checking orders for position ${positionKey}:`, error?.response?.data || error?.message);
+      // Log to error database
+      errorLogger.logError(error instanceof Error ? error : new Error(String(error)), {
+        type: 'general',
+        severity: 'medium',
+        context: {
+          component: 'PositionManager',
+          symbol,
+          userAction: 'Checking and adjusting orders',
+          metadata: { positionKey, positionQty, error: error?.response?.data }
+        }
+      });
     }
   }
 

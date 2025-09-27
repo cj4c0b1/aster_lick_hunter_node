@@ -1,6 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { EventEmitter } from 'events';
 import { LiquidationEvent } from '../lib/types';
+import { errorLogger } from '../lib/services/errorLogger';
 
 export interface BotStatus {
   isRunning: boolean;
@@ -390,6 +391,23 @@ export class StatusBroadcaster extends EventEmitter {
       rawError?: any;
     };
   }): void {
+    // Log to persistent error database
+    const error = new Error(`${data.title}: ${data.message}`);
+    if (data.details?.stackTrace) {
+      error.stack = data.details.stackTrace;
+    }
+
+    errorLogger.logError(error, {
+      type,
+      severity: type === 'config' || type === 'api' ? 'high' : 'medium',
+      code: data.details?.errorCode,
+      context: {
+        component: data.details?.component,
+        symbol: data.details?.symbol,
+        metadata: data.details?.rawError
+      }
+    });
+
     // Also log to console for server-side debugging
     console.error(`[${type.toUpperCase()} ERROR] ${data.title}: ${data.message}`);
     if (data.details) {
@@ -403,6 +421,7 @@ export class StatusBroadcaster extends EventEmitter {
       details: {
         ...data.details,
         timestamp: data.details?.timestamp || new Date().toISOString(),
+        sessionId: errorLogger.getSessionId(),
       },
     });
 
@@ -442,6 +461,15 @@ export class StatusBroadcaster extends EventEmitter {
       title,
       message,
       details,
+    });
+  }
+
+  // Broadcast session info for error tracking
+  broadcastSessionInfo(): void {
+    this._broadcast('session_info', {
+      sessionId: errorLogger.getSessionId(),
+      systemInfo: errorLogger.getSystemInfo(),
+      timestamp: new Date(),
     });
   }
 }

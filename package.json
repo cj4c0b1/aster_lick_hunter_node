@@ -20,7 +20,9 @@
     "test": "tsx tests/test-limit-orders.ts",
     "test:simulation": "tsx tests/test-bot-simulation.ts",
     "test:flow": "tsx tests/test-limit-order-flow.ts",
-    "test:all": "npm run test && npm run test:flow && npm run test:simulation"
+    "test:all": "npm run test && npm run test:flow && npm run test:simulation",
+    "test:errors": "node scripts/generate-test-errors.js",
+    "test:errors:clear": "node scripts/generate-test-errors.js clear"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
@@ -36,6 +38,7 @@
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@types/sqlite3": "^5.1.0",
+    "@types/uuid": "^11.0.0",
     "axios": "^1.12.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -50,6 +53,7 @@
     "sonner": "^2.0.7",
     "sqlite3": "^5.1.7",
     "tailwind-merge": "^3.3.1",
+    "uuid": "^13.0.0",
     "ws": "^8.18.3",
     "zod": "^3.25.76"
   },
