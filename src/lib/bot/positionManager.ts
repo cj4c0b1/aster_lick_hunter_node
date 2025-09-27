@@ -1265,22 +1265,60 @@ export class PositionManager extends EventEmitter implements PositionTracker {
           ? currentPrice >= rawTpPrice
           : currentPrice <= rawTpPrice;
 
-        let finalTpPrice = rawTpPrice;
-
         if (pastTP) {
           const pnlPercent = isLong
             ? ((currentPrice - entryPrice) / entryPrice) * 100
             : ((entryPrice - currentPrice) / entryPrice) * 100;
 
           console.log(`PositionManager: Position ${symbol} has exceeded TP target (PnL: ${pnlPercent.toFixed(2)}%, TP: ${symbolConfig.tpPercent}%)`);
+          console.log(`PositionManager: Closing position at market instead of placing TP order`);
 
-          // Adjust TP to be safely above/below current price
-          finalTpPrice = isLong
-            ? currentPrice * 1.003  // 0.3% above current for long
-            : currentPrice * 0.997; // 0.3% below current for short
+          // Close at market immediately
+          try {
+            const formattedQuantity = symbolPrecision.formatQuantity(symbol, quantity);
+            const orderPositionSide = position.positionSide || 'BOTH';
+            const side = isLong ? 'SELL' : 'BUY';
 
-          console.log(`PositionManager: Adjusting TP from ${rawTpPrice.toFixed(4)} to ${finalTpPrice.toFixed(4)} to avoid immediate trigger`);
+            const marketParams: any = {
+              symbol,
+              side: side as 'BUY' | 'SELL',
+              type: 'MARKET',
+              quantity: formattedQuantity,
+              positionSide: orderPositionSide as 'BOTH' | 'LONG' | 'SHORT',
+              newClientOrderId: `al_batch_tp_close_${symbol}_${Date.now()}`,
+            };
+
+            if (orderPositionSide === 'BOTH') {
+              marketParams.reduceOnly = true;
+            }
+
+            const marketOrder = await placeOrder(marketParams, this.config.api);
+            console.log(`PositionManager: Position closed at market! Order ID: ${marketOrder.orderId}, PnL: ~${pnlPercent.toFixed(2)}%`);
+
+            if (this.statusBroadcaster) {
+              this.statusBroadcaster.broadcastPositionClosed({
+                symbol,
+                side: isLong ? 'LONG' : 'SHORT',
+                quantity,
+                pnl: pnlPercent * quantity * currentPrice / 100,
+                reason: 'Auto-closed at market (exceeded TP target in batch)',
+              });
+            }
+
+            // Still place SL if needed
+            if (placeSL) {
+              console.log(`PositionManager: Position closed, skipping SL placement`);
+            }
+            return; // Exit after closing position
+          } catch (marketError: any) {
+            console.error(`PositionManager: Failed to close at market: ${marketError.response?.data?.msg || marketError.message}`);
+            // If market close fails, skip TP placement entirely
+            console.log(`PositionManager: Skipping TP placement since position is past target`);
+            placeTP = false;
+          }
         }
+
+        let finalTpPrice = rawTpPrice;
 
         // Format prices and quantity
         const slPrice = symbolPrecision.formatPrice(symbol, adjustedSlPrice);
@@ -1438,76 +1476,45 @@ export class PositionManager extends EventEmitter implements PositionTracker {
           console.log(`PositionManager: Position ${symbol} has exceeded TP target!`);
           console.log(`  Current PnL: ${pnlPercent.toFixed(2)}%, TP target: ${symbolConfig.tpPercent}%`);
 
-          // If profitable beyond TP, close at market
-          if (pnlPercent > symbolConfig.tpPercent) {
-            console.log(`PositionManager: Closing position at market - already ${pnlPercent.toFixed(2)}% profit (TP target: ${symbolConfig.tpPercent}%)`);
+          // Always close at market if past TP, regardless of exact profit amount
+          console.log(`PositionManager: Closing position at market - already past TP target`);
 
-            try {
-              const formattedQuantity = symbolPrecision.formatQuantity(symbol, quantity);
-              const orderPositionSide = position.positionSide || 'BOTH';
+          try {
+            const formattedQuantity = symbolPrecision.formatQuantity(symbol, quantity);
+            const orderPositionSide = position.positionSide || 'BOTH';
 
-              const marketParams: any = {
-                symbol,
-                side: isLong ? 'SELL' : 'BUY',
-                type: 'MARKET',
-                quantity: formattedQuantity,
-                positionSide: orderPositionSide as 'BOTH' | 'LONG' | 'SHORT',
-                newClientOrderId: `al_market_tp_${symbol}_${Date.now()}`,
-              };
+            const marketParams: any = {
+              symbol,
+              side: isLong ? 'SELL' : 'BUY',
+              type: 'MARKET',
+              quantity: formattedQuantity,
+              positionSide: orderPositionSide as 'BOTH' | 'LONG' | 'SHORT',
+              newClientOrderId: `al_market_tp_${symbol}_${Date.now()}`,
+            };
 
-              if (orderPositionSide === 'BOTH') {
-                marketParams.reduceOnly = true;
-              }
-
-              const marketOrder = await placeOrder(marketParams, this.config.api);
-              console.log(`PositionManager: Position closed at market! Order ID: ${marketOrder.orderId}, PnL: ~${pnlPercent.toFixed(2)}%`);
-
-              if (this.statusBroadcaster) {
-                this.statusBroadcaster.broadcastPositionClosed({
-                  symbol,
-                  side: isLong ? 'LONG' : 'SHORT',
-                  quantity,
-                  pnl: pnlPercent * quantity * currentPrice / 100,
-                  reason: 'Auto-closed at market (exceeded TP target)',
-                });
-              }
-              return; // Exit after market close
-            } catch (marketError: any) {
-              console.error(`PositionManager: Failed to close at market: ${marketError.response?.data?.msg || marketError.message}`);
-              // Continue to try placing adjusted TP
+            if (orderPositionSide === 'BOTH') {
+              marketParams.reduceOnly = true;
             }
+
+            const marketOrder = await placeOrder(marketParams, this.config.api);
+            console.log(`PositionManager: Position closed at market! Order ID: ${marketOrder.orderId}, PnL: ~${pnlPercent.toFixed(2)}%`);
+
+            if (this.statusBroadcaster) {
+              this.statusBroadcaster.broadcastPositionClosed({
+                symbol,
+                side: isLong ? 'LONG' : 'SHORT',
+                quantity,
+                pnl: pnlPercent * quantity * currentPrice / 100,
+                reason: 'Auto-closed at market (exceeded TP target)',
+              });
+            }
+            return; // Exit after market close
+          } catch (marketError: any) {
+            console.error(`PositionManager: Failed to close at market: ${marketError.response?.data?.msg || marketError.message}`);
+            // If market close fails, don't place TP at all since it would trigger immediately
+            console.log(`PositionManager: Not placing TP order since position is past target and market close failed`);
+            return;
           }
-
-          // If we can't close at market or PnL is less than target, place TP further away
-          console.log(`PositionManager: Adjusting TP price to avoid immediate trigger`);
-          const adjustedTpPrice = isLong
-            ? currentPrice * 1.003  // 0.3% above current for long
-            : currentPrice * 0.997; // 0.3% below current for short
-
-          // Format adjusted price
-          const tpPrice = symbolPrecision.formatPrice(symbol, adjustedTpPrice);
-          const formattedQuantity = symbolPrecision.formatQuantity(symbol, quantity);
-
-          console.log(`PositionManager: Adjusted TP from ${rawTpPrice.toFixed(4)} to ${tpPrice} (current: ${currentPrice.toFixed(4)})`);
-
-          const orderPositionSide = position.positionSide || 'BOTH';
-          const tpParams: any = {
-            symbol,
-            side: isLong ? 'SELL' : 'BUY',
-            type: 'TAKE_PROFIT_MARKET',
-            quantity: formattedQuantity,
-            stopPrice: tpPrice,
-            positionSide: orderPositionSide as 'BOTH' | 'LONG' | 'SHORT',
-            newClientOrderId: `al_tp_adj_${symbol}_${Date.now()}`,
-          };
-
-          if (orderPositionSide === 'BOTH') {
-            tpParams.reduceOnly = true;
-          }
-
-          const tpOrder = await placeOrder(tpParams, this.config.api);
-          orders.tpOrderId = typeof tpOrder.orderId === 'string' ? parseInt(tpOrder.orderId) : tpOrder.orderId;
-          console.log(`PositionManager: Placed adjusted TP for ${symbol} at ${tpPrice}, orderId: ${tpOrder.orderId}`);
 
         } else {
           // Normal TP placement - position hasn't reached target yet
@@ -1929,9 +1936,9 @@ export class PositionManager extends EventEmitter implements PositionTracker {
           console.log(`PositionManager: [Periodic Check] Position ${symbol} exceeded TP target!`);
           console.log(`  PnL: ${pnlPercent.toFixed(2)}%, TP target: ${tpPercent}%`);
 
-          // If significantly past TP (e.g., 2x the target), close at market
-          if (pnlPercent > tpPercent * 1.5) {
-            console.log(`PositionManager: Auto-closing ${symbol} at market - PnL ${pnlPercent.toFixed(2)}% exceeds 1.5x TP target`);
+          // Always close at market if past TP target
+          if (pnlPercent > tpPercent) {
+            console.log(`PositionManager: Auto-closing ${symbol} at market - PnL ${pnlPercent.toFixed(2)}% exceeds TP target`);
 
             try {
               const formattedQty = symbolPrecision.formatQuantity(symbol, positionQty);
