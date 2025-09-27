@@ -832,6 +832,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
             executedQty,
             price: avgPrice,
             orderId: orderId?.toString(),
+            pnl: realizedPnl,
           });
 
           // Also broadcast position closed event
