@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { HelpCircle, X, BookOpen, RefreshCw, MessageCircle } from 'lucide-react';
+import { HelpCircle, BookOpen, RefreshCw, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,

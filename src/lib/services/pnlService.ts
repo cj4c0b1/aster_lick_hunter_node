@@ -127,7 +127,7 @@ class PnLService extends EventEmitter {
       }
 
       // Update session PnL
-      const previousAccumulated = this.sessionPnL.currentAccumulatedPnl;
+      const _previousAccumulated = this.sessionPnL.currentAccumulatedPnl;
       this.sessionPnL.currentAccumulatedPnl = totalAccumulatedPnl;
       this.sessionPnL.unrealizedPnl = totalUnrealizedPnl;
 

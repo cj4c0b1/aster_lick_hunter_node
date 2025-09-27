@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable @typescript-eslint/no-require-imports */
 
 // Enhanced test script that adds sample errors to test UI features
 const axios = require('axios');

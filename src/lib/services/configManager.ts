@@ -1,9 +1,7 @@
 import { EventEmitter } from 'events';
 import { watch, FSWatcher } from 'fs';
-import { promises as fs } from 'fs';
 import { Config } from '../types';
 import { configLoader } from '../config/configLoader';
-import { configSchema } from '../config/types';
 import { z } from 'zod';
 
 export interface ConfigManagerEvents {

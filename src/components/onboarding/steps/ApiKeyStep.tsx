@@ -13,7 +13,7 @@ interface ApiKeyStepProps {
   onSkip: () => void;
 }
 
-export function ApiKeyStep({ onNext, onBack, onSkip }: ApiKeyStepProps) {
+export function ApiKeyStep({ onNext, onBack }: ApiKeyStepProps) {
   const [apiKey, setApiKey] = useState('');
   const [secretKey, setSecretKey] = useState('');
   const [showSecretKey, setShowSecretKey] = useState(false);
@@ -76,11 +76,11 @@ export function ApiKeyStep({ onNext, onBack, onSkip }: ApiKeyStepProps) {
               <ol className="text-sm text-muted-foreground space-y-2">
                 <li className="flex gap-2">
                   <span className="text-primary font-semibold">1.</span>
-                  Click "Create API" button on the page
+                  Click &quot;Create API&quot; button on the page
                 </li>
                 <li className="flex gap-2">
                   <span className="text-primary font-semibold">2.</span>
-                  Give your API a memorable label (e.g., "Liquidation Hunter Bot")
+                  Give your API a memorable label (e.g., &quot;Liquidation Hunter Bot&quot;)
                 </li>
                 <li className="flex gap-2">
                   <span className="text-primary font-semibold">3.</span>
@@ -94,11 +94,11 @@ export function ApiKeyStep({ onNext, onBack, onSkip }: ApiKeyStepProps) {
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  <strong>Important:</strong> Copy both keys immediately. The secret key won't be shown again!
+                  <strong>Important:</strong> Copy both keys immediately. The secret key won&apos;t be shown again!
                 </AlertDescription>
               </Alert>
               <div className="space-y-2 text-sm text-muted-foreground">
-                <p>After creation, you'll see:</p>
+                <p>After creation, you&apos;ll see:</p>
                 <ul className="space-y-1">
                   <li>• <strong>API Key:</strong> A 64-character string</li>
                   <li>• <strong>Secret Key:</strong> Another 64-character string (shown only once)</li>

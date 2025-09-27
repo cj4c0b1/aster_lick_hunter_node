@@ -48,7 +48,7 @@ class ErrorLogger {
     });
 
     // Handle unhandled promise rejections
-    process.on('unhandledRejection', (reason, promise) => {
+    process.on('unhandledRejection', (reason, _promise) => {
       const error = reason instanceof Error ? reason : new Error(String(reason));
       this.logError(error, {
         type: 'system',

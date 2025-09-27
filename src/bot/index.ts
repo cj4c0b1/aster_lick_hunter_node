@@ -64,7 +64,7 @@ class AsterBot {
 
       // Initialize Rate Limit Manager with config
       const rateLimitConfig = this.config.global.rateLimit || {};
-      const rateLimitManager = getRateLimitManager(rateLimitConfig);
+      const _rateLimitManager = getRateLimitManager(rateLimitConfig);
       console.log('✅ Rate limit manager initialized');
       console.log(`  Max weight: ${rateLimitConfig.maxRequestWeight || 2400}/min`);
       console.log(`  Max orders: ${rateLimitConfig.maxOrderCount || 1200}/min`);

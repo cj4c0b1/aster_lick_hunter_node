@@ -182,7 +182,7 @@ export function useOrderNotifications(wsUrl: string = 'ws://localhost:8080') {
             }
 
             case 'trade_blocked': {
-              const { symbol, side, reason, vwap, currentPrice, blockType } = message.data;
+              const { side, reason, blockType } = message.data;
               const description = blockType === 'VWAP_FILTER'
                 ? reason
                 : `${side} trade blocked - ${reason}`;

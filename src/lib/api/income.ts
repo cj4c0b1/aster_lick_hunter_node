@@ -91,9 +91,9 @@ export interface DailyPnL {
 
 export function aggregateDailyPnL(records: IncomeRecord[]): DailyPnL[] {
   const dailyMap = new Map<string, DailyPnL>();
-  const todayString = new Date().toISOString().split('T')[0];
+  const _todayString = new Date().toISOString().split('T')[0];
 
-  records.forEach((record, index) => {
+  records.forEach((record, _index) => {
     const date = new Date(record.time).toISOString().split('T')[0];
     const amount = parseFloat(record.income);
 
@@ -126,7 +126,7 @@ export function aggregateDailyPnL(records: IncomeRecord[]): DailyPnL[] {
   });
 
   // Calculate net PnL for each day
-  dailyMap.forEach((daily, date) => {
+  dailyMap.forEach((daily, _date) => {
     daily.netPnl = daily.realizedPnl + daily.commission + daily.fundingFee;
 
   });

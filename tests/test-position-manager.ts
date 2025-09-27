@@ -2,8 +2,6 @@
 
 import { PositionManager } from '../src/lib/bot/positionManager';
 import { loadConfig } from '../src/lib/bot/config';
-import { getPositionRisk, getOpenOrders } from '../src/lib/api/market';
-import { placeOrder, cancelOrder } from '../src/lib/api/orders';
 
 // Terminal colors
 const colors = {

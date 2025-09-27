@@ -1,9 +1,8 @@
 'use client';
 
-import { BookOpen, HelpCircle, DollarSign, Shield, Zap, Settings, TrendingUp, ChevronDown } from 'lucide-react';
+import { BookOpen, HelpCircle, Shield, Zap, Settings, ChevronDown } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
 
 function CollapsibleItem({ title, children }: { title: string; children: React.ReactNode }) {

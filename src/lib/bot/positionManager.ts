@@ -104,7 +104,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
     }
 
     // Check for symbol parameter changes that affect existing positions
-    for (const [posKey, position] of this.currentPositions) {
+    for (const [_posKey, position] of this.currentPositions) {
       const symbol = position.symbol;
 
       if (oldConfig.symbols[symbol] && newConfig.symbols[symbol]) {
@@ -578,7 +578,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
         this.symbolLeverage.set(symbol, leverage);
 
         // Update leverage for any existing positions of this symbol
-        for (const [key, position] of this.currentPositions.entries()) {
+        for (const [_key, position] of this.currentPositions.entries()) {
           if (position.symbol === symbol) {
             position.leverage = leverage.toString();
           }

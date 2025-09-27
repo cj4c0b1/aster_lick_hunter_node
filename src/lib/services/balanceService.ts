@@ -69,7 +69,7 @@ export class BalanceService extends EventEmitter {
           await this.fetchInitialBalance();
           this.initialized = true; // Partially initialized (REST only)
           this.emit('balanceUpdate', this.currentBalance);
-        } catch (fallbackError) {
+        } catch (_fallbackError) {
           throw error; // Throw original error
         }
       }
@@ -186,7 +186,7 @@ export class BalanceService extends EventEmitter {
       // walletBalance is the total balance in the account
       // crossWalletBalance is the balance across all margin assets (usually same as wallet for single asset mode)
       const walletBalance = parseFloat(usdtBalance.walletBalance);
-      const crossWalletBalance = parseFloat(usdtBalance.crossWalletBalance);
+      const _crossWalletBalance = parseFloat(usdtBalance.crossWalletBalance);
 
       // Calculate available balance (wallet balance minus margin used in positions)
       // We'll calculate margin from positions below, then derive available
@@ -234,7 +234,7 @@ export class BalanceService extends EventEmitter {
           try {
             await this.fetchInitialBalance();
             this.emit('balanceUpdate', this.currentBalance);
-          } catch (error) {
+          } catch (_error) {
           }
         }
 

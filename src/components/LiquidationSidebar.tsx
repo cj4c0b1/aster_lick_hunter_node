@@ -33,7 +33,7 @@ export default function LiquidationSidebar({ volumeThresholds = {}, maxEvents = 
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [newEventIds, setNewEventIds] = useState<Set<string>>(new Set());
-  const containerRef = useRef<HTMLDivElement>(null);
+  const _containerRef = useRef<HTMLDivElement>(null);
   const prevEventsRef = useRef<LiquidationEvent[]>([]);
 
   // Load historical liquidations on mount
@@ -148,12 +148,6 @@ export default function LiquidationSidebar({ volumeThresholds = {}, maxEvents = 
     return `$${volume.toFixed(0)}`;
   };
 
-  const formatPrice = (price: number): string => {
-    if (price >= 1000) {
-      return price.toLocaleString(undefined, { maximumFractionDigits: 0 });
-    }
-    return price.toLocaleString(undefined, { maximumFractionDigits: 1 });
-  };
 
   const getVolumeColor = (volume: number): string => {
     if (volume >= 5000000) return 'bg-yellow-500/30 text-yellow-300 border border-yellow-400/60 shadow-lg shadow-yellow-500/20'; // $5M+
@@ -197,10 +191,10 @@ export default function LiquidationSidebar({ volumeThresholds = {}, maxEvents = 
               </div>
             ))
           ) : events.length > 0 ? (
-            events.map((event, index) => {
+            events.map((event, _index) => {
               const eventId = `${event.symbol}-${event.eventTime}`;
               const isNew = newEventIds.has(eventId);
-              const volumeColor = getVolumeColor(event.volume);
+              const _volumeColor = getVolumeColor(event.volume);
               const intensity = getLiquidationIntensity(event.volume);
               // SELL liquidation = Longs getting liquidated (should be GREEN - they were bullish)
               // BUY liquidation = Shorts getting liquidated (should be RED - they were bearish)

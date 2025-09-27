@@ -1,7 +1,6 @@
 import React from 'react';
 import { Zap, TrendingUp, Shield, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 
 interface WelcomeStepProps {
   onNext: () => void;
