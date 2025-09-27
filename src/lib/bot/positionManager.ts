@@ -825,7 +825,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
     console.log(`PositionManager: ORDER_TRADE_UPDATE - Symbol: ${symbol}, OrderId: ${orderId}, Type: ${orderType}, Status: ${orderStatus}, Side: ${side}`);
 
     // Check if this is a filled order that affects positions (SL/TP fills)
-    if (orderStatus === 'FILLED' && order.rp) { // rp = reduce only
+    if (orderStatus === 'FILLED' && order.rp) { // rp = realized profit (from exchange API)
       console.log(`PositionManager: Reduce-only order filled for ${symbol}`);
       // Trigger balance refresh after SL/TP execution
       this.refreshBalance();
@@ -925,7 +925,49 @@ export class PositionManager extends EventEmitter implements PositionTracker {
           }
         }
 
-        const realizedPnl = parseFloat(order.rp || '0');
+        let realizedPnl = parseFloat(order.rp || '0');
+
+        // If exchange didn't provide PnL (returns 0), calculate it ourselves
+        if (realizedPnl === 0 && (orderType === 'TAKE_PROFIT' || orderType === 'TAKE_PROFIT_MARKET' || orderType === 'STOP_MARKET' || orderType === 'STOP')) {
+          console.log(`PositionManager: Exchange returned PnL=0 for ${orderType}, attempting to calculate from position data`);
+
+          // Find the position key that matches this order
+          let positionKey: string | undefined;
+          for (const [key, orders] of this.positionOrders.entries()) {
+            if (orders.slOrderId === orderId || orders.tpOrderId === orderId) {
+              positionKey = key;
+              break;
+            }
+          }
+
+          if (positionKey) {
+            const position = this.currentPositions.get(positionKey);
+            if (position && position.entryPrice) {
+              const entryPrice = parseFloat(position.entryPrice);
+              const exitPrice = avgPrice;
+              const quantity = executedQty;
+
+              // Calculate PnL based on position direction
+              // If closing with SELL order = was LONG position
+              // If closing with BUY order = was SHORT position
+              if (side === 'SELL') {
+                // Closing LONG: profit = (exit - entry) * quantity
+                realizedPnl = (exitPrice - entryPrice) * quantity;
+              } else {
+                // Closing SHORT: profit = (entry - exit) * quantity
+                realizedPnl = (entryPrice - exitPrice) * quantity;
+              }
+
+              console.log(`PositionManager: Calculated PnL for ${symbol} ${orderType}: Entry=${entryPrice.toFixed(2)}, Exit=${exitPrice.toFixed(2)}, Qty=${quantity}, PnL=$${realizedPnl.toFixed(2)}`);
+            } else {
+              console.warn(`PositionManager: Could not find position entry price for ${positionKey} to calculate PnL`);
+            }
+          } else {
+            console.warn(`PositionManager: Could not find position key for order ${orderId} to calculate PnL`);
+          }
+        } else if (realizedPnl !== 0) {
+          console.log(`PositionManager: Using exchange-provided PnL for ${symbol} ${orderType}: $${realizedPnl.toFixed(2)}`);
+        }
 
         // Broadcast order filled event (SL/TP)
         if (this.statusBroadcaster) {
