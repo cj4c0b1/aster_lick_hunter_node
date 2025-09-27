@@ -1,7 +1,7 @@
 import WebSocket from 'ws';
 import { EventEmitter } from 'events';
 import { Config, LiquidationEvent, SymbolConfig } from '../types';
-import { getMarkPrice } from '../api/market';
+import { getMarkPrice, getExchangeInfo } from '../api/market';
 import { placeOrder, setLeverage } from '../api/orders';
 import { calculateOptimalPrice, validateOrderParams, analyzeOrderBookDepth, getSymbolFilters } from '../api/pricing';
 import { getPositionSide } from '../api/positionMode';
@@ -9,6 +9,7 @@ import { PositionTracker } from './positionManager';
 import { liquidationStorage } from '../services/liquidationStorage';
 import { vwapService } from '../services/vwapService';
 import { vwapStreamer } from '../services/vwapStreamer';
+import { symbolPrecision } from '../utils/symbolPrecision';
 import {
   parseExchangeError,
   NotionalError,
@@ -103,9 +104,19 @@ export class Hunter extends EventEmitter {
     }
   }
 
-  start(): void {
+  async start(): Promise<void> {
     if (this.isRunning) return;
     this.isRunning = true;
+
+    // Initialize symbol precision manager with exchange info
+    try {
+      const exchangeInfo = await getExchangeInfo();
+      symbolPrecision.parseExchangeInfo(exchangeInfo);
+      console.log('Hunter: Symbol precision manager initialized');
+    } catch (error) {
+      console.error('Hunter: Failed to initialize symbol precision manager:', error);
+      // Continue anyway, will use default precision values
+    }
 
     // In paper mode with no API keys, simulate liquidation events
     if (this.config.global.paperMode && (!this.config.api.apiKey || !this.config.api.secretKey)) {
@@ -467,12 +478,18 @@ export class Hunter extends EventEmitter {
 
       const calculatedQuantity = notionalUSDT / currentPrice;
 
-      // Round to the symbol's quantity precision
-      const quantityPrecision = symbolInfo.quantityPrecision || 8;
-      quantity = parseFloat(calculatedQuantity.toFixed(quantityPrecision));
+      // Format quantity according to symbol's step size
+      quantity = symbolPrecision.hasSymbol(symbol)
+        ? symbolPrecision.formatQuantity(symbol, calculatedQuantity)
+        : parseFloat(calculatedQuantity.toFixed(symbolInfo.quantityPrecision || 8));
 
       // Validate order parameters
       if (orderType === 'LIMIT') {
+        // Format price according to symbol's tick size before validation
+        orderPrice = symbolPrecision.hasSymbol(symbol)
+          ? symbolPrecision.formatPrice(symbol, orderPrice)
+          : orderPrice;
+
         const validation = await validateOrderParams(symbol, side, orderPrice, quantity);
         if (!validation.valid) {
           console.error(`Hunter: Order validation failed for ${symbol}: ${validation.error}`);
@@ -608,7 +625,12 @@ export class Hunter extends EventEmitter {
 
           // Fetch current price for fallback market order
           const markPriceData = await getMarkPrice(symbol);
-          fallbackPrice = parseFloat(Array.isArray(markPriceData) ? markPriceData[0].markPrice : markPriceData.markPrice);
+          const rawFallbackPrice = parseFloat(Array.isArray(markPriceData) ? markPriceData[0].markPrice : markPriceData.markPrice);
+
+          // Format price according to symbol's tick size
+          fallbackPrice = symbolPrecision.hasSymbol(symbol)
+            ? symbolPrecision.formatPrice(symbol, rawFallbackPrice)
+            : rawFallbackPrice;
 
           // Calculate quantity for fallback order
           let fallbackNotionalUSDT = symbolConfig.tradeSize * symbolConfig.leverage;
@@ -619,10 +641,15 @@ export class Hunter extends EventEmitter {
             fallbackNotionalUSDT = fallbackMinNotional * 1.01; // Add 1% buffer
           }
 
-          const fallbackQuantityPrecision = fallbackSymbolInfo.quantityPrecision || 8;
-          fallbackQuantity = parseFloat((fallbackNotionalUSDT / fallbackPrice).toFixed(fallbackQuantityPrecision));
+          // Calculate raw quantity
+          const rawFallbackQuantity = fallbackNotionalUSDT / fallbackPrice;
 
-          console.log(`Hunter: Fallback calculation for ${symbol}: margin=${symbolConfig.tradeSize} USDT, leverage=${symbolConfig.leverage}x, price=${fallbackPrice}, notional=${fallbackNotionalUSDT} USDT, quantity=${fallbackQuantity}, precision=${fallbackQuantityPrecision}`);
+          // Format quantity according to symbol's step size
+          fallbackQuantity = symbolPrecision.hasSymbol(symbol)
+            ? symbolPrecision.formatQuantity(symbol, rawFallbackQuantity)
+            : parseFloat(rawFallbackQuantity.toFixed(fallbackSymbolInfo.quantityPrecision || 8));
+
+          console.log(`Hunter: Fallback calculation for ${symbol}: margin=${symbolConfig.tradeSize} USDT, leverage=${symbolConfig.leverage}x, price=${fallbackPrice}, notional=${fallbackNotionalUSDT} USDT, quantity=${fallbackQuantity}`);
 
           const fallbackPositionSide = getPositionSide(this.isHedgeMode, side) as 'BOTH' | 'LONG' | 'SHORT';
           console.log(`Hunter: Using position mode: ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'}, side: ${side}, positionSide: ${fallbackPositionSide}`);
