@@ -22,6 +22,7 @@ import RecentOrdersTable from '@/components/RecentOrdersTable';
 import { useConfig } from '@/components/ConfigProvider';
 import websocketService from '@/lib/services/websocketService';
 import { useOrderNotifications } from '@/hooks/useOrderNotifications';
+import { useErrorToasts } from '@/hooks/useErrorToasts';
 import { useWebSocketUrl } from '@/hooks/useWebSocketUrl';
 import { RateLimitToastListener } from '@/hooks/useRateLimitToasts';
 import dataStore, { AccountInfo, Position } from '@/lib/services/dataStore';
@@ -48,6 +49,9 @@ export default function DashboardPage() {
 
   // Initialize order notifications with configurable URL
   useOrderNotifications(wsUrl || undefined);
+
+  // Initialize error toasts with configurable URL
+  useErrorToasts(wsUrl || undefined);
 
   useEffect(() => {
     // Update websocketService URL when wsUrl is available

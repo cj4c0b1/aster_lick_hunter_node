@@ -376,4 +376,72 @@ export class StatusBroadcaster extends EventEmitter {
     // Forward the raw ORDER_TRADE_UPDATE event to web UI
     this._broadcast('order_update', orderEvent);
   }
+
+  // Broadcast error events to web UI for toast notifications
+  broadcastError(type: 'websocket' | 'api' | 'trading' | 'config' | 'general', data: {
+    title: string;
+    message: string;
+    details?: {
+      errorCode?: string;
+      component?: string;
+      symbol?: string;
+      timestamp?: string;
+      stackTrace?: string;
+      rawError?: any;
+    };
+  }): void {
+    // Also log to console for server-side debugging
+    console.error(`[${type.toUpperCase()} ERROR] ${data.title}: ${data.message}`);
+    if (data.details) {
+      console.error('Details:', data.details);
+    }
+
+    // Broadcast to web UI
+    this._broadcast(`${type}_error`, {
+      title: data.title,
+      message: data.message,
+      details: {
+        ...data.details,
+        timestamp: data.details?.timestamp || new Date().toISOString(),
+      },
+    });
+
+    // Also add to status errors for backward compatibility
+    if (type === 'config' || type === 'api') {
+      this.addError(`${data.title}: ${data.message}`);
+    }
+  }
+
+  // Convenience methods for specific error types
+  broadcastWebSocketError(title: string, message: string, details?: any): void {
+    this.broadcastError('websocket', {
+      title,
+      message,
+      details,
+    });
+  }
+
+  broadcastApiError(title: string, message: string, details?: any): void {
+    this.broadcastError('api', {
+      title,
+      message,
+      details,
+    });
+  }
+
+  broadcastTradingError(title: string, message: string, details?: any): void {
+    this.broadcastError('trading', {
+      title,
+      message,
+      details,
+    });
+  }
+
+  broadcastConfigError(title: string, message: string, details?: any): void {
+    this.broadcastError('config', {
+      title,
+      message,
+      details,
+    });
+  }
 }

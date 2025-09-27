@@ -248,10 +248,31 @@ export class PositionManager extends EventEmitter implements PositionTracker {
 
     this.ws.on('error', (error) => {
       console.error('PositionManager WS error:', error);
+      // Broadcast error to UI
+      if (this.statusBroadcaster) {
+        this.statusBroadcaster.broadcastWebSocketError(
+          'Position Manager WebSocket Error',
+          'User data stream connection error. Reconnecting...',
+          {
+            component: 'PositionManager',
+            rawError: error,
+          }
+        );
+      }
     });
 
     this.ws.on('close', () => {
       console.log('PositionManager WS closed - reconnecting...');
+      // Broadcast reconnection attempt to UI
+      if (this.statusBroadcaster) {
+        this.statusBroadcaster.broadcastWebSocketError(
+          'Position Manager Disconnected',
+          'User data stream closed. Reconnecting in 5 seconds...',
+          {
+            component: 'PositionManager',
+          }
+        );
+      }
       if (this.isRunning) {
         // Re-sync with exchange on reconnect
         setTimeout(async () => {
@@ -1030,6 +1051,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
             console.log(`PositionManager: Cancelled duplicate SL order ${existingSlOrders[i].orderId}`);
           } catch (error: any) {
             console.error(`PositionManager: Failed to cancel duplicate SL order ${existingSlOrders[i].orderId}:`, error?.response?.data || error?.message);
+            // Non-critical error - duplicate cancellation failure
           }
         }
       }
@@ -1043,6 +1065,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
             console.log(`PositionManager: Cancelled duplicate TP order ${existingTpOrders[i].orderId}`);
           } catch (error: any) {
             console.error(`PositionManager: Failed to cancel duplicate TP order ${existingTpOrders[i].orderId}:`, error?.response?.data || error?.message);
+            // Non-critical error - duplicate cancellation failure
           }
         }
       }
@@ -1287,7 +1310,22 @@ export class PositionManager extends EventEmitter implements PositionTracker {
 
       this.positionOrders.set(key, orders);
     } catch (error: any) {
+      const errorMsg = error.response?.data?.msg || error.message || 'Unknown error';
       console.error(`PositionManager: Failed to place protective orders for ${symbol}:`, error.response?.data || error.message);
+
+      // Broadcast error to UI
+      if (this.statusBroadcaster) {
+        this.statusBroadcaster.broadcastTradingError(
+          `Failed to Place Protective Orders - ${symbol}`,
+          errorMsg,
+          {
+            component: 'PositionManager',
+            symbol,
+            errorCode: error.response?.data?.code,
+            rawError: error.response?.data || error,
+          }
+        );
+      }
     }
   }
 
