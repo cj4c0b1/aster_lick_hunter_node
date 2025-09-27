@@ -31,8 +31,23 @@ A smart trading bot that monitors and trades liquidation events on Aster DEX. Fe
 **[🎥 Watch Complete Setup Tutorial](https://www.youtube.com/watch?v=Np9LZpWUhXY)** - Follow along with this step-by-step video guide!
 
 ### Prerequisites
-- [Node.js 20+](https://nodejs.org/)
-- [Aster DEX Account](https://www.asterdex.com/en/referral/3TixB2)
+
+Before installing the bot, make sure you have the following installed on your system:
+
+1. **Node.js v20.0.0 or higher** (Required)
+   - Download from: https://nodejs.org/
+   - Verify installation: `node --version` (should show v20.x.x or higher)
+   - Includes npm (Node Package Manager) which is required for installation
+
+2. **Git** (Required for cloning the repository)
+   - Windows: Download from https://git-scm.com/download/win
+   - macOS: Install via Homebrew `brew install git` or from https://git-scm.com/download/mac
+   - Linux: `sudo apt-get install git` (Ubuntu/Debian) or `sudo yum install git` (RHEL/CentOS)
+   - Verify installation: `git --version`
+
+3. **Aster DEX Account** (Required for live trading)
+   - Create account at: https://www.asterdex.com/en/referral/3TixB2
+   - Generate API keys for bot access (see Configuration section)
 
 ### Installation
 
