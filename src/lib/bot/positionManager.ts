@@ -75,6 +75,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
   private statusBroadcaster: any; // Will be injected
   private isHedgeMode: boolean;
   private orderPlacementLocks: Set<string> = new Set(); // Prevent concurrent order placement for same position
+  private symbolLeverage: Map<string, number> = new Map(); // Track leverage per symbol from ACCOUNT_CONFIG_UPDATE
 
   constructor(config: Config, isHedgeMode: boolean = false) {
     super();
@@ -527,6 +528,26 @@ export class PositionManager extends EventEmitter implements PositionTracker {
       this.handleAccountUpdate(event);
     } else if (event.e === 'ORDER_TRADE_UPDATE') {
       this.handleOrderUpdate(event);
+    } else if (event.e === 'ACCOUNT_CONFIG_UPDATE') {
+      this.handleAccountConfigUpdate(event);
+    }
+  }
+
+  private handleAccountConfigUpdate(event: any): void {
+    // Handle ACCOUNT_CONFIG_UPDATE events which contain leverage information
+    if (event.ac) {
+      const { s: symbol, l: leverage } = event.ac;
+      if (symbol && leverage !== undefined) {
+        console.log(`PositionManager: Leverage update for ${symbol}: ${leverage}x`);
+        this.symbolLeverage.set(symbol, leverage);
+
+        // Update leverage for any existing positions of this symbol
+        for (const [key, position] of this.currentPositions.entries()) {
+          if (position.symbol === symbol) {
+            position.leverage = leverage.toString();
+          }
+        }
+      }
     }
   }
 
@@ -628,6 +649,10 @@ export class PositionManager extends EventEmitter implements PositionTracker {
           // Update tracking
           this.previousPositionSizes.set(key, currentSize);
 
+          // Get leverage from our tracking or use '0' as placeholder
+          const trackedLeverage = this.symbolLeverage.get(pos.s);
+          const leverage = trackedLeverage ? trackedLeverage.toString() : '0';
+
           this.currentPositions.set(key, {
             symbol: pos.s,
             positionAmt: pos.pa,
@@ -635,7 +660,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
             markPrice: pos.mp || '0',
             unRealizedProfit: pos.up,
             liquidationPrice: pos.lp || '0',
-            leverage: pos.l || '0',
+            leverage: leverage, // Use tracked leverage or '0' if not yet received
             marginType: pos.mt,
             isolatedMargin: pos.iw || '0',
             isAutoAddMargin: pos.iam || 'false',
@@ -1665,15 +1690,22 @@ export class PositionManager extends EventEmitter implements PositionTracker {
 
           // Handle invalid leverage (0, NaN, or undefined)
           if (!leverage || leverage === 0 || isNaN(leverage)) {
-            // Try to use configured leverage as fallback
-            const symbolConfig = this.config.symbols[symbol];
-            if (symbolConfig && symbolConfig.leverage) {
-              console.log(`PositionManager: Warning - Invalid leverage (${position.leverage}) for ${symbol} position, using configured leverage: ${symbolConfig.leverage}`);
-              leverage = symbolConfig.leverage;
+            // First try to use tracked leverage from ACCOUNT_CONFIG_UPDATE
+            const trackedLeverage = this.symbolLeverage.get(symbol);
+            if (trackedLeverage) {
+              console.log(`PositionManager: Using tracked leverage for ${symbol}: ${trackedLeverage}x`);
+              leverage = trackedLeverage;
             } else {
-              // Last resort: assume leverage of 1 (no leverage)
-              console.log(`PositionManager: Warning - Invalid leverage (${position.leverage}) for ${symbol} position and no config found, defaulting to 1x`);
-              leverage = 1;
+              // Then try to use configured leverage as fallback
+              const symbolConfig = this.config.symbols[symbol];
+              if (symbolConfig && symbolConfig.leverage) {
+                console.log(`PositionManager: Warning - No tracked leverage for ${symbol}, using configured leverage: ${symbolConfig.leverage}`);
+                leverage = symbolConfig.leverage;
+              } else {
+                // Last resort: assume leverage of 1 (no leverage)
+                console.log(`PositionManager: Warning - No tracked leverage for ${symbol} and no config found, defaulting to 1x`);
+                leverage = 1;
+              }
             }
           }
 
