@@ -97,6 +97,14 @@ class AsterBot {
 
       configManager.on('config:error', (error) => {
         console.error('❌ Config error:', error.message);
+        this.statusBroadcaster.broadcastConfigError(
+          'Configuration Error',
+          error.message,
+          {
+            component: 'AsterBot',
+            rawError: error,
+          }
+        );
         this.statusBroadcaster.addError(`Config: ${error.message}`);
       });
 
@@ -109,6 +117,13 @@ class AsterBot {
         console.log('   Please configure your API keys via the web interface at http://localhost:3000/config');
         if (!this.config.global.paperMode) {
           console.error('❌ Cannot run in LIVE mode without API keys!');
+          this.statusBroadcaster.broadcastConfigError(
+            'Invalid Configuration',
+            'Cannot run in LIVE mode without API keys. Please configure your API keys or enable paper mode.',
+            {
+              component: 'AsterBot',
+            }
+          );
           throw new Error('API keys required for live trading');
         }
       }
@@ -130,6 +145,14 @@ class AsterBot {
           console.log('✅ Balance service initialized and connected to WebSocket broadcaster');
         } catch (error) {
           console.error('Failed to initialize balance service:', error);
+          this.statusBroadcaster.broadcastApiError(
+            'Balance Service Initialization Failed',
+            'Failed to connect to balance service. Some features may be unavailable.',
+            {
+              component: 'AsterBot',
+              rawError: error,
+            }
+          );
           // Continue anyway - bot can work without balance service
         }
 
@@ -158,7 +181,17 @@ class AsterBot {
                   console.log(`⚠️  Cannot change position mode: Open orders exist`);
                   console.log(`📊 Using current exchange position mode: ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'}`);
                 } else {
+                  const errorMsg = error?.response?.data?.msg || error?.message || 'Unknown error';
                   console.error('❌ Failed to change position mode:', error?.response?.data || error);
+                  this.statusBroadcaster.broadcastConfigError(
+                    'Position Mode Change Failed',
+                    `Failed to change position mode: ${errorMsg}`,
+                    {
+                      component: 'AsterBot',
+                      errorCode: error?.response?.data?.code,
+                      rawError: error?.response?.data || error,
+                    }
+                  );
                   console.log(`📊 Using current exchange position mode: ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'}`);
                 }
               }
@@ -166,6 +199,14 @@ class AsterBot {
           }
         } catch (error) {
           console.error('⚠️  Failed to check position mode, assuming ONE-WAY mode:', error);
+          this.statusBroadcaster.broadcastApiError(
+            'Position Mode Check Failed',
+            'Failed to check position mode from exchange. Assuming ONE-WAY mode.',
+            {
+              component: 'AsterBot',
+              rawError: error,
+            }
+          );
           this.isHedgeMode = false;
         }
 
