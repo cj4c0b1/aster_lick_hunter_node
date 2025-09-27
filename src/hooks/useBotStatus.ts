@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useWebSocketConfig } from '@/providers/WebSocketProvider';
 
 export interface BotStatus {
   isRunning: boolean;
@@ -19,7 +20,9 @@ export interface UseBotStatusReturn {
   reconnect: () => void;
 }
 
-export function useBotStatus(url: string = 'ws://localhost:8080'): UseBotStatusReturn {
+export function useBotStatus(customUrl?: string): UseBotStatusReturn {
+  const { wsUrl } = useWebSocketConfig();
+  const url = customUrl || wsUrl;
   const [status, setStatus] = useState<BotStatus | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState<string | null>(null);

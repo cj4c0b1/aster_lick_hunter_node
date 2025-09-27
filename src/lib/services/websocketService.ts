@@ -17,6 +17,7 @@ class WebSocketService {
 
   constructor(url?: string) {
     // Will be set dynamically based on config
+    // Initial URL will be updated when WebSocketProvider loads config
     this.url = url || 'ws://localhost:8080';
   }
 

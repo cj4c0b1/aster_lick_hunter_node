@@ -99,6 +99,34 @@ npm run dev
 - Position size limits
 - WebSocket auto-reconnection
 
+## 🌐 Remote Access Configuration
+
+The bot supports remote access, allowing you to monitor and control it from any device on your network.
+
+### Enable Remote WebSocket Access
+
+1. **Via Web UI** (Recommended):
+   - Navigate to http://localhost:3000/config
+   - Go to "Server Settings" section
+   - Toggle "Enable Remote WebSocket Access"
+   - Save configuration
+   - Access from remote device: `http://your_server_ip:3000`
+
+2. **Via Environment Variable** (Advanced):
+   - Copy `.env.example` to `.env.local`
+   - Set `NEXT_PUBLIC_WS_HOST=your_server_ip`
+   - Restart the application
+
+### Remote Access Options
+
+| Method | Description | Use Case |
+|--------|-------------|----------|
+| Auto-detect | Automatically uses browser's hostname | Default - works for most setups |
+| Config Host | Set specific host in config UI | When using specific hostname/domain |
+| Environment Variable | Override via `NEXT_PUBLIC_WS_HOST` | Docker/cloud deployments |
+
+**Note**: When accessing remotely, ensure port 8080 (WebSocket) is accessible on your network.
+
 ## 📱 Configuration Options
 
 All settings available in the web UI:

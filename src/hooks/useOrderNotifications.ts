@@ -1,12 +1,15 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
+import { useWebSocketConfig } from '@/providers/WebSocketProvider';
 
 interface OrderEvent {
   type: string;
   data: any;
 }
 
-export function useOrderNotifications(wsUrl: string = 'ws://localhost:8080') {
+export function useOrderNotifications(customWsUrl?: string) {
+  const { wsUrl: defaultWsUrl } = useWebSocketConfig();
+  const wsUrl = customWsUrl || defaultWsUrl;
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 

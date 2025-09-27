@@ -7,6 +7,7 @@ import {
   showErrorToast,
   ErrorDetails
 } from '@/lib/utils/errorToast';
+import { useWebSocketConfig } from '@/providers/WebSocketProvider';
 
 interface ErrorEvent {
   type: 'websocket_error' | 'api_error' | 'trading_error' | 'config_error' | 'general_error';
@@ -17,7 +18,9 @@ interface ErrorEvent {
   };
 }
 
-export function useErrorToasts(wsUrl: string = 'ws://localhost:8080') {
+export function useErrorToasts(customWsUrl?: string) {
+  const { wsUrl: defaultWsUrl } = useWebSocketConfig();
+  const wsUrl = customWsUrl || defaultWsUrl;
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hasShownConnectionError = useRef(false);
