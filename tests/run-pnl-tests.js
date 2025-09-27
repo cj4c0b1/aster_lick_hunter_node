@@ -10,8 +10,8 @@
  *   npm run test:pnl (if added to package.json)
  */
 
-const fs = require('fs');
-const path = require('path');
+// const fs = require('fs');
+// const path = require('path');
 const { loadTestConfig } = require('./loadTestConfig');
 
 // Import all test suites
@@ -184,7 +184,7 @@ function generateTroubleshootingGuide() {
 
   logSection('Troubleshooting Guide');
 
-  failedSuites.forEach(([name, result]) => {
+  failedSuites.forEach(([name, _result]) => {
     console.log(`\n❌ ${name} Failed`);
 
     switch (name) {

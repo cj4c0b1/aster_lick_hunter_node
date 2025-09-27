@@ -72,6 +72,26 @@ npm run bot        # Run bot only
 npm test           # Run tests
 ```
 
+## 🔄 Updating the Bot
+
+When pulling updates from the repository:
+
+```bash
+# 1. Pull latest changes
+git pull
+
+# 2. Install any new dependencies
+npm install
+
+# 3. Build the project
+npm run build
+
+# 4. Run the bot
+npm run dev
+```
+
+**Note**: The `npm install` step is crucial as dependencies may have changed between versions.
+
 ## 🛡️ Safety Features
 
 - Paper mode for testing
