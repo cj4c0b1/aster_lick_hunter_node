@@ -298,6 +298,7 @@ export class StatusBroadcaster extends EventEmitter {
     executedQty: number;
     price: number;
     orderId?: string;
+    pnl?: number;
   }): void {
     this._broadcast('order_filled', {
       ...data,

@@ -71,22 +71,24 @@ export function useOrderNotifications(wsUrl: string = 'ws://localhost:8080') {
             }
 
             case 'order_filled': {
-              const { symbol, side, executedQty, price, orderType } = message.data;
+              const { symbol, side, executedQty, price, orderType, pnl } = message.data;
               const priceStr = price ? ` at $${formatPrice(price)}` : '';
+              const pnlStr = pnl !== undefined && pnl !== 0 ? ` • PnL: ${formatPnL(pnl)}` : '';
 
               if (orderType === 'STOP_MARKET' || orderType === 'STOP') {
                 toast.warning(
                   `🛑 Stop loss triggered for ${symbol}`,
                   {
-                    description: `${formatQuantity(executedQty)} units${priceStr}`,
+                    description: `${formatQuantity(executedQty)} units${priceStr}${pnlStr}`,
                     duration: 5000,
                   }
                 );
               } else if (orderType === 'TAKE_PROFIT_MARKET' || orderType === 'TAKE_PROFIT') {
-                toast.success(
+                const toastType = pnl && pnl > 0 ? 'success' : pnl && pnl < 0 ? 'warning' : 'success';
+                toast[toastType](
                   `🎯 Take profit hit for ${symbol}`,
                   {
-                    description: `${formatQuantity(executedQty)} units${priceStr}`,
+                    description: `${formatQuantity(executedQty)} units${priceStr}${pnlStr}`,
                     duration: 5000,
                   }
                 );
