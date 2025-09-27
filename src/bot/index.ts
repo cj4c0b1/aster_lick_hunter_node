@@ -7,7 +7,7 @@ import { StatusBroadcaster } from './websocketServer';
 import { initializeBalanceService, stopBalanceService, getBalanceService } from '../lib/services/balanceService';
 import { initializePriceService, stopPriceService, getPriceService } from '../lib/services/priceService';
 import { vwapStreamer } from '../lib/services/vwapStreamer';
-import { getPositionMode } from '../lib/api/positionMode';
+import { getPositionMode, setPositionMode } from '../lib/api/positionMode';
 import { execSync } from 'child_process';
 import { cleanupScheduler } from '../lib/services/cleanupScheduler';
 import { db } from '../lib/db/database';
@@ -138,15 +138,30 @@ class AsterBot {
           this.isHedgeMode = await getPositionMode(this.config.api);
           console.log(`📊 Position Mode: ${this.isHedgeMode ? 'HEDGE MODE' : 'ONE-WAY MODE'}`);
 
-          // If config specifies a position mode and it differs from current, optionally set it
+          // If config specifies a position mode and it differs from current, automatically set it
           if (this.config.global.positionMode) {
             const wantHedgeMode = this.config.global.positionMode === 'HEDGE';
             if (wantHedgeMode !== this.isHedgeMode) {
               console.log(`⚠️  Config specifies ${this.config.global.positionMode} mode but account is in ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'} mode`);
-              // Uncomment the next lines to automatically change position mode
-              // await setPositionMode(wantHedgeMode, this.config.api);
-              // this.isHedgeMode = wantHedgeMode;
-              // console.log(`✅ Position mode changed to ${this.config.global.positionMode}`);
+              console.log(`🔄 Automatically changing position mode to match config...`);
+
+              try {
+                await setPositionMode(wantHedgeMode, this.config.api);
+                this.isHedgeMode = wantHedgeMode;
+                console.log(`✅ Position mode successfully changed to ${this.config.global.positionMode}`);
+              } catch (error: any) {
+                // Check if error is because of open positions
+                if (error?.response?.data?.code === -5021) {
+                  console.log(`⚠️  Cannot change position mode: Open positions exist`);
+                  console.log(`📊 Using current exchange position mode: ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'}`);
+                } else if (error?.response?.data?.code === -5020) {
+                  console.log(`⚠️  Cannot change position mode: Open orders exist`);
+                  console.log(`📊 Using current exchange position mode: ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'}`);
+                } else {
+                  console.error('❌ Failed to change position mode:', error?.response?.data || error);
+                  console.log(`📊 Using current exchange position mode: ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'}`);
+                }
+              }
             }
           }
         } catch (error) {

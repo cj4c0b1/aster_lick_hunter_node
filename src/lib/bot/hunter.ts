@@ -490,12 +490,15 @@ export class Hunter extends EventEmitter {
       console.log(`Hunter: Calculated quantity for ${symbol}: margin=${tradeSizeUSDT} USDT (${side === 'BUY' ? 'long' : 'short'}), leverage=${symbolConfig.leverage}x, price=${currentPrice}, notional=${notionalUSDT} USDT, quantity=${quantity}`);
 
       // Prepare order parameters
+      const positionSide = getPositionSide(this.isHedgeMode, side);
+      console.log(`Hunter: Using position mode: ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'}, side: ${side}, positionSide: ${positionSide}`);
+
       const orderParams: any = {
         symbol,
         side,
         type: orderType,
         quantity,
-        positionSide: getPositionSide(this.isHedgeMode, side),
+        positionSide,
       };
 
       // Add price for limit orders
@@ -621,12 +624,15 @@ export class Hunter extends EventEmitter {
 
           console.log(`Hunter: Fallback calculation for ${symbol}: margin=${symbolConfig.tradeSize} USDT, leverage=${symbolConfig.leverage}x, price=${fallbackPrice}, notional=${fallbackNotionalUSDT} USDT, quantity=${fallbackQuantity}, precision=${fallbackQuantityPrecision}`);
 
+          const fallbackPositionSide = getPositionSide(this.isHedgeMode, side) as 'BOTH' | 'LONG' | 'SHORT';
+          console.log(`Hunter: Using position mode: ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'}, side: ${side}, positionSide: ${fallbackPositionSide}`);
+
           const fallbackOrder = await placeOrder({
             symbol,
             side,
             type: 'MARKET',
             quantity: fallbackQuantity,
-            positionSide: getPositionSide(this.isHedgeMode, side) as 'BOTH' | 'LONG' | 'SHORT',
+            positionSide: fallbackPositionSide,
           }, this.config.api);
 
           console.log(`Hunter: Fallback market order placed for ${symbol}, orderId: ${fallbackOrder.orderId}`);

@@ -1088,6 +1088,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
         console.log(`  SL price: ${slPrice.toFixed(4)}`);
         console.log(`  TP price: ${tpPrice.toFixed(4)}`);
         console.log(`  Side: ${side}`);
+        console.log(`  Position Mode: ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'}`);
         console.log(`  Position Side: ${orderPositionSide}`);
 
         // Place both orders in a single batch request (saves 1 API call)
