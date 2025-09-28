@@ -36,6 +36,7 @@ import { useBotStatus } from "@/hooks/useBotStatus"
 import { useWebSocketUrl } from '@/hooks/useWebSocketUrl'
 import websocketService from '@/lib/services/websocketService'
 import dataStore from '@/lib/services/dataStore'
+import { VersionChecker } from '@/components/VersionChecker'
 
 const navigation = [
   {
@@ -228,23 +229,29 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter>
-        <div className="px-2 py-1.5 text-xs text-muted-foreground">
-          <div className="flex items-center justify-between">
-            <span>Connection</span>
-            <div className="flex items-center gap-1">
-              {isConnected ? (
-                <>
-                  <Activity className="h-3 w-3 text-green-500 animate-pulse" />
-                  <span className="text-green-500">Connected</span>
-                </>
-              ) : (
-                <>
-                  <Activity className="h-3 w-3 text-red-500" />
-                  <span className="text-red-500">Disconnected</span>
-                </>
-              )}
+        <div className="space-y-1">
+          {/* Connection Status */}
+          <div className="px-2 py-1.5 text-xs text-muted-foreground">
+            <div className="flex items-center justify-between">
+              <span>Connection</span>
+              <div className="flex items-center gap-1">
+                {isConnected ? (
+                  <>
+                    <Activity className="h-3 w-3 text-green-500 animate-pulse" />
+                    <span className="text-green-500">Connected</span>
+                  </>
+                ) : (
+                  <>
+                    <Activity className="h-3 w-3 text-red-500" />
+                    <span className="text-red-500">Disconnected</span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* Version Status */}
+          <VersionChecker />
         </div>
       </SidebarFooter>
 
