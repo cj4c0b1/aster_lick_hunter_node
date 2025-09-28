@@ -1,5 +1,9 @@
 name: Claude Code
 
+# SECURITY NOTE: This workflow responds to @claude mentions in issues and PRs.
+# It works with fork PRs because issue_comment and pull_request_review_comment
+# events run in the base repository context with access to secrets.
+# Claude only reads code and posts comments (no code execution from PRs).
 on:
   issue_comment:
     types: [created]
