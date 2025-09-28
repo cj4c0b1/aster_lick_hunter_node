@@ -28,6 +28,7 @@ export class Hunter extends EventEmitter {
   private statusBroadcaster: any; // Will be injected
   private isHedgeMode: boolean;
   private positionTracker: PositionTracker | null = null;
+  private pendingOrders: Map<string, { symbol: string, side: 'BUY' | 'SELL', timestamp: number }> = new Map(); // Track orders placed but not yet filled
 
   constructor(config: Config, isHedgeMode: boolean = false) {
     super();
@@ -43,6 +44,17 @@ export class Hunter extends EventEmitter {
   // Set position tracker for position limit checks
   public setPositionTracker(tracker: PositionTracker): void {
     this.positionTracker = tracker;
+
+    // Listen for order events from PositionManager
+    if (tracker && 'on' in tracker) {
+      (tracker as any).on('orderFilled', (data: any) => {
+        this.removePendingOrder(data.orderId?.toString());
+      });
+
+      (tracker as any).on('orderCancelled', (data: any) => {
+        this.removePendingOrder(data.orderId?.toString());
+      });
+    }
   }
 
   // Update configuration dynamically
@@ -101,6 +113,48 @@ export class Hunter extends EventEmitter {
             oldSym.shortVolumeThresholdUSDT !== newSym.shortVolumeThresholdUSDT) {
           console.log(`Hunter: ${symbol} volume thresholds updated`);
         }
+      }
+    }
+  }
+
+  // Helper methods for pending order management
+  private addPendingOrder(orderId: string, symbol: string, side: 'BUY' | 'SELL'): void {
+    this.pendingOrders.set(orderId, { symbol, side, timestamp: Date.now() });
+    console.log(`Hunter: Added pending order ${orderId} for ${symbol} ${side}. Total pending: ${this.pendingOrders.size}`);
+  }
+
+  private removePendingOrder(orderId: string): void {
+    if (this.pendingOrders.delete(orderId)) {
+      console.log(`Hunter: Removed pending order ${orderId}. Total pending: ${this.pendingOrders.size}`);
+    }
+  }
+
+  private getPendingOrderCount(): number {
+    // In hedge mode, count unique symbols (long and short on same symbol = 1 position)
+    if (this.isHedgeMode) {
+      const uniqueSymbols = new Set([...this.pendingOrders.values()].map(o => o.symbol));
+      return uniqueSymbols.size;
+    }
+    // In one-way mode, each order is a separate position
+    return this.pendingOrders.size;
+  }
+
+  private hasPendingOrderForSymbol(symbol: string): boolean {
+    for (const order of this.pendingOrders.values()) {
+      if (order.symbol === symbol) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Clean up stale pending orders (older than 5 minutes)
+  private cleanStalePendingOrders(): void {
+    const staleTime = Date.now() - 5 * 60 * 1000; // 5 minutes
+    for (const [orderId, order] of this.pendingOrders.entries()) {
+      if (order.timestamp < staleTime) {
+        console.log(`Hunter: Cleaning stale pending order ${orderId} for ${order.symbol}`);
+        this.pendingOrders.delete(orderId);
       }
     }
   }
@@ -435,17 +489,31 @@ export class Hunter extends EventEmitter {
     let quantity: number = 0;
     let notionalUSDT: number = 0;
     let tradeSizeUSDT: number = symbolConfig.tradeSize; // Default to general tradeSize
+    let order: any; // Declare order variable for error handling
 
     try {
       // Check position limits before placing trade
       if (this.positionTracker && !this.config.global.paperMode) {
-        // Check global max positions limit
+        // Check if we already have a pending order for this symbol
+        if (this.hasPendingOrderForSymbol(symbol)) {
+          console.log(`Hunter: Skipping trade - already have pending order for ${symbol}`);
+          return;
+        }
+
+        // Check global max positions limit (including pending orders)
         const maxPositions = this.config.global.maxOpenPositions || 10;
         const currentPositionCount = this.positionTracker.getUniquePositionCount(this.isHedgeMode);
+        const pendingOrderCount = this.getPendingOrderCount();
+        const totalPositions = currentPositionCount + pendingOrderCount;
 
-        if (currentPositionCount >= maxPositions) {
-          console.log(`Hunter: Skipping trade - max positions reached (${currentPositionCount}/${maxPositions})`);
+        if (totalPositions >= maxPositions) {
+          console.log(`Hunter: Skipping trade - max positions reached (current: ${currentPositionCount}, pending: ${pendingOrderCount}, max: ${maxPositions})`);
           return;
+        }
+
+        // Clean up stale pending orders periodically
+        if (Math.random() < 0.1) { // 10% chance to clean on each trade attempt
+          this.cleanStalePendingOrders();
         }
 
         // Check symbol-specific margin limit
@@ -593,10 +661,15 @@ export class Hunter extends EventEmitter {
       }
 
       // Place the order
-      const order = await placeOrder(orderParams, this.config.api);
+      order = await placeOrder(orderParams, this.config.api);
 
       const displayPrice = orderType === 'LIMIT' ? ` at ${orderPrice}` : '';
       console.log(`Hunter: Placed ${orderType} ${side} order for ${symbol}${displayPrice}, orderId: ${order.orderId}`);
+
+      // Track this order as pending
+      if (order.orderId) {
+        this.addPendingOrder(order.orderId.toString(), symbol, side);
+      }
 
       // Broadcast order placed event
       if (this.statusBroadcaster) {
@@ -622,6 +695,11 @@ export class Hunter extends EventEmitter {
       });
 
     } catch (error: any) {
+      // Remove pending order if it was tracked but failed
+      if (order && order.orderId) {
+        this.removePendingOrder(order.orderId.toString());
+      }
+
       // Parse the error with context
       const tradingError = parseExchangeError(error, {
         symbol,
@@ -830,6 +908,11 @@ export class Hunter extends EventEmitter {
           }, this.config.api);
 
           console.log(`Hunter: Fallback market order placed for ${symbol}, orderId: ${fallbackOrder.orderId}`);
+
+          // Track fallback order as pending
+          if (fallbackOrder.orderId) {
+            this.addPendingOrder(fallbackOrder.orderId.toString(), symbol, side);
+          }
 
           // Broadcast fallback order placed event
           if (this.statusBroadcaster) {
