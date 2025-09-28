@@ -35,9 +35,6 @@ jobs:
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1
-        env:
-          ACTIONS_ID_TOKEN_REQUEST_URL: ""
-          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ""
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

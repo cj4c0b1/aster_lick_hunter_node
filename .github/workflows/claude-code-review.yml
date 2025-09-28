@@ -1,7 +1,12 @@
 name: Claude Code Review
 
+# SECURITY NOTE: This workflow uses pull_request_target instead of pull_request
+# to support automated reviews on PRs from forks. This is safe because:
+# 1. Claude only reads code and posts comments (no code execution)
+# 2. The workflow doesn't checkout or run any code from the PR
+# 3. All operations are read-only except for posting review comments
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize]
     # Optional: Only run on specific file changes
     # paths:
@@ -36,9 +41,6 @@ jobs:
       - name: Run Claude Code Review
         id: claude-review
         uses: anthropics/claude-code-action@v1
-        env:
-          ACTIONS_ID_TOKEN_REQUEST_URL: ""
-          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ""
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
