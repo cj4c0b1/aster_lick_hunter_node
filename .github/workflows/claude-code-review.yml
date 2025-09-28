@@ -1,12 +1,7 @@
 name: Claude Code Review
 
-# SECURITY NOTE: This workflow uses pull_request_target instead of pull_request
-# to support automated reviews on PRs from forks. This is safe because:
-# 1. Claude only reads code and posts comments (no code execution)
-# 2. The workflow doesn't checkout or run any code from the PR
-# 3. All operations are read-only except for posting review comments
 on:
-  pull_request_target:
+  pull_request:
     types: [opened, synchronize]
     # Optional: Only run on specific file changes
     # paths:
@@ -20,25 +15,46 @@ permissions:
   contents: read
   pull-requests: write
   issues: write
-  id-token: write  # Required for OIDC with pull_request_target
+  id-token: write
 
 jobs:
+  check-fork:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.head.repo.full_name != github.repository
+    steps:
+      - name: Comment on fork PR
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --body "## 🤖 Claude Code Review
+
+          This PR is from a fork and cannot be automatically reviewed due to GitHub Actions security limitations.
+
+          ### To get a Claude review:
+
+          **Option 1:** Use @claude mentions
+          - Comment \`@claude review this PR\` on this PR
+          - Claude will respond to your comment
+
+          **Option 2:** Manual workflow (for maintainers)
+          1. Go to [Actions tab](https://github.com/${{ github.repository }}/actions/workflows/claude-review-fork.yml)
+          2. Click 'Run workflow'
+          3. Enter PR number: ${{ github.event.pull_request.number }}
+          4. Claude will review and comment on this PR
+
+          *Note: Fork PRs cannot access repository secrets in automated workflows for security reasons.*"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   claude-review:
-    # Optional: Filter by PR author
-    # if: |
-    #   github.event.pull_request.user.login == 'external-contributor' ||
-    #   github.event.pull_request.user.login == 'new-developer' ||
-    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
-    
+    # Only run for PRs from the same repository (not forks)
+    if: github.event.pull_request.head.repo.full_name == github.repository
+
     runs-on: ubuntu-latest
     # Permissions inherited from workflow level
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          # For pull_request_target, we need to checkout the PR head
-          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 1
 
       - name: Run Claude Code Review
