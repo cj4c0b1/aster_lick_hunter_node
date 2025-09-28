@@ -29,10 +29,7 @@
       "Bash(npm run test:errors:*)",
       "Bash(npm test:*)",
       "Bash(npx jest:*)",
-      "WebFetch(domain:github.com)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "WebFetch(domain:github.com)"
     ],
     "deny": [],
     "ask": []
