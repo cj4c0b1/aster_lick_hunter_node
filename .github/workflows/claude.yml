@@ -10,6 +10,14 @@ on:
   pull_request_review:
     types: [submitted]
 
+# Set permissions at workflow level
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  actions: read
+  id-token: write
+
 jobs:
   claude:
     if: |
@@ -18,12 +26,7 @@ jobs:
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
       (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-      issues: write
-      actions: read # Required for Claude to read CI results on PRs
-      id-token: write  # Required for OIDC authentication
+    # Permissions inherited from workflow level
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
