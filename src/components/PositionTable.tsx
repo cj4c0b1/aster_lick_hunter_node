@@ -51,6 +51,48 @@ export default function PositionTable({
   const { config } = useConfig();
   const { formatPrice, formatQuantity, formatPriceWithCommas } = useSymbolPrecision();
 
+  // Initial load of VWAP data (fallback for when WebSocket is not yet connected)
+  const loadVWAPData = useCallback(async () => {
+    try {
+      // Only fetch for symbols with VWAP protection enabled
+      const symbolsWithVWAP = Object.entries(config?.symbols || {})
+        .filter(([_, cfg]) => cfg.vwapProtection)
+        .map(([symbol]) => symbol);
+
+      if (symbolsWithVWAP.length === 0) {
+        console.log('No symbols with VWAP protection enabled');
+        return;
+      }
+
+      console.log('Initial VWAP load for symbols:', symbolsWithVWAP);
+
+      const vwapPromises = symbolsWithVWAP.map(async (symbol) => {
+        try {
+          const response = await fetch(`/api/vwap/${symbol}`);
+          if (response.ok) {
+            const data = await response.json();
+            return { symbol, data };
+          }
+        } catch (error) {
+          console.error(`Failed to load initial VWAP for ${symbol}:`, error);
+        }
+        return null;
+      });
+
+      const results = await Promise.all(vwapPromises);
+      const vwapMap: Record<string, VWAPData> = {};
+      results.forEach(result => {
+        if (result) {
+          vwapMap[result.symbol] = result.data;
+        }
+      });
+      console.log('Final VWAP map:', vwapMap);
+      setVwapData(vwapMap);
+    } catch (error) {
+      console.error('Failed to load VWAP data:', error);
+    }
+  }, [config?.symbols]);
+
   // Load initial positions and set up WebSocket updates
   useEffect(() => {
     // Use data store if no positions passed as props
@@ -170,49 +212,8 @@ export default function PositionTable({
         cleanupVwap();
       };
     }
-  }, [positions.length]); // Only re-run when positions prop changes
+  }, [positions.length, loadVWAPData]); // Include loadVWAPData dependency
 
-  // Initial load of VWAP data (fallback for when WebSocket is not yet connected)
-  const loadVWAPData = useCallback(async () => {
-    try {
-      // Only fetch for symbols with VWAP protection enabled
-      const symbolsWithVWAP = Object.entries(config?.symbols || {})
-        .filter(([_, cfg]) => cfg.vwapProtection)
-        .map(([symbol]) => symbol);
-
-      if (symbolsWithVWAP.length === 0) {
-        console.log('No symbols with VWAP protection enabled');
-        return;
-      }
-
-      console.log('Initial VWAP load for symbols:', symbolsWithVWAP);
-
-      const vwapPromises = symbolsWithVWAP.map(async (symbol) => {
-        try {
-          const response = await fetch(`/api/vwap/${symbol}`);
-          if (response.ok) {
-            const data = await response.json();
-            return { symbol, data };
-          }
-        } catch (error) {
-          console.error(`Failed to load initial VWAP for ${symbol}:`, error);
-        }
-        return null;
-      });
-
-      const results = await Promise.all(vwapPromises);
-      const vwapMap: Record<string, VWAPData> = {};
-      results.forEach(result => {
-        if (result) {
-          vwapMap[result.symbol] = result.data;
-        }
-      });
-      console.log('Final VWAP map:', vwapMap);
-      setVwapData(vwapMap);
-    } catch (error) {
-      console.error('Failed to load VWAP data:', error);
-    }
-  }, [config?.symbols]);
 
   // Use passed positions if available, otherwise use fetched positions
   // Apply live mark prices to calculate real-time PnL
