@@ -122,7 +122,6 @@ export default function ErrorIssueGenerator({
 
   const generateAIDebugInfo = () => {
     const subCategory = getErrorSubCategory(error);
-    const labels = getGitHubLabels(error);
 
     let debugInfo = `## AI Debug Information\n\n`;
     debugInfo += `This error report is formatted for AI assistance (Claude, ChatGPT, etc.)\n\n`;
@@ -259,7 +258,7 @@ export default function ErrorIssueGenerator({
 
     setIssueBody(body);
     setIsGenerating(false);
-  }, [error, similarErrors, systemInfo]);
+  }, [error, similarErrors, systemInfo, generateAIDebugInfo, getGitHubLabels]);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);

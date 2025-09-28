@@ -78,6 +78,8 @@ export function useBotStatus(customUrl?: string): UseBotStatusReturn {
             case 'position_update':
             case 'liquidation':
             case 'trade_opportunity':
+            case 'vwap_update':
+            case 'vwap_bulk':
               // These messages are handled by other components, ignore silently
               break;
             default:

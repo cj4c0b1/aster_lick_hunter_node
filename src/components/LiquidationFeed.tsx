@@ -249,7 +249,7 @@ export default function LiquidationFeed({ volumeThresholds = {}, maxEvents = 50 
                 ))
               ) : events.length > 0 ? (
                 events.slice(0, maxEvents).map((event, index) => (
-                  <TableRow key={`${event.symbol}-${event.eventTime}-${index}`} className={event.isHighVolume ? 'bg-orange-50 dark:bg-orange-950/20' : ''}>
+                  <TableRow key={`liq-${index}-${event.symbol}-${event.eventTime}`} className={event.isHighVolume ? 'bg-orange-50 dark:bg-orange-950/20' : ''}>
                     <TableCell className="font-mono text-sm text-muted-foreground">
                       {formatTime(event.timestamp)}
                     </TableCell>

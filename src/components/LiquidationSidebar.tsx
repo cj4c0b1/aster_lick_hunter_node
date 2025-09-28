@@ -195,9 +195,9 @@ export default function LiquidationSidebar({ volumeThresholds = {}, maxEvents = 
               </div>
             ))
           ) : events.length > 0 ? (
-            events.map((event, _index) => {
-              const eventId = `${event.symbol}-${event.eventTime}`;
-              const isNew = newEventIds.has(eventId);
+            events.map((event, index) => {
+              const eventId = `${event.symbol}-${event.eventTime}-${index}`;
+              const isNew = newEventIds.has(`${event.symbol}-${event.eventTime}`);
               const _volumeColor = getVolumeColor(event.volume);
               const intensity = getLiquidationIntensity(event.volume);
               // SELL liquidation = Longs getting liquidated (should be GREEN - they were bullish)

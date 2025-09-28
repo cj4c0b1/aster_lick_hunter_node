@@ -82,7 +82,10 @@ export class StatusBroadcaster extends EventEmitter {
                 break;
 
               default:
-                console.log('Unknown message type:', message.type);
+                // Only log truly unknown message types
+                if (!['pong'].includes(message.type)) {
+                  console.log('Unknown message type:', message.type);
+                }
             }
           } catch (error) {
             console.error('Failed to parse WebSocket message:', error);
