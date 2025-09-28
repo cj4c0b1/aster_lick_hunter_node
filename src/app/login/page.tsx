@@ -33,8 +33,9 @@ function LoginForm() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        router.push(redirectUrl);
-        router.refresh();
+        // Use window.location for a full page reload to ensure cookies are properly set
+        // and middleware can properly authenticate the new session
+        window.location.href = redirectUrl;
       } else {
         setError(data.error || 'Invalid password');
       }
