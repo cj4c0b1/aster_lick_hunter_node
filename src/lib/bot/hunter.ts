@@ -414,7 +414,7 @@ export class Hunter extends EventEmitter {
     }
   }
 
-  private async analyzeAndTrade(liquidation: LiquidationEvent, symbolConfig: SymbolConfig, forcedSide?: 'BUY' | 'SELL'): Promise<void> {
+  private async analyzeAndTrade(liquidation: LiquidationEvent, symbolConfig: SymbolConfig, _forcedSide?: 'BUY' | 'SELL'): Promise<void> {
     try {
       // Get mark price and recent 1m kline
       const [markPriceData] = Array.isArray(await getMarkPrice(liquidation.symbol)) ?
