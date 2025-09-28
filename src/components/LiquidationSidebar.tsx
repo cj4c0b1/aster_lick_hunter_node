@@ -36,17 +36,21 @@ export default function LiquidationSidebar({ volumeThresholds = {}, maxEvents = 
   const _containerRef = useRef<HTMLDivElement>(null);
   const prevEventsRef = useRef<LiquidationEvent[]>([]);
 
+  // Capture initial values to avoid re-running effect when props change
+  const initialMaxEvents = useRef(maxEvents);
+  const initialVolumeThresholds = useRef(volumeThresholds);
+
   // Load historical liquidations on mount
   useEffect(() => {
     const loadHistoricalLiquidations = async () => {
       try {
-        const response = await fetch(`/api/liquidations?limit=${maxEvents}`);
+        const response = await fetch(`/api/liquidations?limit=${initialMaxEvents.current}`);
         if (response.ok) {
           const result = await response.json();
           if (result.success && result.data) {
             const historicalEvents = result.data.map((liq: any) => {
               const volume = liq.volume_usdt || (liq.quantity * liq.price);
-              const threshold = volumeThresholds[liq.symbol] || 10000;
+              const threshold = initialVolumeThresholds.current[liq.symbol] || 10000;
               return {
                 symbol: liq.symbol,
                 side: liq.side,
@@ -73,7 +77,7 @@ export default function LiquidationSidebar({ volumeThresholds = {}, maxEvents = 
     };
 
     loadHistoricalLiquidations();
-  }, []); // Only run once on mount
+  }, []); // Only run once on mount - using refs for current values
 
   // Handle WebSocket messages for real-time updates
   useEffect(() => {
