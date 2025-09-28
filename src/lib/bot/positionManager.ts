@@ -1285,7 +1285,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
               type: 'MARKET',
               quantity: formattedQuantity,
               positionSide: orderPositionSide as 'BOTH' | 'LONG' | 'SHORT',
-              newClientOrderId: `al_batch_tp_close_${symbol}_${Date.now()}`,
+              newClientOrderId: `al_btc_${symbol}_${Date.now() % 10000000000}`,
             };
 
             if (orderPositionSide === 'BOTH') {
@@ -1501,7 +1501,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
           quantity: formattedQuantity,
           stopPrice: slPrice,
           positionSide: orderPositionSide as 'BOTH' | 'LONG' | 'SHORT',
-          newClientOrderId: `al_sl_${symbol}_${Date.now()}`,
+          newClientOrderId: `al_sl_${symbol}_${Date.now() % 10000000000}`,
         };
 
         // Only add reduceOnly in One-way mode (positionSide == BOTH)
@@ -1563,7 +1563,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
               type: 'MARKET',
               quantity: formattedQuantity,
               positionSide: orderPositionSide as 'BOTH' | 'LONG' | 'SHORT',
-              newClientOrderId: `al_market_tp_${symbol}_${Date.now()}`,
+              newClientOrderId: `al_mtp_${symbol}_${Date.now() % 10000000000}`,
             };
 
             if (orderPositionSide === 'BOTH') {
@@ -1609,7 +1609,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
             quantity: formattedQuantity,
             stopPrice: tpPrice,
             positionSide: orderPositionSide as 'BOTH' | 'LONG' | 'SHORT',
-            newClientOrderId: `al_tp_${symbol}_${Date.now()}`,
+            newClientOrderId: `al_tp_${symbol}_${Date.now() % 10000000000}`,
           };
 
           if (orderPositionSide === 'BOTH') {
@@ -2057,7 +2057,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
                 type: 'MARKET',
                 quantity: formattedQty,
                 positionSide: orderPositionSide as 'BOTH' | 'LONG' | 'SHORT',
-                newClientOrderId: `al_periodic_close_${symbol}_${Date.now()}`,
+                newClientOrderId: `al_pc_${symbol}_${Date.now() % 10000000000}`,
               };
 
               if (orderPositionSide === 'BOTH') {
