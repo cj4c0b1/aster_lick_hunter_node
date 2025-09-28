@@ -887,6 +887,14 @@ export class PositionManager extends EventEmitter implements PositionTracker {
           });
         }
 
+        // Emit event for Hunter to track
+        this.emit('orderFilled', {
+          symbol,
+          side,
+          orderType,
+          orderId: orderId?.toString(),
+        });
+
         // Position will be updated via ACCOUNT_UPDATE event
         // Just wait for it and then place SL/TP
       } else if (orderType === 'STOP_MARKET' || orderType === 'STOP' ||
@@ -999,6 +1007,39 @@ export class PositionManager extends EventEmitter implements PositionTracker {
             type: 'closed',
             pnl: realizedPnl,
           });
+        }
+      }
+    }
+
+    // Handle cancelled or expired orders
+    if (orderStatus === 'CANCELED' || orderStatus === 'EXPIRED') {
+      console.log(`PositionManager: Order ${orderId} ${orderStatus} for ${symbol}`);
+
+      // Emit event for Hunter to clean up pending tracking
+      this.emit('orderCancelled', {
+        symbol,
+        side,
+        orderType,
+        orderId: orderId?.toString(),
+        status: orderStatus,
+      });
+
+      // Clean up any SL/TP tracking if this was a protective order
+      for (const [key, orders] of this.positionOrders.entries()) {
+        if (orders.slOrderId === orderId || orders.tpOrderId === orderId) {
+          if (orders.slOrderId === orderId) {
+            delete orders.slOrderId;
+            console.log(`PositionManager: Removed cancelled SL order ${orderId} from tracking`);
+          } else if (orders.tpOrderId === orderId) {
+            delete orders.tpOrderId;
+            console.log(`PositionManager: Removed cancelled TP order ${orderId} from tracking`);
+          }
+
+          // If both orders are gone, remove the position tracking entirely
+          if (!orders.slOrderId && !orders.tpOrderId) {
+            this.positionOrders.delete(key);
+          }
+          break;
         }
       }
     }
