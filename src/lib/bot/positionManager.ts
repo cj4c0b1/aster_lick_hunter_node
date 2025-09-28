@@ -1378,12 +1378,77 @@ export class PositionManager extends EventEmitter implements PositionTracker {
           }
         }
 
+        // Handle batch order results properly
         if (batchResult.errors.length > 0) {
           console.error(`PositionManager: Batch order errors for ${symbol}:`, batchResult.errors);
-        }
 
-        console.log(`PositionManager: Batch order placement saved 1 API call!`);
-      } else if (placeSL) {
+          // Log each error to the error database
+          for (const errorMsg of batchResult.errors) {
+            await errorLogger.logTradingError(
+              'batchOrderPlacement',
+              symbol,
+              new Error(errorMsg),
+              {
+                type: 'trading',
+                severity: 'high', // High because position is unprotected
+                context: {
+                  component: 'PositionManager',
+                  userAction: 'placeProtectionOrders',
+                  metadata: {
+                    slAttempted: placeSL,
+                    tpAttempted: placeTP,
+                    slSucceeded: !!batchResult.stopLoss,
+                    tpSucceeded: !!batchResult.takeProfit,
+                    entryPrice,
+                    currentQuantity: quantity
+                  }
+                }
+              }
+            );
+          }
+
+          // Determine what needs to be retried
+          const slFailed = placeSL && !batchResult.stopLoss;
+          const tpFailed = placeTP && !batchResult.takeProfit;
+
+          if (slFailed || tpFailed) {
+            console.log(`PositionManager: Batch partially failed. Retrying failed orders individually...`);
+
+            // Clear the failed order IDs from tracking
+            if (slFailed) {
+              orders.slOrderId = undefined;
+              console.log(`PositionManager: Will retry SL order for ${symbol}`);
+            }
+            if (tpFailed) {
+              orders.tpOrderId = undefined;
+              console.log(`PositionManager: Will retry TP order for ${symbol}`);
+            }
+
+            // Update flags for individual placement
+            placeSL = slFailed;
+            placeTP = tpFailed;
+
+            // Fall through to individual order placement
+          } else {
+            // All requested orders succeeded despite errors (edge case)
+            console.log(`PositionManager: Batch completed with non-critical errors`);
+            this.positionOrders.set(key, orders);
+            return;
+          }
+        } else {
+          // Batch fully succeeded
+          console.log(`PositionManager: Batch order placement successful and saved 1 API call!`);
+          this.positionOrders.set(key, orders);
+          return;
+        }
+      }
+
+      // Place orders individually (either originally or as retry from batch failure)
+      if (placeSL || placeTP) {
+        console.log(`PositionManager: Placing protection orders individually for ${symbol} (SL: ${placeSL}, TP: ${placeTP})`);
+      }
+
+      if (placeSL) {
         // Place orders individually if not placing both
         // Get current market price to avoid "Order would immediately trigger" error
         const ticker = await axios.get(`https://fapi.asterdex.com/fapi/v1/ticker/price?symbol=${symbol}`);
@@ -1558,7 +1623,40 @@ export class PositionManager extends EventEmitter implements PositionTracker {
         }
       }
 
-      this.positionOrders.set(key, orders);
+      // Only save orders that were actually placed successfully
+      if (orders.slOrderId || orders.tpOrderId) {
+        this.positionOrders.set(key, orders);
+        console.log(`PositionManager: Protection orders tracked for ${key} - SL: ${orders.slOrderId || 'none'}, TP: ${orders.tpOrderId || 'none'}`);
+
+        // Warn if position is partially protected
+        if (!orders.slOrderId && symbolConfig.slPercent > 0) {
+          console.warn(`PositionManager: ⚠️ Position ${key} has NO STOP LOSS protection!`);
+          await errorLogger.logTradingError(
+            'missingStopLoss',
+            symbol,
+            new Error('Failed to place stop loss order'),
+            {
+              type: 'trading',
+              severity: 'critical',
+              context: {
+                component: 'PositionManager',
+                metadata: {
+                  positionKey: key,
+                  entryPrice,
+                  quantity
+                }
+              }
+            }
+          );
+        }
+
+        if (!orders.tpOrderId && symbolConfig.tpPercent > 0) {
+          console.warn(`PositionManager: ⚠️ Position ${key} has NO TAKE PROFIT order!`);
+        }
+      } else {
+        console.error(`PositionManager: ❌ No protection orders placed for ${key} - position is UNPROTECTED!`);
+        // Don't save empty orders - this ensures periodic check will retry
+      }
     } catch (error: any) {
       const errorMsg = error.response?.data?.msg || error.message || 'Unknown error';
       console.error(`PositionManager: Failed to place protective orders for ${symbol}:`, error.response?.data || error.message);
@@ -1980,6 +2078,39 @@ export class PositionManager extends EventEmitter implements PositionTracker {
           }
         }
 
+        // Verify tracked orders actually exist on exchange
+        const trackedOrders = this.positionOrders.get(key);
+        if (trackedOrders) {
+          let needsUpdate = false;
+
+          // Get orders for this symbol
+          const symbolOrders = openOrders.filter(o => o.symbol === symbol);
+
+          // Verify SL order exists
+          if (trackedOrders.slOrderId) {
+            const slExists = symbolOrders.some(o => o.orderId === trackedOrders.slOrderId);
+            if (!slExists) {
+              console.warn(`PositionManager: Tracked SL order ${trackedOrders.slOrderId} not found on exchange for ${key}`);
+              trackedOrders.slOrderId = undefined;
+              needsUpdate = true;
+            }
+          }
+
+          // Verify TP order exists
+          if (trackedOrders.tpOrderId) {
+            const tpExists = symbolOrders.some(o => o.orderId === trackedOrders.tpOrderId);
+            if (!tpExists) {
+              console.warn(`PositionManager: Tracked TP order ${trackedOrders.tpOrderId} not found on exchange for ${key}`);
+              trackedOrders.tpOrderId = undefined;
+              needsUpdate = true;
+            }
+          }
+
+          if (needsUpdate) {
+            this.positionOrders.set(key, trackedOrders);
+          }
+        }
+
         // Find SL/TP orders for this position
         const slOrder = openOrders.find(o =>
           o.symbol === symbol &&
@@ -2025,6 +2156,14 @@ export class PositionManager extends EventEmitter implements PositionTracker {
       }
     } catch (error: any) {
       console.error('PositionManager: Error during periodic order check:', error?.response?.data || error?.message);
+      await errorLogger.logError(error instanceof Error ? error : new Error(String(error)), {
+        type: 'general',
+        severity: 'medium',
+        context: {
+          component: 'PositionManager',
+          userAction: 'checkAndAdjustOrders'
+        }
+      });
     }
   }
 

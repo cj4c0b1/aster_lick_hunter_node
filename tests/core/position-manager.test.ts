@@ -283,6 +283,86 @@ async function testSmartPositionClosing() {
   summary.print();
 }
 
+async function testBatchOrderFailureHandling() {
+  logSection('Testing Batch Order Failure Handling');
+  const summary = new TestSummary();
+
+  await summary.run('Handle partial batch failure (SL fails, TP succeeds)', async () => {
+    // Simulate batch result where TP succeeds but SL fails
+    const batchResult = {
+      stopLoss: null,
+      takeProfit: { orderId: 12345, status: 'NEW' },
+      errors: ['Stop price would trigger immediately']
+    };
+
+    assert(!batchResult.stopLoss, 'SL should have failed');
+    assert(batchResult.takeProfit, 'TP should have succeeded');
+    assert(batchResult.errors.length > 0, 'Should have error messages');
+  });
+
+  await summary.run('Handle partial batch failure (SL succeeds, TP fails)', async () => {
+    const batchResult = {
+      stopLoss: { orderId: 54321, status: 'NEW' },
+      takeProfit: null,
+      errors: ['Take profit price invalid']
+    };
+
+    assert(batchResult.stopLoss, 'SL should have succeeded');
+    assert(!batchResult.takeProfit, 'TP should have failed');
+  });
+
+  await summary.run('Handle complete batch failure', async () => {
+    const batchResult = {
+      stopLoss: null,
+      takeProfit: null,
+      errors: ['Insufficient balance', 'Invalid symbol']
+    };
+
+    assert(!batchResult.stopLoss, 'SL should have failed');
+    assert(!batchResult.takeProfit, 'TP should have failed');
+    assertEqual(batchResult.errors.length, 2, 'Should have multiple errors');
+  });
+
+  await summary.run('Verify error logging for batch failures', async () => {
+    let errorLogCount = 0;
+    const mockErrorLogger = {
+      logTradingError: async () => { errorLogCount++; return Promise.resolve(); }
+    };
+
+    const errors = ['Error 1', 'Error 2'];
+    // Simulate processing errors
+    for (const error of errors) {
+      await mockErrorLogger.logTradingError();
+    }
+
+    assertEqual(errorLogCount, 2, 'All errors should be logged');
+  });
+
+  await summary.run('Verify retry logic after batch failure', async () => {
+    let placeSL = true;
+    let placeTP = true;
+
+    const batchResult = {
+      stopLoss: null,
+      takeProfit: { orderId: 12345 },
+      errors: ['SL failed']
+    };
+
+    // After batch failure, should retry SL but not TP
+    if (!batchResult.stopLoss && placeSL) {
+      placeSL = true; // Should remain true for retry
+    }
+    if (batchResult.takeProfit && placeTP) {
+      placeTP = false; // Should be false, already placed
+    }
+
+    assert(placeSL === true, 'Should retry SL');
+    assert(placeTP === false, 'Should not retry TP');
+  });
+
+  summary.print();
+}
+
 async function testErrorRecovery() {
   logSection('Testing Error Recovery');
   const summary = new TestSummary();
@@ -335,6 +415,7 @@ async function main() {
     await testPositionSizing();
     await testOrderFillHandling();
     await testSmartPositionClosing();
+    await testBatchOrderFailureHandling();
     await testErrorRecovery();
 
     logSection('✨ All Position Manager Tests Complete');

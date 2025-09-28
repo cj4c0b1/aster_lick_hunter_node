@@ -51,6 +51,7 @@ async function main() {
     { file: 'tests/core/position-manager.test.ts', name: 'Position Manager' },
     { file: 'tests/core/rate-limit.test.ts', name: 'Rate Limit' },
     { file: 'tests/core/websocket.test.ts', name: 'WebSocket' },
+    { file: 'tests/core/error-logging.test.ts', name: 'Error Logging' },
     { file: 'tests/integration/trading-flow.test.ts', name: 'Integration' }
   ];
 
