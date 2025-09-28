@@ -17,12 +17,13 @@
     "lint": "eslint",
     "bot": "tsx src/bot/index.ts",
     "bot:dev": "tsx watch src/bot/index.ts",
-    "test": "tsx tests/test-limit-orders.ts",
-    "test:simulation": "tsx tests/test-bot-simulation.ts",
-    "test:flow": "tsx tests/test-limit-order-flow.ts",
-    "test:all": "npm run test && npm run test:flow && npm run test:simulation",
-    "test:errors": "node scripts/generate-test-errors.js",
-    "test:errors:clear": "node scripts/generate-test-errors.js clear"
+    "test": "tsx tests/run-all.ts",
+    "test:hunter": "tsx tests/core/hunter.test.ts",
+    "test:position": "tsx tests/core/position-manager.test.ts",
+    "test:rate": "tsx tests/core/rate-limit.test.ts",
+    "test:ws": "tsx tests/core/websocket.test.ts",
+    "test:integration": "tsx tests/integration/trading-flow.test.ts",
+    "test:watch": "tsx watch tests/**/*.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
