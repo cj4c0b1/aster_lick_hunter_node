@@ -5,8 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { BarChart3, TrendingUp, TrendingDown, Shield, Target, ChevronDown } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, Shield, Target, ChevronDown, X } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import websocketService from '@/lib/services/websocketService';
 import { useConfig } from '@/components/ConfigProvider';
 import { useSymbolPrecision } from '@/hooks/useSymbolPrecision';
@@ -48,6 +50,18 @@ export default function PositionTable({
   const [markPrices, setMarkPrices] = useState<Record<string, number>>({});
   const [vwapData, setVwapData] = useState<Record<string, VWAPData>>({});
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [closePositionModal, setClosePositionModal] = useState<{
+    isOpen: boolean;
+    symbol: string;
+    side: 'LONG' | 'SHORT';
+    quantity: number;
+  }>({
+    isOpen: false,
+    symbol: '',
+    side: 'LONG',
+    quantity: 0,
+  });
+  const [isClosingPosition, setIsClosingPosition] = useState(false);
   const { config } = useConfig();
   const { formatPrice, formatQuantity, formatPriceWithCommas } = useSymbolPrecision();
 
@@ -215,6 +229,69 @@ export default function PositionTable({
   }, [positions.length, loadVWAPData]); // Include loadVWAPData dependency
 
 
+  // Handle close position
+  const handleClosePosition = useCallback((symbol: string, side: 'LONG' | 'SHORT', quantity: number) => {
+    setClosePositionModal({
+      isOpen: true,
+      symbol,
+      side,
+      quantity,
+    });
+  }, []);
+
+  const confirmClosePosition = useCallback(async () => {
+    if (!closePositionModal.symbol || !closePositionModal.side) return;
+
+    setIsClosingPosition(true);
+    try {
+      const response = await fetch(`/api/positions/${closePositionModal.symbol}/${closePositionModal.side}/close`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Refresh positions data
+        if (positions.length === 0) {
+          // If using data store, refresh it
+          dataStore.fetchPositions().then((data) => {
+            setRealPositions(data);
+          }).catch((error) => {
+            console.error('[PositionTable] Failed to refresh positions after close:', error);
+          });
+        }
+
+        // Close modal
+        setClosePositionModal({
+          isOpen: false,
+          symbol: '',
+          side: 'LONG',
+          quantity: 0,
+        });
+      } else {
+        console.error('Failed to close position:', result.error);
+        // You might want to show a toast notification here
+      }
+    } catch (error) {
+      console.error('Error closing position:', error);
+      // You might want to show a toast notification here
+    } finally {
+      setIsClosingPosition(false);
+    }
+  }, [closePositionModal, positions.length]);
+
+  const cancelClosePosition = useCallback(() => {
+    setClosePositionModal({
+      isOpen: false,
+      symbol: '',
+      side: 'LONG',
+      quantity: 0,
+    });
+  }, []);
+
   // Use passed positions if available, otherwise use fetched positions
   // Apply live mark prices to calculate real-time PnL
   const displayPositions = (positions.length > 0 ? positions : realPositions).map(position => {
@@ -286,6 +363,7 @@ export default function PositionTable({
                   <TableHead className="text-xs text-right">Entry/Mark</TableHead>
                   <TableHead className="text-xs text-right">PnL</TableHead>
                   <TableHead className="text-xs text-center">Protection</TableHead>
+                  <TableHead className="text-xs text-center">Actions</TableHead>
                 </TableRow>
               </TableHeader>
             <TableBody>
@@ -298,6 +376,7 @@ export default function PositionTable({
                     <TableCell className="py-2 text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
                     <TableCell className="py-2 text-right"><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
                     <TableCell className="py-2 text-center"><Skeleton className="h-5 w-20 mx-auto" /></TableCell>
+                    <TableCell className="py-2 text-center"><Skeleton className="h-8 w-16 mx-auto" /></TableCell>
                   </TableRow>
                 ))
             ) : displayPositions.map((position) => {
@@ -436,12 +515,26 @@ export default function PositionTable({
                       )}
                     </div>
                   </TableCell>
+                  <TableCell className="text-center py-2">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleClosePosition(position.symbol, position.side, position.quantity);
+                      }}
+                      className="h-7 px-2 text-xs"
+                    >
+                      <X className="h-3 w-3 mr-1" />
+                      Close
+                    </Button>
+                  </TableCell>
                 </TableRow>
               );
             })}
               {!isLoading && displayPositions.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-6">
+                  <TableCell colSpan={7} className="text-center py-6">
                     <div className="flex flex-col items-center gap-1">
                       <span className="text-sm text-muted-foreground">No open positions</span>
                       <Badge variant="secondary" className="h-4 text-[10px] px-1.5">
@@ -456,6 +549,62 @@ export default function PositionTable({
           </div>
         </CardContent>
       )}
+
+      {/* Close Position Confirmation Modal */}
+      <Dialog open={closePositionModal.isOpen} onOpenChange={cancelClosePosition}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Close Position</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to close this position? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-sm font-medium">Symbol:</span>
+                <span className="text-sm">{closePositionModal.symbol}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm font-medium">Side:</span>
+                <Badge
+                  variant={closePositionModal.side === 'LONG' ? 'outline' : 'destructive'}
+                  className={`text-xs ${closePositionModal.side === 'LONG' ? 'border-green-600 text-green-600' : ''}`}
+                >
+                  {closePositionModal.side === 'LONG' ? (
+                    <TrendingUp className="h-3 w-3 mr-1" />
+                  ) : (
+                    <TrendingDown className="h-3 w-3 mr-1" />
+                  )}
+                  {closePositionModal.side}
+                </Badge>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm font-medium">Quantity:</span>
+                <span className="text-sm font-mono">
+                  {closePositionModal.quantity > 0 ? formatQuantity(closePositionModal.symbol, closePositionModal.quantity) : '0'}
+                </span>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={cancelClosePosition}
+              disabled={isClosingPosition}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmClosePosition}
+              disabled={isClosingPosition}
+            >
+              {isClosingPosition ? 'Closing...' : 'Close Position'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
