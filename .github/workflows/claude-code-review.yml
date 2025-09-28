@@ -23,6 +23,7 @@ jobs:
       contents: read
       pull-requests: write
       issues: write
+      id-token: write  # Required for OIDC authentication
     
     steps:
       - name: Checkout repository
