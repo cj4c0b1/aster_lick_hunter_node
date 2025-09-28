@@ -1379,11 +1379,17 @@ export class PositionManager extends EventEmitter implements PositionTracker {
         }
 
         // Handle batch order results properly
-        if (batchResult.errors.length > 0) {
-          console.error(`PositionManager: Batch order errors for ${symbol}:`, batchResult.errors);
+        // Filter out expected "Order would immediately trigger" errors - these are handled by retry logic
+        const actualErrors = batchResult.errors.filter(
+          errorMsg => !errorMsg.includes('Order would immediately trigger')
+        );
 
-          // Log each error to the error database
-          for (const errorMsg of batchResult.errors) {
+        // Log only actual errors (not expected "Order would immediately trigger" ones)
+        if (actualErrors.length > 0) {
+          console.error(`PositionManager: Batch order errors for ${symbol}:`, actualErrors);
+
+          // Log each actual error to the error database
+          for (const errorMsg of actualErrors) {
             await errorLogger.logTradingError(
               'batchOrderPlacement',
               symbol,
@@ -1406,7 +1412,10 @@ export class PositionManager extends EventEmitter implements PositionTracker {
               }
             );
           }
+        }
 
+        // Check if there were ANY errors (including the filtered ones)
+        if (batchResult.errors.length > 0) {
           // Determine what needs to be retried
           const slFailed = placeSL && !batchResult.stopLoss;
           const tpFailed = placeTP && !batchResult.takeProfit;
