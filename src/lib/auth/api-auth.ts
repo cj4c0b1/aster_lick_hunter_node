@@ -19,9 +19,9 @@ export async function authenticateRequest(request: NextRequest): Promise<{
   error?: string;
 }> {
   try {
-    const token = await getToken({ 
-      req: request, 
-      secret: process.env.NEXTAUTH_SECRET 
+    const token = await getToken({
+      req: request,
+      secret: process.env.NEXTAUTH_SECRET
     });
 
     if (!token) {
@@ -50,11 +50,11 @@ export async function authenticateRequest(request: NextRequest): Promise<{
 
 export function createAuthErrorResponse(message: string = 'Unauthorized', status: number = 401) {
   return new Response(
-    JSON.stringify({ 
+    JSON.stringify({
       error: message,
       code: 'UNAUTHORIZED'
     }),
-    { 
+    {
       status,
       headers: { 'Content-Type': 'application/json' }
     }
