@@ -44,6 +44,13 @@ export const DEFAULT_CONFIG: Config = {
     paperMode: true,
     positionMode: 'HEDGE',
     maxOpenPositions: 10,
+    server: {
+      dashboardPassword: '',
+      dashboardPort: 3000,
+      websocketPort: 8080,
+      useRemoteWebSocket: false,
+      websocketHost: null,
+    },
   },
   version: DEFAULT_CONFIG_VERSION,
 };

@@ -44,6 +44,8 @@ export const serverConfigSchema = z.object({
   dashboardPassword: z.string().optional(),
   dashboardPort: z.number().optional(),
   websocketPort: z.number().optional(),
+  useRemoteWebSocket: z.boolean().optional(),
+  websocketHost: z.string().nullable().optional(),
 }).optional();
 
 export const globalConfigSchema = z.object({
