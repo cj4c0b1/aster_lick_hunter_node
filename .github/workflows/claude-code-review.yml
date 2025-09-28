@@ -18,9 +18,28 @@ permissions:
   id-token: write
 
 jobs:
-  check-fork:
+  # First determine if this is a fork PR
+  check-source:
     runs-on: ubuntu-latest
-    if: github.event.pull_request.head.repo.full_name != github.repository
+    outputs:
+      is_fork: ${{ steps.check.outputs.is_fork }}
+    steps:
+      - name: Check PR source
+        id: check
+        run: |
+          if [[ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
+            echo "is_fork=true" >> $GITHUB_OUTPUT
+            echo "This is a fork PR - will post comment instead of running review"
+          else
+            echo "is_fork=false" >> $GITHUB_OUTPUT
+            echo "This is an internal PR - will run Claude review"
+          fi
+
+  # Handle fork PRs with a helpful comment
+  fork-comment:
+    needs: check-source
+    if: needs.check-source.outputs.is_fork == 'true'
+    runs-on: ubuntu-latest
     steps:
       - name: Comment on fork PR
         run: |
@@ -44,13 +63,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+  # Run Claude review only for internal PRs
   claude-review:
-    # Only run for PRs from the same repository (not forks)
-    if: github.event.pull_request.head.repo.full_name == github.repository
-
+    needs: check-source
+    if: needs.check-source.outputs.is_fork == 'false'
     runs-on: ubuntu-latest
-    # Permissions inherited from workflow level
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
