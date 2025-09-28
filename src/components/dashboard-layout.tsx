@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
 import { LogOut } from "lucide-react"
 import { useConfig } from "@/components/ConfigProvider"
+import { AuthCheck } from "@/components/AuthCheck"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -42,7 +43,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   };
 
   return (
-    <SidebarProvider>
+    <>
+      <AuthCheck />
+      <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
         <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
@@ -123,6 +126,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           {children}
         </main>
       </SidebarInset>
-    </SidebarProvider>
+      </SidebarProvider>
+    </>
   )
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const PUBLIC_PATHS = ['/login', '/api/auth', '/api/health'];
+const PUBLIC_PATHS = ['/login', '/api/auth', '/api/health', '/api/config'];
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -13,27 +13,24 @@ export async function middleware(request: NextRequest) {
 
   // Check for authentication cookie
   const authCookie = request.cookies.get('auth-token');
+  const passwordSetCookie = request.cookies.get('password-required');
 
-  // Check if this looks like a valid auth token (basic validation)
-  // Real validation happens in the API routes
+  // If we have a valid auth token, allow access
   if (authCookie && authCookie.value && authCookie.value.startsWith('YXV0aGVudGljYXRlZDo')) {
     return NextResponse.next();
   }
 
-  // Check if we're in development mode (no auth required)
-  if (process.env.NODE_ENV === 'development' && !authCookie) {
-    // In development, only redirect if there's evidence a password was set
-    // This is determined by the presence of a redirect parameter from a previous attempt
-    const hasRedirect = request.nextUrl.searchParams.get('redirect');
-    if (!hasRedirect) {
-      return NextResponse.next();
-    }
+  // Check if password is required (based on cookie set by config check)
+  if (passwordSetCookie && passwordSetCookie.value === 'true') {
+    // Password is required but no valid auth token, redirect to login
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('redirect', pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
-  // Redirect to login page
-  const loginUrl = new URL('/login', request.url);
-  loginUrl.searchParams.set('redirect', pathname);
-  return NextResponse.redirect(loginUrl);
+  // No password required or not yet determined, allow access
+  // The client will check and set the password-required cookie if needed
+  return NextResponse.next();
 }
 
 export const config = {
