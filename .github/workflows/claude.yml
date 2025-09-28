@@ -16,7 +16,7 @@ on:
 
 # Set permissions at workflow level
 permissions:
-  contents: read
+  contents: write  # Changed from read to write - allows Claude to push branches and create PRs
   pull-requests: write
   issues: write
   actions: read
