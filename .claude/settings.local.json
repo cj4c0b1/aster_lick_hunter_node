@@ -24,7 +24,9 @@
       "Bash(tree:*)",
       "WebSearch",
       "WebFetch(domain:sonner.emilkowal.ski)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(sqlite3:*)",
+      "Bash(npm run test:errors:*)"
     ],
     "deny": [],
     "ask": []
