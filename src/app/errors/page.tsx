@@ -15,7 +15,10 @@ import {
   AlertTriangle,
   XCircle,
   Info,
-  Search
+  Search,
+  Github,
+  Bot,
+  ArrowLeft
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -26,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import ErrorIssueGenerator from '@/components/ErrorIssueGenerator';
 
 interface ErrorLog {
   id: number;
@@ -64,6 +68,9 @@ export default function ErrorsPage() {
     hours: '24'
   });
   const [searchQuery, setSearchQuery] = useState('');
+  const [issueGeneratorError, setIssueGeneratorError] = useState<ErrorLog | null>(null);
+  const [systemInfo, setSystemInfo] = useState<any>(null);
+  const [similarErrors, setSimilarErrors] = useState<Map<string, ErrorLog[]>>(new Map());
 
   useEffect(() => {
     const fetchErrors = async () => {
@@ -75,6 +82,9 @@ export default function ErrorsPage() {
         const response = await fetch(`/api/errors?${params}`);
         const data = await response.json();
         setErrors(data.errors || []);
+
+        // Group similar errors
+        groupSimilarErrors(data.errors || []);
       } catch (_error) {
         console.error('Failed to fetch errors:', _error);
       } finally {
@@ -92,8 +102,19 @@ export default function ErrorsPage() {
       }
     };
 
+    const fetchSystemInfo = async () => {
+      try {
+        const response = await fetch('/api/errors/export?format=json&hours=0');
+        const data = await response.json();
+        setSystemInfo(data.systemInfo);
+      } catch (_error) {
+        console.error('Failed to fetch system info:', _error);
+      }
+    };
+
     fetchErrors();
     fetchStats();
+    fetchSystemInfo();
 
     const interval = setInterval(() => {
       fetchErrors();
@@ -102,6 +123,27 @@ export default function ErrorsPage() {
 
     return () => clearInterval(interval);
   }, [filters]);
+
+  const groupSimilarErrors = (errorList: ErrorLog[]) => {
+    const grouped = new Map<string, ErrorLog[]>();
+
+    errorList.forEach(error => {
+      // Create a fingerprint for the error based on type, code, and component
+      const fingerprint = `${error.error_type}-${error.error_code || 'NO_CODE'}-${error.component || 'NO_COMP'}`;
+
+      if (!grouped.has(fingerprint)) {
+        grouped.set(fingerprint, []);
+      }
+      grouped.get(fingerprint)?.push(error);
+    });
+
+    setSimilarErrors(grouped);
+  };
+
+  const findSimilarErrors = (targetError: ErrorLog): ErrorLog[] => {
+    const fingerprint = `${targetError.error_type}-${targetError.error_code || 'NO_CODE'}-${targetError.component || 'NO_COMP'}`;
+    return similarErrors.get(fingerprint)?.filter(e => e.id !== targetError.id) || [];
+  };
 
   const handleExport = async (format: 'json' | 'markdown') => {
     try {
@@ -182,6 +224,44 @@ export default function ErrorsPage() {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success('Copied to clipboard');
+  };
+
+  const generateAIDebugInfo = (error: ErrorLog) => {
+    const similar = findSimilarErrors(error);
+    let debugInfo = `## Error Debug Information\n\n`;
+    debugInfo += `### Error Details\n`;
+    debugInfo += `- Type: ${error.error_type}\n`;
+    debugInfo += `- Severity: ${error.severity}\n`;
+    debugInfo += `- Code: ${error.error_code || 'N/A'}\n`;
+    debugInfo += `- Component: ${error.component || 'Unknown'}\n`;
+    debugInfo += `- Symbol: ${error.symbol || 'N/A'}\n`;
+    debugInfo += `- Timestamp: ${error.timestamp}\n`;
+    debugInfo += `- Session: ${error.session_id}\n\n`;
+
+    debugInfo += `### Error Message\n\`\`\`\n${error.message}\n\`\`\`\n\n`;
+
+    if (error.details) {
+      debugInfo += `### Additional Context\n\`\`\`json\n`;
+      debugInfo += JSON.stringify(
+        typeof error.details === 'string' ? JSON.parse(error.details) : error.details,
+        null,
+        2
+      );
+      debugInfo += `\n\`\`\`\n\n`;
+    }
+
+    if (error.stack_trace) {
+      debugInfo += `### Stack Trace\n\`\`\`\n${error.stack_trace}\n\`\`\`\n\n`;
+    }
+
+    if (similar.length > 0) {
+      debugInfo += `### Pattern: Found ${similar.length} similar errors\n`;
+      similar.slice(0, 3).forEach((simError, idx) => {
+        debugInfo += `${idx + 1}. ${new Date(simError.timestamp).toLocaleString()}: ${simError.message.substring(0, 100)}\n`;
+      });
+    }
+
+    return debugInfo;
   };
 
   const getSeverityIcon = (severity: string) => {
@@ -398,6 +478,14 @@ export default function ErrorsPage() {
                             Resolved
                           </Badge>
                         )}
+                        {(() => {
+                          const similar = findSimilarErrors(error);
+                          return similar.length > 0 ? (
+                            <Badge variant="outline" className="bg-purple-50 dark:bg-purple-900/20">
+                              {similar.length + 1} similar
+                            </Badge>
+                          ) : null;
+                        })()}
                       </div>
                       <div className="font-mono text-sm mb-1">{error.message}</div>
                       <div className="text-xs text-muted-foreground">
@@ -411,8 +499,32 @@ export default function ErrorsPage() {
                         variant="ghost"
                         onClick={(e) => {
                           e.stopPropagation();
+                          setIssueGeneratorError(error);
+                        }}
+                        title="Create GitHub Issue"
+                      >
+                        <Github className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const debugInfo = generateAIDebugInfo(error);
+                          copyToClipboard(debugInfo);
+                        }}
+                        title="Copy AI Debug Info"
+                      >
+                        <Bot className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           copyToClipboard(JSON.stringify(error, null, 2));
                         }}
+                        title="Copy Raw JSON"
                       >
                         <Copy className="w-4 h-4" />
                       </Button>
@@ -424,6 +536,7 @@ export default function ErrorsPage() {
                             e.stopPropagation();
                             handleMarkResolved(error.id);
                           }}
+                          title="Mark as Resolved"
                         >
                           <CheckCircle className="w-4 h-4" />
                         </Button>
@@ -536,6 +649,16 @@ export default function ErrorsPage() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {issueGeneratorError && (
+        <ErrorIssueGenerator
+          error={issueGeneratorError}
+          systemInfo={systemInfo}
+          similarErrors={findSimilarErrors(issueGeneratorError)}
+          isOpen={!!issueGeneratorError}
+          onClose={() => setIssueGeneratorError(null)}
+        />
       )}
     </div>
   );
