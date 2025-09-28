@@ -434,6 +434,37 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                   </span>
                 </div>
               </div>
+
+              <Separator />
+
+              {/* Threshold System Setting */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4" />
+                      60-Second Volume Threshold System
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      Accumulate liquidation volume over 60-second windows
+                    </p>
+                  </div>
+                  <Switch
+                    checked={config.global.useThresholdSystem || false}
+                    onCheckedChange={(checked) =>
+                      handleGlobalChange('useThresholdSystem', checked)
+                    }
+                  />
+                </div>
+                {config.global.useThresholdSystem && (
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      When enabled, trades will only trigger when cumulative liquidation volume in a 60-second window meets the threshold. Configure per-symbol settings in the symbols tab.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
             </CardContent>
           </Card>
 
@@ -1090,6 +1121,84 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                             )}
                           </div>
                         </div>
+
+                        {/* Threshold System Settings - Only show if global threshold is enabled */}
+                        {config.global.useThresholdSystem && (
+                          <div className="col-span-2">
+                            <Separator className="my-4" />
+                            <div className="space-y-4">
+                              <div className="flex items-center justify-between">
+                                <div className="space-y-0.5">
+                                  <Label className="flex items-center gap-2">
+                                    <TrendingUp className="h-4 w-4" />
+                                    Enable Threshold System for {selectedSymbol}
+                                  </Label>
+                                  <p className="text-sm text-muted-foreground">
+                                    Use 60-second cumulative volume thresholds
+                                  </p>
+                                </div>
+                                <Switch
+                                  checked={config.symbols[selectedSymbol].useThreshold || false}
+                                  onCheckedChange={(checked) =>
+                                    handleSymbolChange(selectedSymbol, 'useThreshold', checked)
+                                  }
+                                />
+                              </div>
+
+                              {config.symbols[selectedSymbol].useThreshold && (
+                                <div className="space-y-4 pt-2">
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                      <Label>Time Window (seconds)</Label>
+                                      <Input
+                                        type="number"
+                                        value={(config.symbols[selectedSymbol].thresholdTimeWindow || 60000) / 1000}
+                                        onChange={(e) => {
+                                          const seconds = parseFloat(e.target.value);
+                                          const ms = isNaN(seconds) ? 60000 : seconds * 1000;
+                                          handleSymbolChange(selectedSymbol, 'thresholdTimeWindow', ms);
+                                        }}
+                                        min="10"
+                                        max="300"
+                                        step="10"
+                                      />
+                                      <p className="text-xs text-muted-foreground">
+                                        Window for accumulating volume (default: 60s)
+                                      </p>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                      <Label>Cooldown Period (seconds)</Label>
+                                      <Input
+                                        type="number"
+                                        value={(config.symbols[selectedSymbol].thresholdCooldown || 30000) / 1000}
+                                        onChange={(e) => {
+                                          const seconds = parseFloat(e.target.value);
+                                          const ms = isNaN(seconds) ? 30000 : seconds * 1000;
+                                          handleSymbolChange(selectedSymbol, 'thresholdCooldown', ms);
+                                        }}
+                                        min="10"
+                                        max="300"
+                                        step="10"
+                                      />
+                                      <p className="text-xs text-muted-foreground">
+                                        Cooldown between triggers (default: 30s)
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  <Alert>
+                                    <AlertCircle className="h-4 w-4" />
+                                    <AlertDescription>
+                                      With threshold enabled, trades will only trigger when cumulative liquidation volume
+                                      within the time window meets the Long/Short Volume Thresholds configured above.
+                                    </AlertDescription>
+                                  </Alert>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   )}

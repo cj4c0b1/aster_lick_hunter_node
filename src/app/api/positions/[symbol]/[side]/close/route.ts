@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { placeOrder } from '@/lib/api/orders';
 import { getPositions } from '@/lib/api/orders';
+import { getPositionMode } from '@/lib/api/positionMode';
 import { loadConfig } from '@/lib/bot/config';
+import { symbolPrecision } from '@/lib/utils/symbolPrecision';
+import { getExchangeInfo } from '@/lib/api/market';
 
 export async function POST(
   request: NextRequest,
@@ -29,6 +32,10 @@ export async function POST(
       });
     }
 
+    // Load exchange info for precision validation
+    const exchangeInfo = await getExchangeInfo();
+    symbolPrecision.parseExchangeInfo(exchangeInfo);
+
     // Get current positions to find the specific position
     const positions = await getPositions(config.api);
 
@@ -53,7 +60,10 @@ export async function POST(
     }
 
     const positionAmt = parseFloat(targetPosition.positionAmt || '0');
-    const quantity = Math.abs(positionAmt);
+    let quantity = Math.abs(positionAmt);
+
+    // Format quantity according to exchange precision rules
+    quantity = symbolPrecision.formatQuantity(symbol, quantity);
 
     if (quantity === 0) {
       return NextResponse.json(
@@ -64,6 +74,15 @@ export async function POST(
 
     // Determine the order side (opposite of position)
     const orderSide: 'SELL' | 'BUY' = side === 'LONG' ? 'SELL' : 'BUY';
+
+    // Get current position mode from exchange
+    let isHedgeMode = false;
+    try {
+      isHedgeMode = await getPositionMode(config.api);
+      console.log(`Position mode: ${isHedgeMode ? 'HEDGE' : 'ONE_WAY'}`);
+    } catch (error) {
+      console.warn('Failed to fetch position mode, defaulting to ONE_WAY:', error);
+    }
 
     // Check if we're in paper mode (simulation)
     if (config.global.paperMode) {
@@ -83,13 +102,19 @@ export async function POST(
       side: orderSide,
       type: 'MARKET' as const,
       quantity,
-      positionSide: targetPosition.positionSide || 'BOTH'
     };
 
-    // Only add reduceOnly in One-way mode, not in Hedge mode
-    if (config.global.positionMode === 'ONE_WAY') {
+    // Set position side based on mode
+    if (isHedgeMode) {
+      // In hedge mode, use the position side from the position
+      orderParams.positionSide = targetPosition.positionSide || (side === 'LONG' ? 'LONG' : 'SHORT');
+    } else {
+      // In one-way mode, use BOTH and reduceOnly
+      orderParams.positionSide = 'BOTH';
       orderParams.reduceOnly = true;
     }
+
+    console.log(`Closing position with params:`, orderParams);
 
     // Place the market order to close the position
     const orderResult = await placeOrder(orderParams, config.api);
@@ -102,6 +127,7 @@ export async function POST(
       order_id: orderResult.orderId,
       order_side: orderSide,
       quantity: quantity,
+      position_mode: isHedgeMode ? 'HEDGE' : 'ONE_WAY',
       order_details: orderResult
     });
 
@@ -110,9 +136,21 @@ export async function POST(
 
     // Handle specific API errors
     if (error.response?.data) {
+      const errorMsg = error.response.data.msg || error.response.data.message || 'Unknown API error';
+
+      // Add more specific error messages for common issues
+      let enhancedError = errorMsg;
+      if (errorMsg.includes('precision')) {
+        enhancedError = `Quantity precision error: ${errorMsg}. The exchange requires specific decimal precision for this symbol.`;
+      } else if (errorMsg.includes('balance')) {
+        enhancedError = `Insufficient balance: ${errorMsg}`;
+      } else if (errorMsg.includes('reduce only')) {
+        enhancedError = `Reduce-only order error: ${errorMsg}. The order settings may not match your position.`;
+      }
+
       return NextResponse.json(
         {
-          error: `Failed to close position: ${error.response.data.msg || error.response.data.message || 'Unknown API error'}`,
+          error: enhancedError,
           success: false,
           details: error.response.data
         },
