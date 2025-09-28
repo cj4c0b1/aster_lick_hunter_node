@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import ErrorIssueGenerator from '@/components/ErrorIssueGenerator';
+import { useRouter } from 'next/navigation';
 
 interface ErrorLog {
   id: number;
@@ -58,6 +59,7 @@ interface ErrorStats {
 }
 
 export default function ErrorsPage() {
+  const router = useRouter();
   const [errors, setErrors] = useState<ErrorLog[]>([]);
   const [stats, setStats] = useState<ErrorStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -309,7 +311,18 @@ export default function ErrorsPage() {
   return (
     <div className="container mx-auto p-4 space-y-4">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Error Logs</h1>
+        <div className="flex items-center gap-4">
+          <Button
+            onClick={() => router.back()}
+            variant="ghost"
+            size="sm"
+            className="hover:bg-gray-100 dark:hover:bg-gray-800"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </Button>
+          <h1 className="text-3xl font-bold">Error Logs</h1>
+        </div>
         <div className="flex gap-2">
           <Button onClick={() => handleExport('markdown')} variant="outline">
             <Download className="w-4 h-4 mr-2" />
