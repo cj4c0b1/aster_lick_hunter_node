@@ -31,6 +31,7 @@ export class Hunter extends EventEmitter {
   private positionTracker: PositionTracker | null = null;
   private pendingOrders: Map<string, { symbol: string, side: 'BUY' | 'SELL', timestamp: number }> = new Map(); // Track orders placed but not yet filled
   private lastTradeTimestamps: Map<string, { long: number; short: number }> = new Map(); // Track last trade per symbol/side
+  private cleanupInterval: NodeJS.Timeout | null = null; // Periodic cleanup timer
 
   constructor(config: Config, isHedgeMode: boolean = false) {
     super();
@@ -129,11 +130,26 @@ export class Hunter extends EventEmitter {
   private addPendingOrder(orderId: string, symbol: string, side: 'BUY' | 'SELL'): void {
     this.pendingOrders.set(orderId, { symbol, side, timestamp: Date.now() });
     console.log(`Hunter: Added pending order ${orderId} for ${symbol} ${side}. Total pending: ${this.pendingOrders.size}`);
+    this.debugPendingOrders();
   }
 
   private removePendingOrder(orderId: string): void {
     if (this.pendingOrders.delete(orderId)) {
       console.log(`Hunter: Removed pending order ${orderId}. Total pending: ${this.pendingOrders.size}`);
+      this.debugPendingOrders();
+    }
+  }
+
+  // Debug method to display current pending order state
+  private debugPendingOrders(): void {
+    if (this.pendingOrders.size === 0) {
+      console.log('Hunter: [DEBUG] No pending orders');
+    } else {
+      const orderList = Array.from(this.pendingOrders.entries()).map(([id, info]) => {
+        const age = Math.round((Date.now() - info.timestamp) / 1000);
+        return `  - ${id.substring(0, 20)}... -> ${info.symbol} ${info.side} (${age}s old)`;
+      });
+      console.log(`Hunter: [DEBUG] Current pending orders (${this.pendingOrders.size}):\n${orderList.join('\n')}`);
     }
   }
 
@@ -159,17 +175,49 @@ export class Hunter extends EventEmitter {
   // Clean up stale pending orders (older than 5 minutes)
   private cleanStalePendingOrders(): void {
     const staleTime = Date.now() - 5 * 60 * 1000; // 5 minutes
+    let cleanedCount = 0;
     for (const [orderId, order] of this.pendingOrders.entries()) {
       if (order.timestamp < staleTime) {
-        console.log(`Hunter: Cleaning stale pending order ${orderId} for ${order.symbol}`);
+        console.log(`Hunter: Cleaning stale pending order ${orderId} for ${order.symbol} (age: ${Math.round((Date.now() - order.timestamp) / 1000)}s)`);
         this.pendingOrders.delete(orderId);
+        cleanedCount++;
       }
+    }
+    if (cleanedCount > 0) {
+      console.log(`Hunter: Cleaned ${cleanedCount} stale pending orders. Remaining: ${this.pendingOrders.size}`);
+    }
+  }
+
+  // Start periodic cleanup of stale orders
+  private startPeriodicCleanup(): void {
+    // Clear any existing interval
+    this.stopPeriodicCleanup();
+
+    // Run cleanup every 30 seconds
+    this.cleanupInterval = setInterval(() => {
+      if (this.pendingOrders.size > 0) {
+        this.cleanStalePendingOrders();
+      }
+    }, 30000);
+
+    console.log('Hunter: Started periodic cleanup of stale pending orders (every 30s)');
+  }
+
+  // Stop periodic cleanup
+  private stopPeriodicCleanup(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+      console.log('Hunter: Stopped periodic cleanup of stale pending orders');
     }
   }
 
   async start(): Promise<void> {
     if (this.isRunning) return;
     this.isRunning = true;
+
+    // Start periodic cleanup of stale pending orders (every 30 seconds)
+    this.startPeriodicCleanup();
 
     // Initialize symbol precision manager with exchange info
     try {
@@ -203,6 +251,10 @@ export class Hunter extends EventEmitter {
 
   stop(): void {
     this.isRunning = false;
+
+    // Stop periodic cleanup
+    this.stopPeriodicCleanup();
+
     if (this.ws) {
       this.ws.close();
       this.ws = null;
@@ -587,10 +639,7 @@ export class Hunter extends EventEmitter {
           return;
         }
 
-        // Clean up stale pending orders periodically
-        if (Math.random() < 0.1) { // 10% chance to clean on each trade attempt
-          this.cleanStalePendingOrders();
-        }
+        // Note: Periodic cleanup now happens automatically every 30 seconds
 
         // Check symbol-specific margin limit
         if (symbolConfig.maxPositionMarginUSDT) {
@@ -736,15 +785,28 @@ export class Hunter extends EventEmitter {
         orderParams.timeInForce = symbolConfig.usePostOnly ? 'GTX' : 'GTC';
       }
 
-      // Place the order
-      order = await placeOrder(orderParams, this.config.api);
+      // Generate a temporary tracking ID before placing the order
+      const tempTrackingId = `temp_${Date.now()}_${symbol}_${side}`;
 
-      const displayPrice = orderType === 'LIMIT' ? ` at ${orderPrice}` : '';
-      console.log(`Hunter: Placed ${orderType} ${side} order for ${symbol}${displayPrice}, orderId: ${order.orderId}`);
+      // Pre-track the order to prevent duplicate trades while order is being placed
+      this.addPendingOrder(tempTrackingId, symbol, side);
 
-      // Track this order as pending
-      if (order.orderId) {
-        this.addPendingOrder(order.orderId.toString(), symbol, side);
+      try {
+        // Place the order
+        order = await placeOrder(orderParams, this.config.api);
+
+        const displayPrice = orderType === 'LIMIT' ? ` at ${orderPrice}` : '';
+        console.log(`Hunter: Placed ${orderType} ${side} order for ${symbol}${displayPrice}, orderId: ${order.orderId}`);
+
+        // Replace temp tracking with real order ID
+        this.removePendingOrder(tempTrackingId);
+        if (order.orderId) {
+          this.addPendingOrder(order.orderId.toString(), symbol, side);
+        }
+      } catch (orderError) {
+        // Remove temp tracking if order placement fails
+        this.removePendingOrder(tempTrackingId);
+        throw orderError; // Re-throw to be handled by outer catch
       }
 
       // Broadcast order placed event
@@ -771,9 +833,25 @@ export class Hunter extends EventEmitter {
       });
 
     } catch (error: any) {
-      // Remove pending order if it was tracked but failed
+      // CRITICAL FIX: Remove pending order tracking when order placement fails
+      // This prevents pending orders from accumulating forever
+      // We need to check all possible ways an order ID might have been generated
       if (order && order.orderId) {
         this.removePendingOrder(order.orderId.toString());
+        console.log(`Hunter: Removed pending order ${order.orderId} after placement failure`);
+      } else {
+        // If order wasn't created but we might have a pending entry for this symbol
+        // Clean up any pending orders for this symbol that are older than 10 seconds
+        // This is a safety net for edge cases where order ID wasn't available
+        const now = Date.now();
+        for (const [orderId, orderInfo] of this.pendingOrders.entries()) {
+          if (orderInfo.symbol === symbol && orderInfo.side === side &&
+              (now - orderInfo.timestamp) < 10000) { // Only recent orders
+            this.removePendingOrder(orderId);
+            console.log(`Hunter: Cleaned up recent pending order ${orderId} for ${symbol} after placement failure`);
+            break; // Only remove the most recent matching order
+          }
+        }
       }
 
       // Parse the error with context
@@ -933,6 +1011,7 @@ export class Hunter extends EventEmitter {
         // Declare fallback variables for error handling
         let fallbackQuantity: number = 0;
         let fallbackPrice: number = 0;
+        let fallbackTempId: string = '';
 
         try {
           await setLeverage(symbol, symbolConfig.leverage, this.config.api);
@@ -975,6 +1054,10 @@ export class Hunter extends EventEmitter {
           const fallbackPositionSide = getPositionSide(this.isHedgeMode, side) as 'BOTH' | 'LONG' | 'SHORT';
           console.log(`Hunter: Using position mode: ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'}, side: ${side}, positionSide: ${fallbackPositionSide}`);
 
+          // Generate temp tracking for fallback order
+          fallbackTempId = `fallback_${Date.now()}_${symbol}_${side}`;
+          this.addPendingOrder(fallbackTempId, symbol, side);
+
           const fallbackOrder = await placeOrder({
             symbol,
             side,
@@ -985,7 +1068,8 @@ export class Hunter extends EventEmitter {
 
           console.log(`Hunter: Fallback market order placed for ${symbol}, orderId: ${fallbackOrder.orderId}`);
 
-          // Track fallback order as pending
+          // Replace temp tracking with real order ID
+          this.removePendingOrder(fallbackTempId);
           if (fallbackOrder.orderId) {
             this.addPendingOrder(fallbackOrder.orderId.toString(), symbol, side);
           }
@@ -1013,6 +1097,12 @@ export class Hunter extends EventEmitter {
           });
 
         } catch (fallbackError: any) {
+          // Remove temp tracking if fallback order also fails
+          if (fallbackTempId) {
+            this.removePendingOrder(fallbackTempId);
+            console.log(`Hunter: Removed fallback temp pending order ${fallbackTempId} after placement failure`);
+          }
+
           // Parse the fallback error with context
           const fallbackTradingError = parseExchangeError(fallbackError, {
             symbol,
@@ -1048,76 +1138,76 @@ export class Hunter extends EventEmitter {
             console.error(`  Even with adjustments, notional requirement not met!`);
             console.error(`  Check if symbol has special requirements or if price data is stale.`);
 
-            if (this.statusBroadcaster) {
-              this.statusBroadcaster.broadcastTradingError(
-                `Critical Notional Error - ${symbol}`,
-                errorMsg,
-                {
-                  component: 'Hunter',
-                  symbol,
-                  errorCode: fallbackTradingError.code,
-                  details: { ...fallbackTradingError.details, isFallback: true },
-                }
-              );
-            }
-          } else if (fallbackTradingError instanceof RateLimitError) {
-            console.error(`Hunter: RATE LIMIT in fallback - backing off`);
+              if (this.statusBroadcaster) {
+                this.statusBroadcaster.broadcastTradingError(
+                  `Critical Notional Error - ${symbol}`,
+                  errorMsg,
+                  {
+                    component: 'Hunter',
+                    symbol,
+                    errorCode: fallbackTradingError.code,
+                    details: { ...fallbackTradingError.details, isFallback: true },
+                  }
+                );
+              }
+            } else if (fallbackTradingError instanceof RateLimitError) {
+              console.error(`Hunter: RATE LIMIT in fallback - backing off`);
 
-            if (this.statusBroadcaster) {
-              this.statusBroadcaster.broadcastApiError(
-                'Rate Limit (Fallback)',
-                'Rate limit hit during fallback order attempt',
-                {
-                  component: 'Hunter',
-                  symbol,
-                  errorCode: fallbackTradingError.code,
-                }
-              );
-            }
-          } else if (fallbackTradingError instanceof InsufficientBalanceError) {
-            console.error(`Hunter: INSUFFICIENT BALANCE in fallback for ${symbol}`);
+              if (this.statusBroadcaster) {
+                this.statusBroadcaster.broadcastApiError(
+                  'Rate Limit (Fallback)',
+                  'Rate limit hit during fallback order attempt',
+                  {
+                    component: 'Hunter',
+                    symbol,
+                    errorCode: fallbackTradingError.code,
+                  }
+                );
+              }
+            } else if (fallbackTradingError instanceof InsufficientBalanceError) {
+              console.error(`Hunter: INSUFFICIENT BALANCE in fallback for ${symbol}`);
 
-            if (this.statusBroadcaster) {
-              this.statusBroadcaster.broadcastTradingError(
-                `Insufficient Balance (Fallback) - ${symbol}`,
-                'Insufficient balance for fallback market order',
-                {
-                  component: 'Hunter',
-                  symbol,
-                  errorCode: fallbackTradingError.code,
-                }
-              );
-            }
-          } else {
-            console.error(`Hunter: Fallback order failed for ${symbol} (${fallbackTradingError.code}):`, fallbackTradingError.message);
+              if (this.statusBroadcaster) {
+                this.statusBroadcaster.broadcastTradingError(
+                  `Insufficient Balance (Fallback) - ${symbol}`,
+                  'Insufficient balance for fallback market order',
+                  {
+                    component: 'Hunter',
+                    symbol,
+                    errorCode: fallbackTradingError.code,
+                  }
+                );
+              }
+            } else {
+              console.error(`Hunter: Fallback order failed for ${symbol} (${fallbackTradingError.code}):`, fallbackTradingError.message);
 
-            if (this.statusBroadcaster) {
-              this.statusBroadcaster.broadcastTradingError(
-                `Fallback Order Failed - ${symbol}`,
-                fallbackTradingError.message,
-                {
-                  component: 'Hunter',
-                  symbol,
-                  errorCode: fallbackTradingError.code,
-                  details: fallbackTradingError.details,
-                }
-              );
+              if (this.statusBroadcaster) {
+                this.statusBroadcaster.broadcastTradingError(
+                  `Fallback Order Failed - ${symbol}`,
+                  fallbackTradingError.message,
+                  {
+                    component: 'Hunter',
+                    symbol,
+                    errorCode: fallbackTradingError.code,
+                    details: fallbackTradingError.details,
+                  }
+                );
+              }
             }
-          }
 
-          // Broadcast fallback order failed event
-          if (this.statusBroadcaster) {
-            this.statusBroadcaster.broadcastOrderFailed({
-              symbol,
-              side,
-              reason: fallbackTradingError.message,
-              details: fallbackTradingError.details,
-            });
+            // Broadcast fallback order failed event
+            if (this.statusBroadcaster) {
+              this.statusBroadcaster.broadcastOrderFailed({
+                symbol,
+                side,
+                reason: fallbackTradingError.message,
+                details: fallbackTradingError.details,
+              });
+            }
           }
         }
       }
     }
-  }
 
   private simulateLiquidations(): void {
     // Simulate liquidation events for paper mode testing
