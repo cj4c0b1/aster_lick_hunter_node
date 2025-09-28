@@ -18,7 +18,8 @@ import {
   InsufficientBalanceError,
   ReduceOnlyError,
   PricePrecisionError,
-  QuantityPrecisionError
+  QuantityPrecisionError,
+  PositionModeError
 } from '../errors/TradingErrors';
 import { errorLogger } from '../services/errorLogger';
 
@@ -803,10 +804,54 @@ export class Hunter extends EventEmitter {
         if (order.orderId) {
           this.addPendingOrder(order.orderId.toString(), symbol, side);
         }
-      } catch (orderError) {
-        // Remove temp tracking if order placement fails
-        this.removePendingOrder(tempTrackingId);
-        throw orderError; // Re-throw to be handled by outer catch
+      } catch (orderError: any) {
+        // Check if this is a position mode error (-4061)
+        if (orderError?.response?.data?.code === -4061) {
+          console.log(`Hunter: Position mode mismatch detected for ${symbol}, retrying with opposite mode...`);
+
+          // Remove temp tracking before retry
+          this.removePendingOrder(tempTrackingId);
+
+          // Flip the position mode assumption and retry once
+          const originalMode = this.isHedgeMode;
+          this.isHedgeMode = !this.isHedgeMode;
+
+          // Recalculate position side with the new mode
+          const retryPositionSide = getPositionSide(this.isHedgeMode, side);
+          console.log(`Hunter: Retrying with position mode: ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'}, side: ${side}, positionSide: ${retryPositionSide}`);
+
+          // Update order params with new position side
+          orderParams.positionSide = retryPositionSide;
+
+          // Generate a new temp tracking ID for retry
+          const retryTrackingId = `retry_${Date.now()}_${symbol}_${side}`;
+          this.addPendingOrder(retryTrackingId, symbol, side);
+
+          try {
+            // Retry the order with the new position mode
+            order = await placeOrder(orderParams, this.config.api);
+
+            const displayPrice = orderType === 'LIMIT' ? ` at ${orderPrice}` : '';
+            console.log(`Hunter: Successfully placed ${orderType} ${side} order for ${symbol}${displayPrice} after position mode adjustment, orderId: ${order.orderId}`);
+            console.log(`Hunter: ✅ Position mode corrected to: ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'} mode`);
+
+            // Replace temp tracking with real order ID
+            this.removePendingOrder(retryTrackingId);
+            if (order.orderId) {
+              this.addPendingOrder(order.orderId.toString(), symbol, side);
+            }
+          } catch (retryError) {
+            // Retry failed, restore original mode and clean up
+            console.error(`Hunter: Retry failed for ${symbol}, restoring original position mode`);
+            this.isHedgeMode = originalMode;
+            this.removePendingOrder(retryTrackingId);
+            throw retryError; // Re-throw for outer error handling
+          }
+        } else {
+          // Not a position mode error, just clean up and re-throw
+          this.removePendingOrder(tempTrackingId);
+          throw orderError; // Re-throw to be handled by outer catch
+        }
       }
 
       // Broadcast order placed event
@@ -859,7 +904,8 @@ export class Hunter extends EventEmitter {
         symbol,
         quantity,
         price: currentPrice,
-        leverage: symbolConfig.leverage
+        leverage: symbolConfig.leverage,
+        positionSide: getPositionSide(this.isHedgeMode, side)
       });
 
       // Log to error database
@@ -947,6 +993,25 @@ export class Hunter extends EventEmitter {
             }
           );
         }
+      } else if (tradingError instanceof PositionModeError) {
+        // This should not happen as we handle it in the retry logic above
+        // But just in case, log it clearly
+        console.error(`Hunter: POSITION MODE ERROR for ${symbol}`);
+        console.error(`  Position mode mismatch - attempted ${tradingError.attemptedMode}`);
+        console.error(`  This error should have been handled by retry logic`);
+
+        if (this.statusBroadcaster) {
+          this.statusBroadcaster.broadcastTradingError(
+            `Position Mode Error - ${symbol}`,
+            `Position mode mismatch - check exchange settings`,
+            {
+              component: 'Hunter',
+              symbol,
+              errorCode: tradingError.code,
+              details: tradingError.details,
+            }
+          );
+        }
       } else if (tradingError instanceof PricePrecisionError) {
         console.error(`Hunter: PRICE PRECISION ERROR for ${symbol}`);
         console.error(`  Price ${tradingError.price} doesn't meet tick size requirements`);
@@ -1012,6 +1077,7 @@ export class Hunter extends EventEmitter {
         let fallbackQuantity: number = 0;
         let fallbackPrice: number = 0;
         let fallbackTempId: string = '';
+        let fallbackPositionSide: 'BOTH' | 'LONG' | 'SHORT' = 'BOTH';
 
         try {
           await setLeverage(symbol, symbolConfig.leverage, this.config.api);
@@ -1051,7 +1117,7 @@ export class Hunter extends EventEmitter {
 
           console.log(`Hunter: Fallback calculation for ${symbol}: margin=${symbolConfig.tradeSize} USDT, leverage=${symbolConfig.leverage}x, price=${fallbackPrice}, notional=${fallbackNotionalUSDT} USDT, quantity=${fallbackQuantity}`);
 
-          const fallbackPositionSide = getPositionSide(this.isHedgeMode, side) as 'BOTH' | 'LONG' | 'SHORT';
+          fallbackPositionSide = getPositionSide(this.isHedgeMode, side) as 'BOTH' | 'LONG' | 'SHORT';
           console.log(`Hunter: Using position mode: ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'}, side: ${side}, positionSide: ${fallbackPositionSide}`);
 
           // Generate temp tracking for fallback order
@@ -1108,7 +1174,8 @@ export class Hunter extends EventEmitter {
             symbol,
             quantity: fallbackQuantity,
             price: fallbackPrice,
-            leverage: symbolConfig.leverage
+            leverage: symbolConfig.leverage,
+            positionSide: fallbackPositionSide
           });
 
           // Log fallback error to database

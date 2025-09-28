@@ -8,6 +8,7 @@ export type ErrorSubCategory =
   | 'price-precision'
   | 'quantity-precision'
   | 'order-rejection'
+  | 'position-mode'
   | 'connection-lost'
   | 'reconnect-failed'
   | 'message-parse'
@@ -161,6 +162,24 @@ export class QuantityPrecisionError extends TradingError {
   }
 }
 
+export class PositionModeError extends TradingError {
+  constructor(
+    public symbol: string,
+    public attemptedMode: string,
+    public requiredMode?: string
+  ) {
+    const message = requiredMode
+      ? `Position mode mismatch for ${symbol}: Attempted to use ${attemptedMode} mode, but exchange requires ${requiredMode} mode`
+      : `Order's position side does not match user's setting for ${symbol}. Attempted mode: ${attemptedMode}`;
+    super(message, -4061, symbol, { attemptedMode, requiredMode });
+    this.name = 'PositionModeError';
+  }
+
+  protected determineSubCategory(): void {
+    this.subCategory = 'position-mode';
+  }
+}
+
 export class ReduceOnlyError extends TradingError {
   constructor(public symbol: string) {
     super(`ReduceOnly order rejected for ${symbol}`, -2022, symbol);
@@ -183,7 +202,7 @@ export class OrderWouldTriggerError extends TradingError {
   }
 }
 
-export function parseExchangeError(error: any, context?: { symbol?: string; quantity?: number; price?: number; leverage?: number }): TradingError {
+export function parseExchangeError(error: any, context?: { symbol?: string; quantity?: number; price?: number; leverage?: number; positionSide?: string }): TradingError {
   const code = error.response?.data?.code;
   const msg = error.response?.data?.msg || error.message;
 
@@ -267,6 +286,14 @@ export function parseExchangeError(error: any, context?: { symbol?: string; quan
     case -1021:
       // INVALID_TIMESTAMP
       return new TradingError('Invalid timestamp - check system time sync', code, context?.symbol);
+
+    case -4061:
+      // POSITION_SIDE_NOT_MATCH
+      // Order's position side does not match user's setting
+      return new PositionModeError(
+        context?.symbol || 'UNKNOWN',
+        context?.positionSide || 'UNKNOWN'
+      );
 
     default:
       // Unknown error code
