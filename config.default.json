@@ -15,7 +15,10 @@
       "slPercent": 20,
       "vwapProtection": true,
       "vwapTimeframe": "5m",
-      "vwapLookback": 200
+      "vwapLookback": 200,
+      "useThreshold": false,
+      "thresholdTimeWindow": 60000,
+      "thresholdCooldown": 30000
     }
   },
   "global": {
@@ -23,6 +26,7 @@
     "paperMode": true,
     "positionMode": "HEDGE",
     "maxOpenPositions": 5,
+    "useThresholdSystem": false,
     "server": {
       "dashboardPassword": "",
       "dashboardPort": 3000,
