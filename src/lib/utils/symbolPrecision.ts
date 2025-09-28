@@ -11,6 +11,12 @@ export interface SymbolFilter {
 export class SymbolPrecisionManager {
   private symbolFilters: Map<string, SymbolFilter> = new Map();
 
+  // Default precision values for unknown symbols
+  private readonly DEFAULT_PRICE_PRECISION = 4;
+  private readonly DEFAULT_QUANTITY_PRECISION = 3;
+  private readonly DEFAULT_TICK_SIZE = '0.0001';
+  private readonly DEFAULT_STEP_SIZE = '0.001';
+
   // Parse exchange info and store symbol filters
   public parseExchangeInfo(exchangeInfo: any): void {
     if (!exchangeInfo.symbols) return;
@@ -34,6 +40,8 @@ export class SymbolPrecisionManager {
           tickSize: priceFilter.tickSize,
           stepSize: lotSizeFilter.stepSize,
         });
+      } else {
+        console.warn(`SymbolPrecisionManager: Missing filters for ${symbol}, using defaults`);
       }
     }
 
@@ -73,8 +81,13 @@ export class SymbolPrecisionManager {
   public formatPrice(symbol: string, price: number): number {
     const filter = this.symbolFilters.get(symbol);
     if (!filter) {
-      console.warn(`SymbolPrecisionManager: No precision info for ${symbol}, using raw value`);
-      return price;
+      console.warn(`SymbolPrecisionManager: No precision info for ${symbol}, using default precision`);
+      // Use default precision values
+      const multiplier = Math.pow(10, this.DEFAULT_PRICE_PRECISION);
+      const rounded = Math.round(price * multiplier) / multiplier;
+      const tickSize = parseFloat(this.DEFAULT_TICK_SIZE);
+      const aligned = Math.round(rounded / tickSize) * tickSize;
+      return parseFloat(aligned.toFixed(this.DEFAULT_PRICE_PRECISION));
     }
 
     // Round to the correct precision
@@ -97,8 +110,13 @@ export class SymbolPrecisionManager {
   public formatQuantity(symbol: string, quantity: number): number {
     const filter = this.symbolFilters.get(symbol);
     if (!filter) {
-      console.warn(`SymbolPrecisionManager: No precision info for ${symbol}, using raw value`);
-      return quantity;
+      console.warn(`SymbolPrecisionManager: No precision info for ${symbol}, using default precision`);
+      // Use default precision values
+      const multiplier = Math.pow(10, this.DEFAULT_QUANTITY_PRECISION);
+      const rounded = Math.round(quantity * multiplier) / multiplier;
+      const stepSize = parseFloat(this.DEFAULT_STEP_SIZE);
+      const aligned = Math.round(rounded / stepSize) * stepSize;
+      return parseFloat(aligned.toFixed(this.DEFAULT_QUANTITY_PRECISION));
     }
 
     // Round to the correct precision
@@ -125,6 +143,17 @@ export class SymbolPrecisionManager {
   // Check if we have precision info for a symbol
   public hasSymbol(symbol: string): boolean {
     return this.symbolFilters.has(symbol);
+  }
+
+  // Get default filter for unknown symbols
+  public getDefaultFilter(symbol: string): SymbolFilter {
+    return {
+      symbol,
+      pricePrecision: this.DEFAULT_PRICE_PRECISION,
+      quantityPrecision: this.DEFAULT_QUANTITY_PRECISION,
+      tickSize: this.DEFAULT_TICK_SIZE,
+      stepSize: this.DEFAULT_STEP_SIZE,
+    };
   }
 }
 

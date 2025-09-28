@@ -1318,7 +1318,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
           }
         }
 
-        let finalTpPrice = rawTpPrice;
+        const finalTpPrice = rawTpPrice;
 
         // Format prices and quantity
         const slPrice = symbolPrecision.formatPrice(symbol, adjustedSlPrice);

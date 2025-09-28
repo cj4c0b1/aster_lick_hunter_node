@@ -550,17 +550,13 @@ export class Hunter extends EventEmitter {
 
       const calculatedQuantity = notionalUSDT / currentPrice;
 
-      // Format quantity according to symbol's step size
-      quantity = symbolPrecision.hasSymbol(symbol)
-        ? symbolPrecision.formatQuantity(symbol, calculatedQuantity)
-        : parseFloat(calculatedQuantity.toFixed(symbolInfo.quantityPrecision || 8));
+      // Always format quantity and price using symbolPrecision (which now has defaults)
+      quantity = symbolPrecision.formatQuantity(symbol, calculatedQuantity);
 
       // Validate order parameters
       if (orderType === 'LIMIT') {
-        // Format price according to symbol's tick size before validation
-        orderPrice = symbolPrecision.hasSymbol(symbol)
-          ? symbolPrecision.formatPrice(symbol, orderPrice)
-          : orderPrice;
+        // Always format price using symbolPrecision (which now has defaults)
+        orderPrice = symbolPrecision.formatPrice(symbol, orderPrice);
 
         const validation = await validateOrderParams(symbol, side, orderPrice, quantity);
         if (!validation.valid) {
@@ -568,9 +564,9 @@ export class Hunter extends EventEmitter {
           return;
         }
 
-        // Use adjusted values if provided
-        if (validation.adjustedPrice) orderPrice = validation.adjustedPrice;
-        if (validation.adjustedQuantity) quantity = validation.adjustedQuantity;
+        // Use adjusted values if provided (these are already properly formatted)
+        if (validation.adjustedPrice !== undefined) orderPrice = validation.adjustedPrice;
+        if (validation.adjustedQuantity !== undefined) quantity = validation.adjustedQuantity;
       }
 
       // Set leverage if needed
@@ -802,10 +798,8 @@ export class Hunter extends EventEmitter {
           const markPriceData = await getMarkPrice(symbol);
           const rawFallbackPrice = parseFloat(Array.isArray(markPriceData) ? markPriceData[0].markPrice : markPriceData.markPrice);
 
-          // Format price according to symbol's tick size
-          fallbackPrice = symbolPrecision.hasSymbol(symbol)
-            ? symbolPrecision.formatPrice(symbol, rawFallbackPrice)
-            : rawFallbackPrice;
+          // Always use symbolPrecision formatting (which now has defaults)
+          fallbackPrice = symbolPrecision.formatPrice(symbol, rawFallbackPrice);
 
           // Calculate quantity for fallback order
           let fallbackNotionalUSDT = symbolConfig.tradeSize * symbolConfig.leverage;
@@ -819,10 +813,8 @@ export class Hunter extends EventEmitter {
           // Calculate raw quantity
           const rawFallbackQuantity = fallbackNotionalUSDT / fallbackPrice;
 
-          // Format quantity according to symbol's step size
-          fallbackQuantity = symbolPrecision.hasSymbol(symbol)
-            ? symbolPrecision.formatQuantity(symbol, rawFallbackQuantity)
-            : parseFloat(rawFallbackQuantity.toFixed(fallbackSymbolInfo.quantityPrecision || 8));
+          // Always use symbolPrecision formatting (which now has defaults)
+          fallbackQuantity = symbolPrecision.formatQuantity(symbol, rawFallbackQuantity);
 
           console.log(`Hunter: Fallback calculation for ${symbol}: margin=${symbolConfig.tradeSize} USDT, leverage=${symbolConfig.leverage}x, price=${fallbackPrice}, notional=${fallbackNotionalUSDT} USDT, quantity=${fallbackQuantity}`);
 
