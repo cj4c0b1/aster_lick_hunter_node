@@ -4,6 +4,7 @@ import { AuthProvider } from "@/components/AuthProvider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import ConfigProvider from "@/components/ConfigProvider";
+import ErrorNotificationButton from "@/components/ErrorNotificationButton";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -41,6 +42,7 @@ export default function RootLayout({
             <ConfigProvider>
               {children}
               <Toaster />
+              <ErrorNotificationButton />
             </ConfigProvider>
           </AuthProvider>
         </ThemeProvider>

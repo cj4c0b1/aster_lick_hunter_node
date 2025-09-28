@@ -9,6 +9,7 @@ import { PositionTracker } from './positionManager';
 import { liquidationStorage } from '../services/liquidationStorage';
 import { vwapService } from '../services/vwapService';
 import { vwapStreamer } from '../services/vwapStreamer';
+import { thresholdMonitor } from '../services/thresholdMonitor';
 import { symbolPrecision } from '../utils/symbolPrecision';
 import {
   parseExchangeError,
@@ -29,11 +30,15 @@ export class Hunter extends EventEmitter {
   private isHedgeMode: boolean;
   private positionTracker: PositionTracker | null = null;
   private pendingOrders: Map<string, { symbol: string, side: 'BUY' | 'SELL', timestamp: number }> = new Map(); // Track orders placed but not yet filled
+  private lastTradeTimestamps: Map<string, { long: number; short: number }> = new Map(); // Track last trade per symbol/side
 
   constructor(config: Config, isHedgeMode: boolean = false) {
     super();
     this.config = config;
     this.isHedgeMode = isHedgeMode;
+
+    // Initialize threshold monitor with config
+    thresholdMonitor.updateConfig(config);
   }
 
   // Set status broadcaster for order events
@@ -61,6 +66,9 @@ export class Hunter extends EventEmitter {
   public updateConfig(newConfig: Config): void {
     const oldConfig = this.config;
     this.config = newConfig;
+
+    // Update threshold monitor configuration
+    thresholdMonitor.updateConfig(newConfig);
 
     // Log significant changes
     if (oldConfig.global.paperMode !== newConfig.global.paperMode) {
@@ -298,8 +306,18 @@ export class Hunter extends EventEmitter {
       time: event.E, // Keep for backward compatibility
     };
 
-    // Emit liquidation event to WebSocket clients (all liquidations)
-    this.emit('liquidationDetected', liquidation);
+    // Check if threshold system is enabled globally and for this symbol
+    const useThresholdSystem = this.config.global.useThresholdSystem === true &&
+                              this.config.symbols[liquidation.symbol]?.useThreshold === true;
+
+    // Process liquidation through threshold monitor only if enabled
+    const thresholdStatus = useThresholdSystem ? thresholdMonitor.processLiquidation(liquidation) : null;
+
+    // Emit liquidation event to WebSocket clients (all liquidations) with threshold info
+    this.emit('liquidationDetected', {
+      ...liquidation,
+      thresholdStatus
+    });
 
     const symbolConfig = this.config.symbols[liquidation.symbol];
     if (!symbolConfig) return; // Symbol not in config
@@ -323,22 +341,80 @@ export class Hunter extends EventEmitter {
       // Non-critical error, don't broadcast to UI to avoid spam
     });
 
-    // Check direction-specific volume thresholds
-    // SELL liquidation means longs are getting liquidated, we might want to BUY
-    // BUY liquidation means shorts are getting liquidated, we might want to SELL
-    const thresholdToCheck = liquidation.side === 'SELL'
-      ? (symbolConfig.longVolumeThresholdUSDT ?? symbolConfig.volumeThresholdUSDT ?? 0)
-      : (symbolConfig.shortVolumeThresholdUSDT ?? symbolConfig.volumeThresholdUSDT ?? 0);
+    // Check if we should use threshold system or instant trigger
+    if (useThresholdSystem && thresholdStatus) {
+      // NEW THRESHOLD SYSTEM - Cumulative volume in 60-second window
+      // SELL liquidation means longs are getting liquidated, we might want to BUY
+      // BUY liquidation means shorts are getting liquidated, we might want to SELL
+      const isLongOpportunity = liquidation.side === 'SELL';
+      const isShortOpportunity = liquidation.side === 'BUY';
 
-    if (volumeUSDT < thresholdToCheck) return; // Too small
+      let shouldTrade = false;
+      let tradeSide: 'BUY' | 'SELL' | null = null;
 
-    console.log(`Hunter: Liquidation detected - ${liquidation.symbol} ${liquidation.side} ${volumeUSDT.toFixed(2)} USDT`);
+      if (isLongOpportunity && thresholdStatus.longThreshold > 0) {
+        // Check if cumulative SELL liquidations in 60s meet long threshold
+        if (thresholdStatus.recentLongVolume >= thresholdStatus.longThreshold) {
+          shouldTrade = true;
+          tradeSide = 'BUY'; // Buy when longs are getting liquidated
+          console.log(`Hunter: LONG threshold met - ${liquidation.symbol} cumulative SELL liquidations: ${thresholdStatus.recentLongVolume.toFixed(2)} USDT >= ${thresholdStatus.longThreshold} USDT (60s window)`);
+        }
+      } else if (isShortOpportunity && thresholdStatus.shortThreshold > 0) {
+        // Check if cumulative BUY liquidations in 60s meet short threshold
+        if (thresholdStatus.recentShortVolume >= thresholdStatus.shortThreshold) {
+          shouldTrade = true;
+          tradeSide = 'SELL'; // Sell when shorts are getting liquidated
+          console.log(`Hunter: SHORT threshold met - ${liquidation.symbol} cumulative BUY liquidations: ${thresholdStatus.recentShortVolume.toFixed(2)} USDT >= ${thresholdStatus.shortThreshold} USDT (60s window)`);
+        }
+      }
 
-    // Analyze and trade
-    await this.analyzeAndTrade(liquidation, symbolConfig);
+      if (shouldTrade && tradeSide) {
+        // Check cooldown to prevent multiple trades from same window
+        const now = Date.now();
+        const cooldownPeriod = symbolConfig.thresholdCooldown || 30000; // Use symbol-specific cooldown or default 30s
+        const symbolTrades = this.lastTradeTimestamps.get(liquidation.symbol) || { long: 0, short: 0 };
+
+        const lastTradeTime = tradeSide === 'BUY' ? symbolTrades.long : symbolTrades.short;
+        const timeSinceLastTrade = now - lastTradeTime;
+
+        if (timeSinceLastTrade < cooldownPeriod) {
+          const remainingCooldown = Math.ceil((cooldownPeriod - timeSinceLastTrade) / 1000);
+          console.log(`Hunter: ${tradeSide} trade cooldown active for ${liquidation.symbol} - ${remainingCooldown}s remaining`);
+          return;
+        }
+
+        console.log(`Hunter: Triggering ${tradeSide} trade for ${liquidation.symbol} based on 60s cumulative volume`);
+
+        // Update last trade timestamp
+        if (tradeSide === 'BUY') {
+          symbolTrades.long = now;
+        } else {
+          symbolTrades.short = now;
+        }
+        this.lastTradeTimestamps.set(liquidation.symbol, symbolTrades);
+
+        // Analyze and trade with the cumulative trigger
+        await this.analyzeAndTrade(liquidation, symbolConfig, tradeSide);
+      }
+    } else {
+      // ORIGINAL INSTANT TRIGGER SYSTEM
+      // Check direction-specific volume thresholds
+      // SELL liquidation means longs are getting liquidated, we might want to BUY
+      // BUY liquidation means shorts are getting liquidated, we might want to SELL
+      const thresholdToCheck = liquidation.side === 'SELL'
+        ? (symbolConfig.longVolumeThresholdUSDT ?? symbolConfig.volumeThresholdUSDT ?? 0)
+        : (symbolConfig.shortVolumeThresholdUSDT ?? symbolConfig.volumeThresholdUSDT ?? 0);
+
+      if (volumeUSDT < thresholdToCheck) return; // Too small
+
+      console.log(`Hunter: Liquidation detected - ${liquidation.symbol} ${liquidation.side} ${volumeUSDT.toFixed(2)} USDT`);
+
+      // Analyze and trade with instant trigger
+      await this.analyzeAndTrade(liquidation, symbolConfig);
+    }
   }
 
-  private async analyzeAndTrade(liquidation: LiquidationEvent, symbolConfig: SymbolConfig): Promise<void> {
+  private async analyzeAndTrade(liquidation: LiquidationEvent, symbolConfig: SymbolConfig, _forcedSide?: 'BUY' | 'SELL'): Promise<void> {
     try {
       // Get mark price and recent 1m kline
       const [markPriceData] = Array.isArray(await getMarkPrice(liquidation.symbol)) ?

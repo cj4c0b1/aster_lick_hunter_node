@@ -1,4 +1,27 @@
+export type ErrorSubCategory =
+  | 'rate-limit'
+  | 'authentication'
+  | 'validation'
+  | 'server-error'
+  | 'notional-error'
+  | 'insufficient-balance'
+  | 'price-precision'
+  | 'quantity-precision'
+  | 'order-rejection'
+  | 'connection-lost'
+  | 'reconnect-failed'
+  | 'message-parse'
+  | 'memory-leak'
+  | 'crash'
+  | 'uncaught-exception'
+  | 'general';
+
 export class TradingError extends Error {
+  public subCategory?: ErrorSubCategory;
+  public fingerprint?: string;
+  public correlationId?: string;
+  public timestamp: string;
+
   constructor(
     message: string,
     public code?: number,
@@ -7,6 +30,19 @@ export class TradingError extends Error {
   ) {
     super(message);
     this.name = 'TradingError';
+    this.timestamp = new Date().toISOString();
+    this.determineSubCategory();
+    this.generateFingerprint();
+  }
+
+  protected determineSubCategory(): void {
+    // Override in subclasses for specific categorization
+    this.subCategory = 'general';
+  }
+
+  protected generateFingerprint(): void {
+    // Create a unique fingerprint for error deduplication
+    this.fingerprint = `${this.name}-${this.code || 'NO_CODE'}-${this.symbol || 'NO_SYMBOL'}`;
   }
 }
 
@@ -30,6 +66,10 @@ export class NotionalError extends TradingError {
     });
     this.name = 'NotionalError';
   }
+
+  protected determineSubCategory(): void {
+    this.subCategory = 'notional-error';
+  }
 }
 
 export class InsufficientBalanceError extends TradingError {
@@ -42,6 +82,10 @@ export class InsufficientBalanceError extends TradingError {
     super(message, -2019, symbol, { required, available });
     this.name = 'InsufficientBalanceError';
   }
+
+  protected determineSubCategory(): void {
+    this.subCategory = 'insufficient-balance';
+  }
 }
 
 export class SymbolNotFoundError extends TradingError {
@@ -50,12 +94,20 @@ export class SymbolNotFoundError extends TradingError {
     super(message, -1121, symbol);
     this.name = 'SymbolNotFoundError';
   }
+
+  protected determineSubCategory(): void {
+    this.subCategory = 'validation';
+  }
 }
 
 export class RateLimitError extends TradingError {
   constructor(public retryAfter?: number) {
     super('Rate limit exceeded, please slow down', -1003, undefined);
     this.name = 'RateLimitError';
+  }
+
+  protected determineSubCategory(): void {
+    this.subCategory = 'rate-limit';
   }
 }
 
@@ -64,12 +116,20 @@ export class InvalidOrderTypeError extends TradingError {
     super(`Invalid order type ${orderType} for ${symbol}`, -1116, symbol);
     this.name = 'InvalidOrderTypeError';
   }
+
+  protected determineSubCategory(): void {
+    this.subCategory = 'validation';
+  }
 }
 
 export class OrderRejectedError extends TradingError {
   constructor(message: string, public symbol: string, public reason?: string) {
     super(message, -2010, symbol, { reason });
     this.name = 'OrderRejectedError';
+  }
+
+  protected determineSubCategory(): void {
+    this.subCategory = 'order-rejection';
   }
 }
 
@@ -81,6 +141,10 @@ export class PricePrecisionError extends TradingError {
     super(message, -1111, symbol, { price, tickSize });
     this.name = 'PricePrecisionError';
   }
+
+  protected determineSubCategory(): void {
+    this.subCategory = 'price-precision';
+  }
 }
 
 export class QuantityPrecisionError extends TradingError {
@@ -91,6 +155,10 @@ export class QuantityPrecisionError extends TradingError {
     super(message, -1013, symbol, { quantity, stepSize });
     this.name = 'QuantityPrecisionError';
   }
+
+  protected determineSubCategory(): void {
+    this.subCategory = 'quantity-precision';
+  }
 }
 
 export class ReduceOnlyError extends TradingError {
@@ -98,12 +166,20 @@ export class ReduceOnlyError extends TradingError {
     super(`ReduceOnly order rejected for ${symbol}`, -2022, symbol);
     this.name = 'ReduceOnlyError';
   }
+
+  protected determineSubCategory(): void {
+    this.subCategory = 'order-rejection';
+  }
 }
 
 export class OrderWouldTriggerError extends TradingError {
   constructor(public symbol: string, public side: string, public price?: number) {
     super(`Order would immediately trigger for ${symbol}`, -2021, symbol, { side, price });
     this.name = 'OrderWouldTriggerError';
+  }
+
+  protected determineSubCategory(): void {
+    this.subCategory = 'order-rejection';
   }
 }
 

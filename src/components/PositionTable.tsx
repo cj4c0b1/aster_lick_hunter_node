@@ -9,10 +9,12 @@ import { BarChart3, TrendingUp, TrendingDown, Shield, Target, ChevronDown, X } f
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { toast } from 'sonner';
 import websocketService from '@/lib/services/websocketService';
 import { useConfig } from '@/components/ConfigProvider';
 import { useSymbolPrecision } from '@/hooks/useSymbolPrecision';
 import dataStore from '@/lib/services/dataStore';
+import { showApiError, showTradingError } from '@/lib/utils/errorToast';
 
 interface Position {
   symbol: string;
@@ -55,6 +57,10 @@ export default function PositionTable({
     symbol: string;
     side: 'LONG' | 'SHORT';
     quantity: number;
+    entryPrice?: number;
+    markPrice?: number;
+    pnl?: number;
+    pnlPercent?: number;
   }>({
     isOpen: false,
     symbol: '',
@@ -230,12 +236,16 @@ export default function PositionTable({
 
 
   // Handle close position
-  const handleClosePosition = useCallback((symbol: string, side: 'LONG' | 'SHORT', quantity: number) => {
+  const handleClosePosition = useCallback((position: Position) => {
     setClosePositionModal({
       isOpen: true,
-      symbol,
-      side,
-      quantity,
+      symbol: position.symbol,
+      side: position.side,
+      quantity: position.quantity,
+      entryPrice: position.entryPrice,
+      markPrice: position.markPrice,
+      pnl: position.pnl,
+      pnlPercent: position.pnlPercent,
     });
   }, []);
 
@@ -254,15 +264,21 @@ export default function PositionTable({
       const result = await response.json();
 
       if (result.success) {
-        // Refresh positions data
-        if (positions.length === 0) {
-          // If using data store, refresh it
-          dataStore.fetchPositions().then((data) => {
-            setRealPositions(data);
-          }).catch((error) => {
-            console.error('[PositionTable] Failed to refresh positions after close:', error);
+        // Show success toast
+        toast.success(`Successfully closed ${closePositionModal.symbol} ${closePositionModal.side} position`, {
+          description: `Closed ${formatQuantity(closePositionModal.symbol, closePositionModal.quantity)} contracts`,
+          duration: 5000,
+        });
+
+        // Always refresh positions data after successful close
+        dataStore.fetchPositions().then((data) => {
+          setRealPositions(data);
+        }).catch((error) => {
+          console.error('[PositionTable] Failed to refresh positions after close:', error);
+          toast.error('Failed to refresh positions', {
+            description: 'Please refresh the page to see updated positions',
           });
-        }
+        });
 
         // Close modal
         setClosePositionModal({
@@ -273,15 +289,33 @@ export default function PositionTable({
         });
       } else {
         console.error('Failed to close position:', result.error);
-        // You might want to show a toast notification here
+        // Show error toast with details
+        showTradingError(
+          'Failed to close position',
+          result.error || 'An unknown error occurred',
+          {
+            symbol: closePositionModal.symbol,
+            component: 'PositionTable',
+            rawError: result,
+          }
+        );
       }
     } catch (error) {
       console.error('Error closing position:', error);
-      // You might want to show a toast notification here
+      // Show error toast
+      showApiError(
+        'Network error',
+        'Failed to connect to the server',
+        {
+          symbol: closePositionModal.symbol,
+          component: 'PositionTable',
+          rawError: error,
+        }
+      );
     } finally {
       setIsClosingPosition(false);
     }
-  }, [closePositionModal, positions.length]);
+  }, [closePositionModal, formatQuantity]);
 
   const cancelClosePosition = useCallback(() => {
     setClosePositionModal({
@@ -521,7 +555,7 @@ export default function PositionTable({
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleClosePosition(position.symbol, position.side, position.quantity);
+                        handleClosePosition(position);
                       }}
                       className="h-7 px-2 text-xs"
                     >

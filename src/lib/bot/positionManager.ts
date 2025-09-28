@@ -664,17 +664,10 @@ export class PositionManager extends EventEmitter implements PositionTracker {
             const previousAmt = parseFloat(previousPosition.positionAmt);
             console.log(`PositionManager: Position ${previousKey} fully closed`);
 
-            // Broadcast position closed event
+            // Don't broadcast position_closed here - it will be broadcast with actual PnL in ORDER_TRADE_UPDATE
+            // Only broadcast position_update for UI state updates
             if (this.statusBroadcaster) {
-              this.statusBroadcaster.broadcastPositionClosed({
-                symbol: symbol,
-                side: previousAmt > 0 ? 'LONG' : 'SHORT',
-                quantity: Math.abs(previousAmt),
-                pnl: 0, // Will be updated by ORDER_TRADE_UPDATE
-                reason: 'Position Closed',
-              });
-
-              // Also broadcast position_update with type closed for compatibility
+              // Broadcast position_update with type closed for compatibility
               this.statusBroadcaster.broadcastPositionUpdate({
                 symbol: symbol,
                 side: previousAmt > 0 ? 'LONG' : 'SHORT',

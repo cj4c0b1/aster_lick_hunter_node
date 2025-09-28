@@ -25,6 +25,11 @@ export interface SymbolConfig {
   vwapProtection?: boolean;    // Enable VWAP-based entry filtering (default: false)
   vwapTimeframe?: string;      // Timeframe for VWAP calculation: 1m, 5m, 15m, 30m, 1h (default: '1m')
   vwapLookback?: number;       // Number of candles to use for VWAP calculation (default: 100)
+
+  // Threshold system settings (60-second rolling window)
+  useThreshold?: boolean;       // Enable threshold-based triggering for this symbol (default: false)
+  thresholdTimeWindow?: number; // Time window in ms for volume accumulation (default: 60000)
+  thresholdCooldown?: number;   // Cooldown period in ms between triggers (default: 30000)
 }
 
 export interface ApiCredentials {
@@ -53,6 +58,7 @@ export interface GlobalConfig {
   paperMode: boolean;      // If true, simulate trades without executing
   positionMode?: 'ONE_WAY' | 'HEDGE'; // Position mode preference (optional)
   maxOpenPositions?: number; // Max number of open positions (hedged pairs count as one)
+  useThresholdSystem?: boolean; // Enable 60-second rolling volume threshold system (default: false)
   server?: ServerConfig;    // Optional server configuration
   rateLimit?: RateLimitConfig; // Rate limit configuration
 }

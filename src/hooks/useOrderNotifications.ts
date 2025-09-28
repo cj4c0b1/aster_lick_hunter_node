@@ -27,7 +27,10 @@ export function useOrderNotifications(customWsUrl?: string) {
     }).format(qty);
   };
 
-  const formatPnL = (pnl: number) => {
+  const formatPnL = (pnl: number | undefined) => {
+    if (pnl === undefined || pnl === null || isNaN(pnl)) {
+      return '';
+    }
     const formatted = new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
@@ -76,7 +79,8 @@ export function useOrderNotifications(customWsUrl?: string) {
             case 'order_filled': {
               const { symbol, side, executedQty, price, orderType, pnl } = message.data;
               const priceStr = price ? ` at $${formatPrice(price)}` : '';
-              const pnlStr = pnl !== undefined && pnl !== 0 ? ` • PnL: ${formatPnL(pnl)}` : '';
+              const formattedPnl = formatPnL(pnl);
+              const pnlStr = formattedPnl ? ` • PnL: ${formattedPnl}` : '';
 
               if (orderType === 'STOP_MARKET' || orderType === 'STOP') {
                 toast.warning(
@@ -133,8 +137,9 @@ export function useOrderNotifications(customWsUrl?: string) {
 
             case 'position_closed': {
               const { symbol, side, quantity, pnl } = message.data;
-              const pnlStr = pnl !== undefined ? ` • PnL: ${formatPnL(pnl)}` : '';
-              const variant = pnl >= 0 ? 'success' : 'warning';
+              const formattedPnl = formatPnL(pnl);
+              const pnlStr = formattedPnl ? ` • PnL: ${formattedPnl}` : '';
+              const variant = pnl && pnl >= 0 ? 'success' : pnl && pnl < 0 ? 'warning' : 'success';
 
               toast[variant](
                 `💰 Position closed: ${symbol}`,
