@@ -35,21 +35,29 @@ npm run lint
 # Check TypeScript types
 npx tsc --noEmit
 
-# Run tests
-npm test                   # Test limit orders
-npm run test:simulation    # Test bot simulation
-npm run test:flow         # Test limit order flow
-npm run test:all          # Run all test suites
+# Run all tests
+npm test
 
-# Setup (install + build)
+# Run specific test suites
+npm run test:hunter          # Test Hunter component
+npm run test:position        # Test PositionManager
+npm run test:rate           # Test rate limiting
+npm run test:ws             # Test WebSocket functionality
+npm run test:errors         # Test error logging
+npm run test:integration    # Test trading flow integration
+npm run test:watch          # Run tests in watch mode
+
+# Setup (install + build + config)
 npm run setup
+npm run setup:config        # Setup configuration only
 ```
 
 ## Architecture Overview
 
-The application has a dual architecture:
+The application has a dual architecture with cross-platform process management:
 1. **Web UI**: Next.js application for configuration and monitoring
 2. **Bot Service**: Standalone Node.js service that runs the trading logic
+3. **Process Manager**: Cross-platform process orchestration with graceful shutdown
 
 ### Key Components
 
@@ -57,14 +65,19 @@ The application has a dual architecture:
 - **PositionManager** (`src/lib/bot/positionManager.ts`): Manages open positions, SL/TP orders, and user data streams
 - **AsterBot** (`src/bot/index.ts`): Main bot orchestrator that coordinates Hunter and PositionManager
 - **StatusBroadcaster** (`src/bot/websocketServer.ts`): WebSocket server for real-time status updates to web UI
+- **ProcessManager** (`scripts/process-manager.js`): Handles process lifecycle and graceful shutdowns across platforms
 - **Services**: Helper services for balance (`balanceService.ts`), pricing (`priceService.ts`), VWAP calculations (`vwapService.ts`), and WebSocket management (`websocketService.ts`)
-- **Database** (`src/lib/db/liquidationDb.ts`): SQLite database for persisting liquidation history and analytics
+- **Error System**: Custom error types (`TradingErrors.ts`) and centralized error logging (`errorLogger.ts`)
+- **Databases**:
+  - SQLite for liquidation history (`src/lib/db/liquidationDb.ts`)
+  - Error logs database (`src/lib/db/errorLogsDb.ts`)
 
 ### Data Flow
 1. Hunter connects to `wss://fstream.asterdex.com/ws/!forceOrder@arr` for liquidation events
 2. When a qualifying liquidation occurs, Hunter analyzes order book depth and places intelligent limit orders
 3. PositionManager monitors user data stream for order fills and automatically places SL/TP orders
 4. Status updates are broadcasted to the web UI via internal WebSocket server on port 8080
+5. All errors are logged to SQLite database with full context for debugging
 
 ## Project Structure
 
@@ -72,12 +85,16 @@ The application has a dual architecture:
 - **src/bot/**: Standalone bot service entry point and WebSocket server
 - **src/lib/**: Shared business logic
   - `types.ts`: Core TypeScript interfaces for trading data
-  - `api/`: Exchange API interaction (auth, orders, market data)
+  - `api/`: Exchange API interaction (auth, orders, market data, rate limiting)
   - `bot/`: Bot components (hunter, position manager, config)
+  - `errors/`: Custom error types and handling
+  - `db/`: Database operations and schemas
+  - `services/`: Shared services (balance, pricing, VWAP, WebSocket, error logging)
 - **src/components/**: React components for the web UI
+- **scripts/**: Build and process management scripts
+- **tests/**: Comprehensive test suite with unit and integration tests
 - **config.user.json**: User-specific trading configuration (API keys, symbols, risk parameters)
 - **config.default.json**: Default configuration template with safe defaults
-- **config.example.json**: Example configuration for reference
 
 ## Configuration System
 
@@ -93,9 +110,6 @@ The bot uses a dual-configuration system for security and flexibility:
   - Contains safe default values
   - Used as a fallback for missing fields
   - New settings are automatically merged to user config
-
-- **`config.example.json`**: Example configuration (tracked by git)
-  - Documentation reference with all available options
 
 ### Initial Setup
 Run `npm run setup:config` to:
@@ -130,20 +144,44 @@ Connects to Aster Finance exchange API (`https://fapi.asterdex.com`):
 - **Market Data**: WebSocket streams for liquidations, mark prices, klines
 - **User Data**: WebSocket stream for account updates and order fills
 - **Trading**: REST API for placing orders, setting leverage, managing positions
+- **Rate Limiting**: Intelligent rate limit management with automatic retry and backoff
 
 ## Operating Modes
 
 ### Paper Mode
-- Set `"paperMode": true` in config.json
+- Set `"paperMode": true` in config.user.json
 - Simulates trading without placing real orders
 - Generates mock liquidation events for testing
 - Safe for development and testing
 
 ### Live Mode
-- Requires valid API keys in config.json
+- Requires valid API keys in config.user.json
 - Places real orders on the exchange
 - Monitors real liquidation streams
 - Manages actual positions with real money
+
+## Testing Architecture
+
+The project includes a comprehensive test suite:
+- **Unit Tests**: Individual component testing (Hunter, PositionManager, services)
+- **Integration Tests**: End-to-end trading flow validation
+- **Test Helpers** (`tests/utils/test-helpers.ts`): Utilities for test execution
+- **Run All Script** (`tests/run-all.ts`): Orchestrates test execution with detailed reporting
+
+## Error Handling
+
+Custom error types provide detailed context:
+- **NotionalError**: Order value too small
+- **RateLimitError**: API rate limit exceeded
+- **InsufficientBalanceError**: Insufficient account balance
+- **ReduceOnlyError**: Invalid reduce-only order
+- **PricePrecisionError**: Invalid price precision
+- **QuantityPrecisionError**: Invalid quantity precision
+
+All errors are:
+- Logged to SQLite database with full context
+- Displayed in the web UI error dashboard
+- Include timestamps, stack traces, and relevant trading data
 
 ## Key Dependencies
 
@@ -154,17 +192,18 @@ Connects to Aster Finance exchange API (`https://fapi.asterdex.com`):
 - **@radix-ui/***: UI component library for the web interface
 - **recharts**: Charts for displaying trading data
 - **tailwindcss**: v4 for styling
-- **ethers**: Ethereum utilities (for additional blockchain functionality)
+- **sqlite3**: Database for liquidation history and error logs
 - **zod**: Schema validation for configuration and API responses
 - **sonner**: Toast notifications for the web UI
 
 ## Development Workflow
 
-1. Configure `config.json` with your trading parameters (start in paper mode)
+1. Configure `config.user.json` with your trading parameters (start in paper mode)
 2. Run `npm run dev` to start both web UI and bot
 3. Access web UI at http://localhost:3000 to monitor bot status
 4. Bot logs will show in the terminal with detailed trade information
 5. Use `/config` page to adjust settings without restarting
+6. Run tests with `npm test` to validate changes
 
 ## Safety Features
 
@@ -177,13 +216,35 @@ Connects to Aster Finance exchange API (`https://fapi.asterdex.com`):
 - Exchange filter validation (price, quantity, notional limits)
 - VWAP-based entry filtering to avoid adverse price movements
 - SQLite database for liquidation history and pattern analysis
+- Comprehensive error logging and recovery mechanisms
+
+## Process Management
+
+The application uses a custom process manager (`scripts/process-manager.js`) that:
+- Handles cross-platform process spawning (Windows/Unix)
+- Ensures graceful shutdown of all child processes
+- Manages process groups for clean termination
+- Provides colored console output for debugging
+- Implements timeout-based force kill as fallback
 
 ## Web UI Structure
 
 The Next.js application uses App Router with key pages:
 - `/` (dashboard): Main trading dashboard with positions, liquidation feed, and bot status
 - `/config`: Configuration page for editing trading parameters and API keys
-- `/api/*`: REST endpoints for bot communication (balance, positions, trades, config)
+- `/api/*`: REST endpoints for bot communication (balance, positions, trades, config, errors)
+
+## Database Operations
+
+### Liquidation Database
+- Stores all liquidation events for analysis
+- Tracks trading patterns and performance metrics
+- Provides historical data for strategy optimization
+
+### Error Logs Database
+- Persists all application errors with context
+- Enables debugging and issue tracking
+- Accessible via web UI error dashboard
 
 ## Important Instructions for Claude Code
 
@@ -258,7 +319,7 @@ const bookTicker = await getBookTicker('BTCUSDT');
 
 #### For Order Management:
 ```typescript
-import { queryOrder, getAllOrders, setLeverage } from './src/lib/api/orders';
+import { queryOrder, getAllOrders, setLeverage, placeOrder, cancelOrder } from './src/lib/api/orders';
 
 // Query specific order
 const orderDetails = await queryOrder({ symbol: 'BTCUSDT', orderId: 12345 }, credentials);
@@ -268,6 +329,19 @@ const allOrders = await getAllOrders('BTCUSDT', credentials);
 
 // Change leverage
 const leverageResponse = await setLeverage('BTCUSDT', 10, credentials);
+
+// Place an order
+const orderResponse = await placeOrder({
+  symbol: 'BTCUSDT',
+  side: 'BUY',
+  type: 'LIMIT',
+  quantity: 0.001,
+  price: 50000,
+  timeInForce: 'GTC'
+}, credentials);
+
+// Cancel an order
+const cancelResponse = await cancelOrder('BTCUSDT', 12345, credentials);
 ```
 
 ### Base URL and Headers
@@ -301,9 +375,18 @@ const response = await axios.post('https://fapi.asterdex.com/fapi/v1/leverage', 
 });
 ```
 
+### Rate Limit Management
+
+The API includes intelligent rate limit management:
+- Automatic retry with exponential backoff
+- Request queuing when limits are reached
+- Visual indicators in the web UI
+- Configurable limits per endpoint
+
 ### Important Notes
 
 - All signed requests include timestamp and are valid for 5 seconds (recvWindow: 5000ms)
 - Always check the API documentation at `docs/aster-finance-futures-api.md` for endpoint details
 - Use paper mode (`"paperMode": true` in config.user.json) when testing to avoid real trades
 - API responses include detailed error information in `error.response?.data` for debugging
+- The rate limit manager automatically handles 429 errors and retries requests
