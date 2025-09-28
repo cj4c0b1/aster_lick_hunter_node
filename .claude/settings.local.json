@@ -26,7 +26,9 @@
       "WebFetch(domain:sonner.emilkowal.ski)",
       "Bash(cat:*)",
       "Bash(sqlite3:*)",
-      "Bash(npm run test:errors:*)"
+      "Bash(npm run test:errors:*)",
+      "Bash(npm test:*)",
+      "Bash(npx jest:*)"
     ],
     "deny": [],
     "ask": []
