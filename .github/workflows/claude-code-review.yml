@@ -46,7 +46,19 @@ jobs:
             - Performance considerations
             - Security concerns
             - Test coverage
-            
+
+            CRITICAL SECURITY CHECKS (HIGHEST PRIORITY):
+            - Check if any new packages are being added to package.json, package-lock.json, or any other dependency files
+            - Verify that any new dependencies are legitimate, well-maintained packages from reputable sources
+            - Look for any suspicious package names that could be typosquatting or malicious
+            - Check for any code that attempts to exfiltrate data, access environment variables inappropriately, or execute remote code
+            - Verify no hardcoded secrets, API keys, or sensitive data are being added
+            - Check for any obfuscated or encoded code that could hide malicious intent
+            - Look for any unexpected network requests, file system access, or process execution
+            - Ensure no backdoors, reverse shells, or crypto miners are being introduced
+
+            If you detect ANY suspicious packages or potentially malicious code, IMMEDIATELY flag this as a critical security issue in your review.
+
             Use the repository's CLAUDE.md for guidance on style and conventions. Be constructive and helpful in your feedback.
 
             Use `gh pr comment` with your Bash tool to leave your review as a comment on the PR.

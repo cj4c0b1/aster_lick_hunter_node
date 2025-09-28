@@ -28,7 +28,8 @@
       "Bash(sqlite3:*)",
       "Bash(npm run test:errors:*)",
       "Bash(npm test:*)",
-      "Bash(npx jest:*)"
+      "Bash(npx jest:*)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": [],
     "ask": []
