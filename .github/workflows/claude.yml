@@ -1,8 +1,8 @@
 name: Claude Code
 
 # SECURITY NOTE: This workflow responds to @claude mentions in issues and PRs.
-# It works with fork PRs because issue_comment and pull_request_review_comment
-# events run in the base repository context with access to secrets.
+# It works with fork PRs because issue_comment, pull_request_review_comment,
+# and pull_request_target events run in the base repository context with access to secrets.
 # Claude only reads code and posts comments (no code execution from PRs).
 on:
   issue_comment:
@@ -13,6 +13,10 @@ on:
     types: [opened, assigned]
   pull_request_review:
     types: [submitted]
+  pull_request_target:
+    types: [opened, synchronize]
+    # Only trigger if PR description or title contains @claude
+    # This prevents automatic runs on all PRs
 
 # Set permissions at workflow level
 permissions:
@@ -27,13 +31,17 @@ jobs:
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude'))) ||
+      (github.event_name == 'pull_request_target' && (contains(github.event.pull_request.body, '@claude') || contains(github.event.pull_request.title, '@claude')))
     runs-on: ubuntu-latest
     # Permissions inherited from workflow level
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          # For pull_request_target, we need to checkout the PR's head
+          # to review the actual PR code, not the base branch
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
 
       - name: Run Claude Code
