@@ -2078,7 +2078,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
       // Always adjust orders when position size changes
       await this.adjustProtectiveOrders(position, slOrder, tpOrder);
     } catch (error: any) {
-      console.error(`PositionManager: Error checking orders for position ${positionKey}:`, error?.response?.data || error?.message);
+      console.error('PositionManager: Error checking orders for position %s:', positionKey, error?.response?.data || error?.message);
       // Log to error database
       errorLogger.logError(error instanceof Error ? error : new Error(String(error)), {
         type: 'general',
