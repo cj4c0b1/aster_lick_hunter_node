@@ -24,7 +24,7 @@
     "positionMode": "HEDGE",
     "maxOpenPositions": 5,
     "server": {
-      "dashboardPassword": "",
+      "dashboardPassword": "admin",
       "dashboardPort": 3000,
       "websocketPort": 8080,
       "useRemoteWebSocket": false,
