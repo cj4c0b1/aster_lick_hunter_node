@@ -96,7 +96,7 @@ export default function ErrorIssueGenerator({
     return 'general';
   };
 
-  const getGitHubLabels = (error: ErrorLog): string[] => {
+  const getGitHubLabels = React.useCallback((error: ErrorLog): string[] => {
     const labels = ['bug'];
 
     // Add severity label
@@ -118,9 +118,9 @@ export default function ErrorIssueGenerator({
     }
 
     return labels;
-  };
+  }, []);
 
-  const generateAIDebugInfo = () => {
+  const generateAIDebugInfo = React.useCallback(() => {
     const subCategory = getErrorSubCategory(error);
 
     let debugInfo = `## AI Debug Information\n\n`;
@@ -219,7 +219,7 @@ export default function ErrorIssueGenerator({
     debugInfo += `*This debug information was automatically generated for AI-assisted debugging.*\n`;
 
     return debugInfo;
-  };
+  }, [error, systemInfo, similarErrors]);
 
   const generateIssueContent = React.useCallback(() => {
     setIsGenerating(true);
@@ -258,7 +258,7 @@ export default function ErrorIssueGenerator({
 
     setIssueBody(body);
     setIsGenerating(false);
-  }, [error, similarErrors, systemInfo, generateAIDebugInfo, getGitHubLabels]);
+  }, [error, generateAIDebugInfo, getGitHubLabels]);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
