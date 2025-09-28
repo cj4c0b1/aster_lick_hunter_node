@@ -75,14 +75,20 @@ export class OrderRejectedError extends TradingError {
 
 export class PricePrecisionError extends TradingError {
   constructor(public symbol: string, public price: number, public tickSize: string) {
-    super(`Price ${price} doesn't meet tick size ${tickSize} for ${symbol}`, -1111, symbol);
+    const message = tickSize === 'UNKNOWN'
+      ? `Price ${price} doesn't meet exchange precision requirements for ${symbol}. Try using default tick size 0.0001`
+      : `Price ${price} doesn't meet tick size ${tickSize} for ${symbol}. Price must be a multiple of ${tickSize}`;
+    super(message, -1111, symbol, { price, tickSize });
     this.name = 'PricePrecisionError';
   }
 }
 
 export class QuantityPrecisionError extends TradingError {
   constructor(public symbol: string, public quantity: number, public stepSize: string) {
-    super(`Quantity ${quantity} doesn't meet step size ${stepSize} for ${symbol}`, -1013, symbol);
+    const message = stepSize === 'UNKNOWN'
+      ? `Quantity ${quantity} doesn't meet exchange precision requirements for ${symbol}. Try using default step size 0.001`
+      : `Quantity ${quantity} doesn't meet step size ${stepSize} for ${symbol}. Quantity must be a multiple of ${stepSize}`;
+    super(message, -1013, symbol, { quantity, stepSize });
     this.name = 'QuantityPrecisionError';
   }
 }
@@ -155,12 +161,18 @@ export function parseExchangeError(error: any, context?: { symbol?: string; quan
 
     case -1111:
       // BAD_PRECISION - Price precision error
-      return new PricePrecisionError(context?.symbol || 'UNKNOWN', context?.price || 0, 'UNKNOWN');
+      // Try to extract tick size from error message if available
+      const tickSizeMatch = msg.match(/tick size[\s:]*(\d+\.\d+)/i);
+      const tickSize = tickSizeMatch ? tickSizeMatch[1] : 'UNKNOWN';
+      return new PricePrecisionError(context?.symbol || 'UNKNOWN', context?.price || 0, tickSize);
 
     case -1013:
       // INVALID_MESSAGE - Often quantity precision
       if (msg.includes('quantity')) {
-        return new QuantityPrecisionError(context?.symbol || 'UNKNOWN', context?.quantity || 0, 'UNKNOWN');
+        // Try to extract step size from error message if available
+        const stepSizeMatch = msg.match(/step size[\s:]*(\d+\.\d+)/i);
+        const stepSize = stepSizeMatch ? stepSizeMatch[1] : 'UNKNOWN';
+        return new QuantityPrecisionError(context?.symbol || 'UNKNOWN', context?.quantity || 0, stepSize);
       }
       return new TradingError(msg, code, context?.symbol);
 
