@@ -129,6 +129,18 @@ export function addMissingFields(userConfig: any, defaultConfig: any): any {
       if (!(field in result.global)) {
         result.global[field] = defaultConfig.global[field];
         console.log(`Added missing global field: ${field}`);
+      } else if (field === 'server' && typeof defaultConfig.global[field] === 'object' && typeof result.global[field] === 'object') {
+        // Merge server config nested fields
+        const defaultServer = defaultConfig.global.server;
+        const userServer = result.global.server || {};
+        result.global.server = { ...defaultServer, ...userServer };
+
+        // Log any new server fields that were added
+        for (const serverField in defaultServer) {
+          if (!(serverField in userServer)) {
+            console.log(`Added missing server field: ${serverField}`);
+          }
+        }
       }
     }
   }

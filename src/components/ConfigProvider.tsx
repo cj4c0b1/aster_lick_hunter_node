@@ -64,7 +64,9 @@ export default function ConfigProvider({ children }: { children: React.ReactNode
           server: {
             dashboardPassword: "",
             dashboardPort: 3000,
-            websocketPort: 8080
+            websocketPort: 8080,
+            useRemoteWebSocket: false,
+            websocketHost: null
           }
         },
         version: "1.1.0"
