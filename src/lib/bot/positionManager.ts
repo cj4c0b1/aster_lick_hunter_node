@@ -345,7 +345,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
       });
 
       // Store previous tracking to preserve valid associations
-      const previousPositions = new Map(this.currentPositions);
+      const _previousPositions = new Map(this.currentPositions);
       const previousOrders = new Map(this.positionOrders);
 
       // Clear current positions but preserve order tracking temporarily
@@ -506,7 +506,7 @@ export class PositionManager extends EventEmitter implements PositionTracker {
       }
 
       // Clean up order tracking for positions that no longer exist
-      for (const [key, orders] of previousOrders.entries()) {
+      for (const [key, _orders] of previousOrders.entries()) {
         if (!this.currentPositions.has(key)) {
           console.log(`PositionManager: Removing order tracking for closed position ${key}`);
           this.positionOrders.delete(key);
