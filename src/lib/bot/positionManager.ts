@@ -340,13 +340,30 @@ export class PositionManager extends EventEmitter implements PositionTracker {
       // Log order details for debugging
       openOrders.forEach(order => {
         if (order.reduceOnly) {
-          console.log(`PositionManager: Open order - ${order.symbol} ${order.type} ${order.side}, reduceOnly: ${order.reduceOnly}, orderId: ${order.orderId}`);
+          console.log(`PositionManager: Open order - ${order.symbol} ${order.type} ${order.side}, reduceOnly: ${order.reduceOnly}, orderId: ${order.orderId}, qty: ${order.origQty}`);
         }
       });
 
-      // Clear and rebuild our position map
+      // Store previous tracking to preserve valid associations
+      const previousPositions = new Map(this.currentPositions);
+      const previousOrders = new Map(this.positionOrders);
+
+      // Clear current positions but preserve order tracking temporarily
       this.currentPositions.clear();
-      this.positionOrders.clear();
+
+      // Track which orders have been assigned to positions
+      const assignedOrderIds = new Set<number>();
+
+      // Build a map of all reduce-only orders grouped by symbol for better matching
+      const ordersBySymbol = new Map<string, ExchangeOrder[]>();
+      for (const order of openOrders) {
+        if (order.reduceOnly) {
+          if (!ordersBySymbol.has(order.symbol)) {
+            ordersBySymbol.set(order.symbol, []);
+          }
+          ordersBySymbol.get(order.symbol)!.push(order);
+        }
+      }
 
       // Process each position
       for (const position of positions) {
@@ -364,22 +381,72 @@ export class PositionManager extends EventEmitter implements PositionTracker {
 
           console.log(`PositionManager: Found position ${key}: ${posAmt} @ ${position.entryPrice}`);
 
-          // Find SL/TP orders for this position
-          // Check for stop loss orders (STOP_MARKET or STOP)
-          const slOrder = openOrders.find(o =>
-            o.symbol === position.symbol &&
-            (o.type === 'STOP_MARKET' || o.type === 'STOP') &&
-            o.reduceOnly &&
-            ((posAmt > 0 && o.side === 'SELL') || (posAmt < 0 && o.side === 'BUY'))
-          );
+          // First check if we had orders tracked for this position previously
+          const previousTrackedOrders = previousOrders.get(key);
+          let slOrder: ExchangeOrder | undefined;
+          let tpOrder: ExchangeOrder | undefined;
 
-          // Check for take profit orders (TAKE_PROFIT_MARKET, TAKE_PROFIT, or LIMIT with reduceOnly)
-          const tpOrder = openOrders.find(o =>
-            o.symbol === position.symbol &&
-            (o.type === 'TAKE_PROFIT_MARKET' || o.type === 'TAKE_PROFIT' || o.type === 'LIMIT') &&
-            o.reduceOnly &&
-            ((posAmt > 0 && o.side === 'SELL') || (posAmt < 0 && o.side === 'BUY'))
-          );
+          // Get orders for this symbol
+          const symbolOrders = ordersBySymbol.get(position.symbol) || [];
+
+          // If we had previously tracked orders, try to find them first
+          if (previousTrackedOrders) {
+            if (previousTrackedOrders.slOrderId && !assignedOrderIds.has(previousTrackedOrders.slOrderId)) {
+              slOrder = symbolOrders.find(o =>
+                o.orderId === previousTrackedOrders.slOrderId &&
+                (o.type === 'STOP_MARKET' || o.type === 'STOP')
+              );
+              if (slOrder) {
+                console.log(`PositionManager: Preserving tracked SL order ${slOrder.orderId} for ${key}`);
+                assignedOrderIds.add(slOrder.orderId);
+              }
+            }
+            if (previousTrackedOrders.tpOrderId && !assignedOrderIds.has(previousTrackedOrders.tpOrderId)) {
+              tpOrder = symbolOrders.find(o =>
+                o.orderId === previousTrackedOrders.tpOrderId &&
+                (o.type === 'TAKE_PROFIT_MARKET' || o.type === 'TAKE_PROFIT' || o.type === 'LIMIT')
+              );
+              if (tpOrder) {
+                console.log(`PositionManager: Preserving tracked TP order ${tpOrder.orderId} for ${key}`);
+                assignedOrderIds.add(tpOrder.orderId);
+              }
+            }
+          }
+
+          // Find SL/TP orders for this position based on quantity matching
+          const positionQty = Math.abs(posAmt);
+          const isLong = posAmt > 0;
+
+          // If we didn't find previously tracked orders, look for matching orders by quantity
+          if (!slOrder) {
+            slOrder = symbolOrders.find(o =>
+              !assignedOrderIds.has(o.orderId) &&
+              (o.type === 'STOP_MARKET' || o.type === 'STOP') &&
+              o.reduceOnly &&
+              ((isLong && o.side === 'SELL') || (!isLong && o.side === 'BUY')) &&
+              Math.abs(parseFloat(o.origQty) - positionQty) < 0.00000001  // Quantity matches
+            );
+
+            if (slOrder) {
+              assignedOrderIds.add(slOrder.orderId);
+              console.log(`PositionManager: Matched SL order ${slOrder.orderId} to position ${key} by quantity`);
+            }
+          }
+
+          if (!tpOrder) {
+            tpOrder = symbolOrders.find(o =>
+              !assignedOrderIds.has(o.orderId) &&
+              (o.type === 'TAKE_PROFIT_MARKET' || o.type === 'TAKE_PROFIT' || (o.type === 'LIMIT' && o.reduceOnly)) &&
+              o.reduceOnly &&
+              ((isLong && o.side === 'SELL') || (!isLong && o.side === 'BUY')) &&
+              Math.abs(parseFloat(o.origQty) - positionQty) < 0.00000001  // Quantity matches
+            );
+
+            if (tpOrder) {
+              assignedOrderIds.add(tpOrder.orderId);
+              console.log(`PositionManager: Matched TP order ${tpOrder.orderId} to position ${key} by quantity`);
+            }
+          }
 
           const orders: PositionOrders = {};
           let needsAdjustment = false;
@@ -387,7 +454,6 @@ export class PositionManager extends EventEmitter implements PositionTracker {
           if (slOrder) {
             orders.slOrderId = slOrder.orderId;
             const slOrderQty = parseFloat(slOrder.origQty);
-            const positionQty = Math.abs(posAmt);
 
             // Check if SL order quantity matches position size (with small tolerance for rounding)
             if (Math.abs(slOrderQty - positionQty) > 0.00000001) {
@@ -401,7 +467,6 @@ export class PositionManager extends EventEmitter implements PositionTracker {
           if (tpOrder) {
             orders.tpOrderId = tpOrder.orderId;
             const tpOrderQty = parseFloat(tpOrder.origQty);
-            const positionQty = Math.abs(posAmt);
 
             // Check if TP order quantity matches position size (with small tolerance for rounding)
             if (Math.abs(tpOrderQty - positionQty) > 0.00000001) {
@@ -424,6 +489,21 @@ export class PositionManager extends EventEmitter implements PositionTracker {
             console.log(`PositionManager: Position ${key} missing protection (SL: ${!!slOrder}, TP: ${!!tpOrder})`);
             await this.placeProtectiveOrdersWithLock(key, position, !slOrder, !tpOrder);
           }
+        }
+      }
+
+      // Clean up order tracking for positions that no longer exist
+      for (const [key, orders] of previousOrders.entries()) {
+        if (!this.currentPositions.has(key)) {
+          console.log(`PositionManager: Removing order tracking for closed position ${key}`);
+          this.positionOrders.delete(key);
+        }
+      }
+
+      // Log any unassigned reduce-only orders as potential orphans
+      for (const order of openOrders) {
+        if (order.reduceOnly && !assignedOrderIds.has(order.orderId)) {
+          console.warn(`PositionManager: Unassigned reduce-only order - ${order.symbol} ${order.type} ${order.side}, orderId: ${order.orderId}, qty: ${order.origQty}`);
         }
       }
 
@@ -637,8 +717,9 @@ export class PositionManager extends EventEmitter implements PositionTracker {
 
       // Track previous positions to detect closures
       const previousPositions = new Map(this.currentPositions);
+      const previousOrders = new Map(this.positionOrders);
 
-      // Clear and rebuild position map - exchange data is the truth
+      // Clear position map but preserve order tracking
       this.currentPositions.clear();
 
       positions.forEach(async (pos: any) => {
@@ -699,6 +780,15 @@ export class PositionManager extends EventEmitter implements PositionTracker {
 
           if (sizeChanged) {
             console.log(`PositionManager: Position size changed for ${key} from ${previousSize} to ${currentSize}`);
+          }
+
+          // Preserve order tracking if position hasn't changed significantly
+          if (!sizeChanged && previousOrders.has(key)) {
+            const existingOrders = previousOrders.get(key);
+            if (existingOrders) {
+              this.positionOrders.set(key, existingOrders);
+              console.log(`PositionManager: Preserved order tracking for ${key} (SL: ${existingOrders.slOrderId || 'none'}, TP: ${existingOrders.tpOrderId || 'none'})`);
+            }
           }
 
           // Update tracking
@@ -765,13 +855,36 @@ export class PositionManager extends EventEmitter implements PositionTracker {
       });
 
       // Check for closed positions (positions that were in our map but aren't in the update)
+      // IMPORTANT: ACCOUNT_UPDATE may contain partial updates (only changed positions)
+      // We should only consider a position closed if its symbol was included in the update with 0 amount
+      const symbolsInUpdate = new Set<string>();
+      positions.forEach((pos: any) => {
+        symbolsInUpdate.add(pos.s);
+      });
+
       for (const [key, orders] of this.positionOrders.entries()) {
         if (!this.currentPositions.has(key)) {
-          // Position was closed, clean up
+          // Extract symbol from key
+          const [symbol] = key.split('_');
+
+          // Only consider it closed if this symbol was actually in the update
+          // If the symbol wasn't in the update, it means the position still exists but wasn't changed
+          if (!symbolsInUpdate.has(symbol)) {
+            // Symbol not in update - position likely still exists, preserve tracking
+            console.log(`PositionManager: Position ${key} not in update, preserving order tracking (partial update)`);
+
+            // Try to restore the position from previous state if available
+            const previousPosition = previousPositions.get(key);
+            if (previousPosition) {
+              this.currentPositions.set(key, previousPosition);
+              console.log(`PositionManager: Restored position ${key} from previous state`);
+            }
+            continue;
+          }
+
+          // Position was actually closed (symbol was in update with 0 amount)
           console.log(`PositionManager: Position ${key} was closed`);
 
-          // Extract symbol from key for locking
-          const [symbol] = key.split('_');
           const cancelLockKey = `cancel_${symbol}`;
 
           // Only cancel if not already in progress
@@ -827,36 +940,67 @@ export class PositionManager extends EventEmitter implements PositionTracker {
     // Track our SL/TP order IDs when they're placed
     if (orderStatus === 'NEW' && (orderType === 'STOP_MARKET' || orderType === 'TAKE_PROFIT_MARKET')) {
       const _executedQty = parseFloat(order.z || '0');
-      const _origQty = parseFloat(order.q);
+      const origQty = parseFloat(order.q);
 
-      // Find the matching position
+      // Find the matching position by both symbol and quantity
+      let bestMatch: { key: string; position: ExchangePosition; quantityDiff: number } | null = null;
+
       for (const [key, position] of this.currentPositions.entries()) {
         if (position.symbol === symbol) {
           const posAmt = parseFloat(position.positionAmt);
+          const positionQty = Math.abs(posAmt);
+
           // Check if this order is for this position (same symbol and opposite side)
           if ((posAmt > 0 && side === 'SELL') || (posAmt < 0 && side === 'BUY')) {
-            if (!this.positionOrders.has(key)) {
-              this.positionOrders.set(key, {});
-            }
-            const orders = this.positionOrders.get(key)!;
+            // Calculate the difference in quantity
+            const quantityDiff = Math.abs(origQty - positionQty);
 
-            if (orderType === 'STOP_MARKET') {
-              // Check if we already have a different SL order tracked
-              if (orders.slOrderId && orders.slOrderId !== orderId) {
-                console.warn(`PositionManager: WARNING - Position ${key} already has SL order ${orders.slOrderId}, replacing with ${orderId}`);
-              }
-              orders.slOrderId = orderId;
-              console.log(`PositionManager: Tracked NEW SL order ${orderId} for position ${key} (${symbol})`);
-            } else if (orderType === 'TAKE_PROFIT_MARKET') {
-              // Check if we already have a different TP order tracked
-              if (orders.tpOrderId && orders.tpOrderId !== orderId) {
-                console.warn(`PositionManager: WARNING - Position ${key} already has TP order ${orders.tpOrderId}, replacing with ${orderId}`);
-              }
-              orders.tpOrderId = orderId;
-              console.log(`PositionManager: Tracked NEW TP order ${orderId} for position ${key} (${symbol})`);
+            // Check if this position already has the order type we're trying to assign
+            const existingOrders = this.positionOrders.get(key);
+            const alreadyHasThisOrderType =
+              (orderType === 'STOP_MARKET' && existingOrders?.slOrderId) ||
+              (orderType === 'TAKE_PROFIT_MARKET' && existingOrders?.tpOrderId);
+
+            // Prefer positions without this order type, or find the best quantity match
+            if (!bestMatch ||
+                (!alreadyHasThisOrderType && quantityDiff < bestMatch.quantityDiff) ||
+                (alreadyHasThisOrderType && bestMatch.quantityDiff > 0.00000001 && quantityDiff < 0.00000001)) {
+              bestMatch = { key, position, quantityDiff };
             }
           }
         }
+      }
+
+      // Assign the order to the best matching position
+      if (bestMatch) {
+        const { key, position, quantityDiff } = bestMatch;
+
+        if (!this.positionOrders.has(key)) {
+          this.positionOrders.set(key, {});
+        }
+        const orders = this.positionOrders.get(key)!;
+
+        if (quantityDiff > 0.00000001) {
+          console.warn(`PositionManager: WARNING - Order quantity mismatch for ${key}. Order: ${origQty}, Position: ${Math.abs(parseFloat(position.positionAmt))}`);
+        }
+
+        if (orderType === 'STOP_MARKET') {
+          // Check if we already have a different SL order tracked
+          if (orders.slOrderId && orders.slOrderId !== orderId) {
+            console.warn(`PositionManager: WARNING - Position ${key} already has SL order ${orders.slOrderId}, replacing with ${orderId}`);
+          }
+          orders.slOrderId = orderId;
+          console.log(`PositionManager: Tracked NEW SL order ${orderId} for position ${key} (${symbol}) - qty match: ${quantityDiff < 0.00000001 ? 'exact' : 'approximate'}`);
+        } else if (orderType === 'TAKE_PROFIT_MARKET') {
+          // Check if we already have a different TP order tracked
+          if (orders.tpOrderId && orders.tpOrderId !== orderId) {
+            console.warn(`PositionManager: WARNING - Position ${key} already has TP order ${orders.tpOrderId}, replacing with ${orderId}`);
+          }
+          orders.tpOrderId = orderId;
+          console.log(`PositionManager: Tracked NEW TP order ${orderId} for position ${key} (${symbol}) - qty match: ${quantityDiff < 0.00000001 ? 'exact' : 'approximate'}`);
+        }
+      } else {
+        console.warn(`PositionManager: WARNING - Could not find matching position for ${orderType} order ${orderId} (${symbol}, qty: ${origQty})`);
       }
     }
 
@@ -1783,11 +1927,8 @@ export class PositionManager extends EventEmitter implements PositionTracker {
 
       const _activeSymbols = new Set(Array.from(activePositions.values()).map(p => p.symbol));
 
-      // Find orphaned orders (reduce-only orders for symbols without ANY positions)
-      // More precise check: an order is only orphaned if:
-      // 1. It's a reduce-only order
-      // 2. The symbol has NO positions at all
-      // 3. OR the order direction doesn't match any existing position
+      // Find orphaned orders (reduce-only orders without matching positions)
+      // Enhanced check considers order quantity matching
       const orphanedOrders = openOrders.filter(order => {
         if (!order.reduceOnly) return false;
 
@@ -1811,6 +1952,44 @@ export class PositionManager extends EventEmitter implements PositionTracker {
         if (!orderMatchesPosition) {
           console.log(`PositionManager: Found orphaned ${order.type} order for ${order.symbol} (direction mismatch) - OrderId: ${order.orderId}, Side: ${order.side}, Has Long: ${symbolDetails.long}, Has Short: ${symbolDetails.short}`);
           return true;
+        }
+
+        // Check if this order is tracked by any position
+        const orderQty = parseFloat(order.origQty);
+        let isTracked = false;
+
+        for (const [key, trackedOrders] of this.positionOrders.entries()) {
+          if (trackedOrders.slOrderId === order.orderId || trackedOrders.tpOrderId === order.orderId) {
+            isTracked = true;
+
+            // Verify the position still exists
+            const position = this.currentPositions.get(key);
+            if (!position) {
+              console.log(`PositionManager: Order ${order.orderId} tracked for non-existent position ${key} - marking as orphaned`);
+              return true;
+            }
+
+            // Verify quantity still matches
+            const posQty = Math.abs(parseFloat(position.positionAmt));
+            if (Math.abs(orderQty - posQty) > 0.00000001) {
+              console.log(`PositionManager: Order ${order.orderId} quantity mismatch - Order: ${orderQty}, Position: ${posQty}`);
+              // Don't mark as orphaned here, it will be handled by adjustment logic
+            }
+            break;
+          }
+        }
+
+        // If not tracked and there are multiple positions, check if it's an orphan
+        if (!isTracked && symbolDetails.amounts.length > 1) {
+          // Check if any position matches this order's quantity
+          const matchingPosition = symbolDetails.amounts.find(amt =>
+            Math.abs(parseFloat(order.origQty) - amt) < 0.00000001
+          );
+
+          if (!matchingPosition) {
+            console.log(`PositionManager: Untracked reduce-only order ${order.orderId} with no matching position quantity - OrderQty: ${order.origQty}, Positions: ${symbolDetails.amounts.join(', ')}`);
+            return true;
+          }
         }
 
         return false;
