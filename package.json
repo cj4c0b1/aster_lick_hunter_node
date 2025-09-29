@@ -7,7 +7,7 @@
     "dev:direct": "node scripts/check-env.js && concurrently --kill-others --kill-others-on-fail -n \"WEB,BOT\" -c \"blue,green\" \"npm run dev:web\" \"npm run dev:bot\"",
     "dev:web": "node scripts/check-env.js && node scripts/start-next.js dev",
     "dev:bot": "tsx watch src/bot/index.ts",
-    "build": "next build --turbopack",
+    "build": "next build",
     "start": "node scripts/check-env.js && node scripts/process-manager.js start",
     "start:direct": "node scripts/check-env.js && concurrently --kill-others --kill-others-on-fail -n \"WEB,BOT\" -c \"blue,green\" \"npm run start:web\" \"npm run start:bot\"",
     "start:web": "node scripts/check-env.js && node scripts/start-next.js start",
