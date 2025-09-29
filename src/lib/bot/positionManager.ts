@@ -1471,11 +1471,19 @@ export class PositionManager extends EventEmitter implements PositionTracker {
           : currentPrice <= rawTpPrice;
 
         if (pastTP) {
+          // Validate entry price before calculating PnL
+          if (!entryPrice || entryPrice <= 0) {
+            console.log(`PositionManager: WARNING - Invalid entry price (${entryPrice}) for ${symbol}, cannot calculate PnL accurately`);
+            console.log(`PositionManager: Skipping auto-close due to data issue`);
+            return; // Skip auto-close and continue with normal TP order placement
+          }
+
           const pnlPercent = isLong
             ? ((currentPrice - entryPrice) / entryPrice) * 100
             : ((entryPrice - currentPrice) / entryPrice) * 100;
 
-          console.log(`PositionManager: Position ${symbol} has exceeded TP target (PnL: ${pnlPercent.toFixed(2)}%, TP: ${symbolConfig.tpPercent}%)`);
+          console.log(`PositionManager: Position ${symbol} has exceeded TP target`);
+          console.log(`  Entry: ${entryPrice}, Current: ${currentPrice}, PnL: ${pnlPercent.toFixed(2)}%, TP: ${symbolConfig.tpPercent}%`);
           console.log(`PositionManager: Closing position at market instead of placing TP order`);
 
           // Close at market immediately
@@ -1747,13 +1755,20 @@ export class PositionManager extends EventEmitter implements PositionTracker {
           : currentPrice <= rawTpPrice;
 
         if (pastTP) {
+          // Validate entry price before calculating PnL
+          if (!entryPrice || entryPrice <= 0) {
+            console.log(`PositionManager: WARNING - Invalid entry price (${entryPrice}) for ${symbol}, cannot calculate PnL accurately`);
+            console.log(`PositionManager: Skipping auto-close due to data issue`);
+            return; // Skip auto-close and continue with normal TP order placement
+          }
+
           // Calculate current PnL percentage
           const pnlPercent = isLong
             ? ((currentPrice - entryPrice) / entryPrice) * 100
             : ((entryPrice - currentPrice) / entryPrice) * 100;
 
           console.log(`PositionManager: Position ${symbol} has exceeded TP target!`);
-          console.log(`  Current PnL: ${pnlPercent.toFixed(2)}%, TP target: ${symbolConfig.tpPercent}%`);
+          console.log(`  Entry: ${entryPrice}, Current: ${currentPrice}, PnL: ${pnlPercent.toFixed(2)}%, TP target: ${symbolConfig.tpPercent}%`);
 
           // Always close at market if past TP, regardless of exact profit amount
           console.log(`PositionManager: Closing position at market - already past TP target`);
@@ -2276,18 +2291,24 @@ export class PositionManager extends EventEmitter implements PositionTracker {
           : markPrice <= targetTP;
 
         if (pastTP) {
+          // Validate entry price before calculating PnL
+          if (!entryPrice || entryPrice <= 0) {
+            console.log(`PositionManager: WARNING - Invalid entry price (${entryPrice}) for ${symbol}, skipping auto-close`);
+            continue;
+          }
+
           const pnlPercent = isLong
             ? ((markPrice - entryPrice) / entryPrice) * 100
             : ((entryPrice - markPrice) / entryPrice) * 100;
 
           console.log(`PositionManager: [Periodic Check] Position ${symbol} exceeded TP target!`);
-          console.log(`  PnL: ${pnlPercent.toFixed(2)}%, TP target: ${tpPercent}%`);
+          console.log(`  Entry: ${entryPrice}, Mark: ${markPrice}, PnL: ${pnlPercent.toFixed(2)}%, TP target: ${tpPercent}%`);
 
-          // Always close at market if past TP target
-          if (pnlPercent > tpPercent) {
-            console.log(`PositionManager: Auto-closing ${symbol} at market - PnL ${pnlPercent.toFixed(2)}% exceeds TP target`);
+          // FIX: Remove redundant check - pastTP already confirms we're past the TP price level
+          // The position should be closed if we're past TP, regardless of exact PnL percentage
+          console.log(`PositionManager: Auto-closing ${symbol} at market - Price exceeded TP target`);
 
-            try {
+          try {
               const formattedQty = symbolPrecision.formatQuantity(symbol, positionQty);
               const orderPositionSide = position.positionSide || 'BOTH';
 
@@ -2321,9 +2342,8 @@ export class PositionManager extends EventEmitter implements PositionTracker {
               this.currentPositions.delete(key);
               this.positionOrders.delete(key);
               continue; // Skip to next position
-            } catch (error: any) {
-              console.error(`PositionManager: Failed to auto-close ${symbol}: ${error?.response?.data?.msg || error?.message}`);
-            }
+          } catch (error: any) {
+            console.error(`PositionManager: Failed to auto-close ${symbol}: ${error?.response?.data?.msg || error?.message}`);
           }
         }
 
