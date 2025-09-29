@@ -13,7 +13,7 @@ interface CacheEntry {
 const cache: Map<string, CacheEntry> = new Map();
 const CACHE_TTL = 5000; // 5 seconds
 
-export const GET = withAuth(async (request: NextRequest, user) => {
+export const GET = withAuth(async (request: NextRequest, _user) => {
   const cacheKey = 'positions';
 
   // Check if force refresh is requested

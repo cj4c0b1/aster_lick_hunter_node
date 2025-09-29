@@ -82,7 +82,7 @@ export function generatePassword(options: PasswordOptions = {}): string {
   if (includeSymbols) requiredSets.push(SYMBOLS);
 
   // Check if password contains at least one char from each set
-  let hasAllRequired = requiredSets.every(set =>
+  const hasAllRequired = requiredSets.every(set =>
     password.split('').some(char => set.includes(char))
   );
 

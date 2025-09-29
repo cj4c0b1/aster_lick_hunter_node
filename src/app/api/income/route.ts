@@ -3,7 +3,7 @@ import { getTimeRangeIncome, aggregateDailyPnL, calculatePerformanceMetrics } fr
 import { configLoader } from '@/lib/config/configLoader';
 import { withAuth } from '@/lib/auth/with-auth';
 
-export const GET = withAuth(async (request: Request, user) => {
+export const GET = withAuth(async (request: Request, _user) => {
   try {
     const { searchParams } = new URL(request.url);
     const range = searchParams.get('range') as '24h' | '7d' | '30d' | '90d' | '1y' | 'all' || '7d';

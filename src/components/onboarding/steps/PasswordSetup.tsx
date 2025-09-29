@@ -42,7 +42,7 @@ export function PasswordSetup({ onComplete, onSkip }: PasswordSetupProps) {
     try {
       await copyToClipboard(password);
       toast.success('Password copied to clipboard');
-    } catch (err) {
+    } catch (_err) {
       toast.error('Failed to copy password');
     }
   };
@@ -162,7 +162,7 @@ export function PasswordSetup({ onComplete, onSkip }: PasswordSetupProps) {
           <Alert>
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              <strong>Are you sure?</strong> Without a password, your dashboard will use the default "admin" password, which is not secure.
+              <strong>Are you sure?</strong> Without a password, your dashboard will use the default &quot;admin&quot; password, which is not secure.
               Click skip again to continue without setting a password.
             </AlertDescription>
           </Alert>

@@ -26,8 +26,6 @@ import { useWebSocketUrl } from '@/hooks/useWebSocketUrl';
 import { RateLimitToastListener } from '@/hooks/useRateLimitToasts';
 import dataStore, { AccountInfo, Position } from '@/lib/services/dataStore';
 import { signOut } from 'next-auth/react';
-import { Button } from '@/components/ui/button';
-import { LogOut } from 'lucide-react';
 
 interface BalanceStatus {
   source?: string;
@@ -212,7 +210,7 @@ export default function DashboardPage() {
     }
   };
 
-  const handleLogout = async () => {
+  const _handleLogout = async () => {
     try {
       await signOut({
         callbackUrl: '/login',
