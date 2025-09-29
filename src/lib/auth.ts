@@ -19,7 +19,8 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        if (credentials.password.length < 4) {
+        // Allow "admin" as special case, otherwise require 4+ characters
+        if (credentials.password !== 'admin' && credentials.password.length < 4) {
           return null;
         }
 
