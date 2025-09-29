@@ -653,10 +653,14 @@ export class Hunter extends EventEmitter {
   }
 
   private async placeTrade(symbol: string, side: 'BUY' | 'SELL', symbolConfig: SymbolConfig, entryPrice: number): Promise<void> {
+    // Track when this trade attempt started (for timestamp validation)
+    const tradeStartTime = Date.now();
+
     // Declare variables that will be used in error handling
+    // Initialize with meaningful defaults to avoid misleading error logs
     let currentPrice: number = entryPrice;
-    let quantity: number = 0;
-    let notionalUSDT: number = 0;
+    let quantity: number | undefined;  // Don't initialize to 0 - use undefined
+    let notionalUSDT: number | undefined;  // Don't initialize to 0 - use undefined
     let tradeSizeUSDT: number = symbolConfig.tradeSize; // Default to general tradeSize
     let order: any; // Declare order variable for error handling
 
@@ -1020,10 +1024,10 @@ export class Hunter extends EventEmitter {
         }
       }
 
-      // Parse the error with context
+      // Parse the error with context (use actual values or defaults)
       const tradingError = parseExchangeError(error, {
         symbol,
-        quantity,
+        quantity: quantity || 0,  // Use actual quantity if calculated, otherwise 0
         price: currentPrice,
         leverage: symbolConfig.leverage,
         positionSide: getPositionSide(this.isHedgeMode, side)
@@ -1036,11 +1040,11 @@ export class Hunter extends EventEmitter {
         tradingError,
         {
           side,
-          quantity,
+          quantity: quantity || 0,  // Use actual quantity if calculated, otherwise 0
           price: currentPrice,
           leverage: symbolConfig.leverage,
           tradeSizeUSDT,
-          notionalUSDT,
+          notionalUSDT: notionalUSDT || 0,  // Use actual notional if calculated, otherwise 0
           errorCode: tradingError.code,
           errorType: tradingError.constructor.name
         }
@@ -1192,6 +1196,13 @@ export class Hunter extends EventEmitter {
 
       // If limit order fails, try fallback to market order
       if (symbolConfig.orderType !== 'MARKET') {
+        // Check if too much time has passed since initial attempt (to avoid timestamp errors)
+        const timeSinceStart = Date.now() - tradeStartTime;
+        if (timeSinceStart > 15000) {
+          console.warn(`Hunter: Skipping fallback order - ${timeSinceStart}ms elapsed, timestamp would be stale`);
+          return;
+        }
+
         console.log(`Hunter: Retrying with market order for ${symbol}`);
 
         // Declare fallback variables for error handling

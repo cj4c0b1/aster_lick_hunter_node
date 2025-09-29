@@ -2,7 +2,7 @@ import WebSocket from 'ws';
 import { EventEmitter } from 'events';
 import axios, { AxiosResponse } from 'axios';
 import { Config } from '../types';
-import { getSignedParams, paramsToQuery } from '../api/auth';
+import { buildSignedQuery } from '../api/auth';
 import { getExchangeInfo, getMarkPrice } from '../api/market';
 import { placeOrder, cancelOrder } from '../api/orders';
 import { placeStopLossAndTakeProfit } from '../api/batchOrders';
@@ -530,13 +530,8 @@ export class PositionManager extends EventEmitter implements PositionTracker {
 
   // Get all positions from exchange
   private async getPositionsFromExchange(): Promise<ExchangePosition[]> {
-    const params = {
-      timestamp: Date.now(),
-      recvWindow: 5000
-    };
-
-    const signedParams = getSignedParams(params, this.config.api);
-    const queryString = paramsToQuery(signedParams);
+    const params = {};
+    const queryString = buildSignedQuery(params, this.config.api);
 
     const response = await axios.get(`${BASE_URL}/fapi/v2/positionRisk?${queryString}`, {
       headers: { 'X-MBX-APIKEY': this.config.api.apiKey }
@@ -547,13 +542,8 @@ export class PositionManager extends EventEmitter implements PositionTracker {
 
   // Get all open orders from exchange
   private async getOpenOrdersFromExchange(): Promise<ExchangeOrder[]> {
-    const params = {
-      timestamp: Date.now(),
-      recvWindow: 5000
-    };
-
-    const signedParams = getSignedParams(params, this.config.api);
-    const queryString = paramsToQuery(signedParams);
+    const params = {};
+    const queryString = buildSignedQuery(params, this.config.api);
 
     const response = await axios.get(`${BASE_URL}/fapi/v1/openOrders?${queryString}`, {
       headers: { 'X-MBX-APIKEY': this.config.api.apiKey }
