@@ -869,7 +869,6 @@ export class Hunter extends EventEmitter {
               console.log(`Hunter: Mode mismatch detected! Updating local mode and retrying...`);
 
               // Update our mode to match exchange
-              const originalMode = this.isHedgeMode;
               this.isHedgeMode = actualMode;
 
               // Recalculate position side with correct mode
