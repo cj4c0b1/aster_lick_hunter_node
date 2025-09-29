@@ -8,7 +8,7 @@ export function withAuth(
     const authResult = await authenticateRequest(request);
 
     if (!authResult.isAuthenticated || !authResult.user) {
-      return createAuthErrorResponse(authResult.error || 'Authentication required');
+      return createAuthErrorResponse(authResult.error || 'Authentication required') as unknown as NextResponse;
     }
 
     try {
