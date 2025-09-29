@@ -14,6 +14,11 @@ export default function ErrorNotificationButton() {
       try {
         const response = await fetch('/api/errors');
         if (response.ok) {
+          const contentType = response.headers.get('content-type');
+          if (!contentType || !contentType.includes('application/json')) {
+            console.warn('Errors API returned non-JSON response');
+            return;
+          }
           const data = await response.json();
           const currentErrorCount = data.errors?.length || 0;
 
