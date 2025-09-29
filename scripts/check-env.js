@@ -1,5 +1,5 @@
 #!/usr/bin/env node
- 
+
 
 const fs = require('fs');
 const path = require('path');
@@ -17,8 +17,14 @@ async function checkAndSetupEnv() {
   }
 }
 
-// Run the check
-checkAndSetupEnv().catch(error => {
-  console.error('Failed to setup environment:', error);
-  // Don't exit with error - let the app try to run anyway
-});
+// Run the check and wait for it to complete
+(async () => {
+  try {
+    await checkAndSetupEnv();
+    // Use setImmediate to ensure console output is flushed before exit
+    setImmediate(() => process.exit(0));
+  } catch (error) {
+    console.error('Failed to setup environment:', error);
+    setImmediate(() => process.exit(1));
+  }
+})();
