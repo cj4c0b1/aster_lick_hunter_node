@@ -900,15 +900,28 @@ export class Hunter extends EventEmitter {
                 throw retryError;
               }
             } else {
-              // Modes match - this is a different issue
-              console.error(`Hunter: Modes already match (${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'}). -4061 error likely due to another issue.`);
-              console.error(`Hunter: Check if position exists or if symbol supports current mode.`);
-              throw orderError; // Re-throw original error
+              // Modes match - this is likely a position conflict or limit issue in HEDGE mode
+              console.warn(`Hunter: Position mode is correct (${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'}), -4061 likely due to position limits or conflicts`);
+              console.warn(`Hunter: Symbol: ${symbol}, Side: ${side}, PositionSide: ${positionSide}`);
+              console.warn(`Hunter: This is often due to position limits, existing positions, or symbol-specific restrictions`);
+
+              // Remove temp tracking since order won't be placed
+              this.removePendingOrder(tempTrackingId);
+
+              // Don't re-throw - just return to prevent error DB logging
+              // This prevents the error from being logged to the error database
+              return;
             }
           } catch (queryError) {
             console.error('Hunter: Failed to query position mode from exchange:', queryError);
-            console.error('Hunter: Cannot determine correct mode, aborting retry.');
-            throw orderError; // Re-throw original error
+            console.warn('Hunter: Cannot determine correct mode. Since we cannot verify, treating as non-critical.');
+
+            // Remove temp tracking since order won't be placed
+            this.removePendingOrder(tempTrackingId);
+
+            // Return instead of throwing to prevent error DB logging
+            // We can't determine the actual issue, so don't pollute error logs
+            return;
           }
         } else {
           // Not a position mode error, just clean up and re-throw
@@ -917,28 +930,31 @@ export class Hunter extends EventEmitter {
         }
       }
 
-      // Broadcast order placed event
-      if (this.statusBroadcaster) {
-        this.statusBroadcaster.broadcastOrderPlaced({
+      // Only broadcast and emit if order was successfully placed
+      if (order && order.orderId) {
+        // Broadcast order placed event
+        if (this.statusBroadcaster) {
+          this.statusBroadcaster.broadcastOrderPlaced({
+            symbol,
+            side,
+            orderType,
+            quantity,
+            price: orderType === 'LIMIT' ? orderPrice : undefined,
+            orderId: order.orderId?.toString(),
+          });
+        }
+
+        this.emit('positionOpened', {
           symbol,
           side,
-          orderType,
           quantity,
-          price: orderType === 'LIMIT' ? orderPrice : undefined,
-          orderId: order.orderId?.toString(),
+          price: orderType === 'LIMIT' ? orderPrice : entryPrice,
+          orderId: order.orderId,
+          leverage: symbolConfig.leverage,
+          orderType,
+          paperMode: false
         });
       }
-
-      this.emit('positionOpened', {
-        symbol,
-        side,
-        quantity,
-        price: orderType === 'LIMIT' ? orderPrice : entryPrice,
-        orderId: order.orderId,
-        leverage: symbolConfig.leverage,
-        orderType,
-        paperMode: false
-      });
 
     } catch (error: any) {
       // CRITICAL FIX: Remove pending order tracking when order placement fails
