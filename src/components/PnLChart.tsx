@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import {
   BarChart3,
@@ -34,6 +35,7 @@ import {
   TrendingDown,
   Target,
   Percent,
+  Loader2,
 } from 'lucide-react';
 import websocketService from '@/lib/services/websocketService';
 import { useConfig } from '@/components/ConfigProvider';
@@ -83,9 +85,26 @@ export default function PnLChart() {
   const [realtimePnL, setRealtimePnL] = useState<any>(null);
   const [totalBalance, setTotalBalance] = useState<number>(0);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
 
   // Check if API keys are configured
   const hasApiKeys = config?.api?.apiKey && config?.api?.secretKey;
+
+  // Animate loading progress
+  useEffect(() => {
+    if (isLoading) {
+      setLoadingProgress(0);
+      const interval = setInterval(() => {
+        setLoadingProgress(prev => {
+          if (prev >= 90) return 90; // Cap at 90% until data loads
+          return prev + Math.random() * 15;
+        });
+      }, 200);
+      return () => clearInterval(interval);
+    } else {
+      setLoadingProgress(100);
+    }
+  }, [isLoading]);
 
   // Data validation helper
   const validateDailyPnLData = (data: any[]): DailyPnL[] => {
@@ -342,11 +361,22 @@ export default function PnLChart() {
   if (isLoading) {
     return (
       <Card>
-        <CardHeader>
-          <Skeleton className="h-6 w-48" />
+        <CardHeader className="pb-2">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            <CardTitle className="text-base font-medium">Performance</CardTitle>
+          </div>
         </CardHeader>
         <CardContent>
-          <Skeleton className="h-[400px] w-full" />
+          <div className="flex flex-col items-center justify-center h-[300px] space-y-4">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <div className="w-full max-w-xs space-y-2">
+              <Progress value={loadingProgress} className="h-1.5" />
+              <p className="text-xs text-center text-muted-foreground">
+                Loading performance data...
+              </p>
+            </div>
+          </div>
         </CardContent>
       </Card>
     );
