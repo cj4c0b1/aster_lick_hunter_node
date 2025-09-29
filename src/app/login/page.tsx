@@ -17,7 +17,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectUrl = searchParams.get('callbackUrl') || '/';
-  const { data: session, status } = useSession();
+  const { data: _session, status } = useSession();
   const { config } = useConfig();
 
   // Check if password is configured

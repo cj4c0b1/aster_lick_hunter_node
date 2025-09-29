@@ -21,8 +21,8 @@ interface DashboardLayoutProps {
 }
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
-  const router = useRouter();
-  const { config } = useConfig();
+  const _router = useRouter();
+  const { config: _config } = useConfig();
 
   const handleLogout = async () => {
     try {

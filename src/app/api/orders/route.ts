@@ -3,7 +3,7 @@ import { getOpenOrders } from '@/lib/api/market';
 import { loadConfig } from '@/lib/bot/config';
 import { withAuth } from '@/lib/auth/with-auth';
 
-export const GET = withAuth(async (request: NextRequest, user) => {
+export const GET = withAuth(async (request: NextRequest, _user) => {
   try {
     const config = await loadConfig();
 
