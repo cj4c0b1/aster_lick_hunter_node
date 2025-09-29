@@ -20,7 +20,7 @@ export function WebSocketErrorModal() {
   const [connectionFailed, setConnectionFailed] = useState(false);
 
   // Pages that don't need WebSocket connection
-  const wsExcludedPaths = ['/errors', '/config', '/auth'];
+  const wsExcludedPaths = ['/errors', '/config', '/auth', '/wiki', '/login'];
   const shouldConnectWebSocket = !wsExcludedPaths.some(path => pathname?.startsWith(path));
 
   useEffect(() => {
@@ -32,10 +32,19 @@ export function WebSocketErrorModal() {
     // Add connection listener to detect failures
     const unsubscribe = websocketService.addConnectionListener((connected) => {
       if (!connected && !hasShownError) {
+        // Check if this was an intentional disconnect (bot stopping)
+        if (websocketService.isIntentionallyDisconnected()) {
+          console.log('WebSocket disconnected intentionally (bot stopped)');
+          return;
+        }
+
         // Give it a moment to try reconnecting
         setTimeout(() => {
           const stillDisconnected = !websocketService.getConnectionStatus();
-          if (stillDisconnected) {
+          const intentionalDisconnect = websocketService.isIntentionallyDisconnected();
+
+          // Only show modal if still disconnected and not intentional
+          if (stillDisconnected && !intentionalDisconnect) {
             setConnectionFailed(true);
             setOpen(true);
             setHasShownError(true);
