@@ -787,6 +787,48 @@ export class Hunter extends EventEmitter {
       // Always format quantity and price using symbolPrecision (which now has defaults)
       quantity = symbolPrecision.formatQuantity(symbol, calculatedQuantity);
 
+      // Check if quantity rounds to zero or is below minimum
+      const lotSizeFilter = symbolInfo.filters.find(f => f.filterType === 'LOT_SIZE');
+      const minQty = lotSizeFilter ? parseFloat(lotSizeFilter.minQty || '0.001') : 0.001;
+
+      if (quantity === 0 || quantity < minQty) {
+        // Calculate what the minimum trade size should be
+        const minNotionalForMargin = minNotional / symbolConfig.leverage;
+        const minQtyForMargin = (minQty * currentPrice) / symbolConfig.leverage;
+        const recommendedTradeSize = Math.max(minNotionalForMargin, minQtyForMargin) * 1.3; // 30% buffer
+
+        console.error(`Hunter: Trade size too small for ${symbol} - quantity rounds to zero or below minimum`);
+        console.error(`  Current trade size: ${tradeSizeUSDT} USDT`);
+        console.error(`  Calculated quantity: ${calculatedQuantity.toFixed(8)} -> ${quantity} (after formatting)`);
+        console.error(`  Minimum quantity: ${minQty}`);
+        console.error(`  Minimum notional: ${minNotional} USDT (${minNotionalForMargin.toFixed(2)} USDT at ${symbolConfig.leverage}x leverage)`);
+        console.error(`  RECOMMENDED: Set trade size to at least ${recommendedTradeSize.toFixed(2)} USDT`);
+
+        // Broadcast error to UI
+        if (this.statusBroadcaster) {
+          this.statusBroadcaster.broadcastTradingError(
+            `Trade Size Too Small - ${symbol}`,
+            `Trade size ${tradeSizeUSDT.toFixed(2)} USDT is too small. Minimum recommended: ${recommendedTradeSize.toFixed(2)} USDT`,
+            {
+              component: 'Hunter',
+              symbol,
+              details: {
+                currentTradeSize: tradeSizeUSDT,
+                minimumRequired: recommendedTradeSize,
+                calculatedQuantity: calculatedQuantity,
+                formattedQuantity: quantity,
+                minQuantity: minQty,
+                currentPrice: currentPrice,
+                leverage: symbolConfig.leverage
+              }
+            }
+          );
+        }
+
+        // Don't attempt to place the trade
+        return;
+      }
+
       // Validate order parameters
       if (orderType === 'LIMIT') {
         // Always format price using symbolPrecision (which now has defaults)
