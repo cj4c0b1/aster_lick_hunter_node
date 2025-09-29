@@ -477,6 +477,14 @@ export class StatusBroadcaster extends EventEmitter {
     });
   }
 
+  // Broadcast trade size warnings
+  broadcastTradeSizeWarnings(warnings: any[]): void {
+    this._broadcast('trade_size_warnings', {
+      warnings,
+      timestamp: new Date(),
+    });
+  }
+
   // Broadcast session info for error tracking
   broadcastSessionInfo(): void {
     this._broadcast('session_info', {
