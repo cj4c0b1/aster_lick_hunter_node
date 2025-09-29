@@ -106,7 +106,8 @@ export function useRateLimitToasts() {
       }
 
       // Clear processed toasts
-      processedToasts.current.clear();
+      const toasts = processedToasts.current;
+      toasts.clear();
     };
   }, []);
 

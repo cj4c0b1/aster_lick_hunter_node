@@ -104,7 +104,8 @@ export function useErrorToasts() {
       }
 
       // Clear processed errors
-      processedErrors.current.clear();
+      const errors = processedErrors.current;
+      errors.clear();
     };
   }, []); // No dependencies needed since websocketService is a singleton
 }

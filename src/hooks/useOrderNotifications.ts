@@ -65,7 +65,6 @@ export function useOrderNotifications() {
         }
 
         // Create a unique key for deduplication
-        const messageKey = `${message.type}-${JSON.stringify(message.data)}-${Date.now()}`;
         const shortKey = `${message.type}-${message.data?.symbol || ''}-${message.data?.orderId || ''}`;
 
         // Check if we've recently processed this message
@@ -248,7 +247,8 @@ export function useOrderNotifications() {
       }
 
       // Clear processed messages
-      processedMessages.current.clear();
+      const messages = processedMessages.current;
+      messages.clear();
     };
   }, []); // No dependencies needed since websocketService is a singleton
 }
