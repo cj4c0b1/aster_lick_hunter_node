@@ -27,6 +27,9 @@ export const symbolConfigSchema = z.object({
   vwapProtection: z.boolean().optional(),
   vwapTimeframe: z.string().optional(),
   vwapLookback: z.number().min(10).max(500).optional(),
+
+  // Threshold system settings
+  useThreshold: z.boolean().optional(),
 }).refine(data => {
   // Ensure we have either legacy or new volume thresholds
   return data.volumeThresholdUSDT !== undefined ||
@@ -48,12 +51,22 @@ export const serverConfigSchema = z.object({
   websocketHost: z.string().nullable().optional(),
 }).optional();
 
+export const rateLimitConfigSchema = z.object({
+  maxRequestWeight: z.number().optional(),
+  maxOrderCount: z.number().optional(),
+  reservePercent: z.number().optional(),
+  enableBatching: z.boolean().optional(),
+  queueTimeout: z.number().optional(),
+}).optional();
+
 export const globalConfigSchema = z.object({
   riskPercent: z.number().min(0).max(100),
   paperMode: z.boolean(),
   positionMode: z.enum(['ONE_WAY', 'HEDGE']).optional(),
   maxOpenPositions: z.number().min(1).optional(),
+  useThresholdSystem: z.boolean().optional(),
   server: serverConfigSchema,
+  rateLimit: rateLimitConfigSchema,
 });
 
 export const configSchema = z.object({
