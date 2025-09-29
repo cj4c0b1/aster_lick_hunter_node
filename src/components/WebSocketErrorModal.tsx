@@ -26,6 +26,10 @@ export function WebSocketErrorModal() {
   useEffect(() => {
     // Don't register WebSocket listener on excluded pages
     if (!shouldConnectWebSocket) {
+      // Reset modal state when navigating to excluded pages
+      setConnectionFailed(false);
+      setOpen(false);
+      setHasShownError(false);
       return;
     }
 
