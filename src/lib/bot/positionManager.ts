@@ -486,7 +486,20 @@ export class PositionManager extends EventEmitter implements PositionTracker {
             console.log(`PositionManager: Adjusting protective orders for ${key} due to quantity mismatch`);
             await this.adjustProtectiveOrders(position, slOrder, tpOrder);
           } else if (!slOrder || !tpOrder) {
-            console.log(`PositionManager: Position ${key} missing protection (SL: ${!!slOrder}, TP: ${!!tpOrder})`);
+            // Critical protection check - log with appropriate severity
+            if (!slOrder && !tpOrder) {
+              console.log(`PositionManager: [CRITICAL SYNC] Position ${key} has NO protective orders at all!`);
+              console.log(`PositionManager: This may indicate cancelled orders. Re-placing both SL and TP immediately`);
+            } else {
+              console.log(`PositionManager: Position ${key} missing protection (SL: ${!!slOrder}, TP: ${!!tpOrder})`);
+            }
+
+            // Ensure we have tracking for this position even if orders were cancelled
+            if (!this.positionOrders.has(key)) {
+              console.log(`PositionManager: Re-establishing order tracking for position ${key}`);
+              this.positionOrders.set(key, {});
+            }
+
             await this.placeProtectiveOrdersWithLock(key, position, !slOrder, !tpOrder);
           }
         }
@@ -1166,15 +1179,29 @@ export class PositionManager extends EventEmitter implements PositionTracker {
         if (orders.slOrderId === orderId || orders.tpOrderId === orderId) {
           if (orders.slOrderId === orderId) {
             delete orders.slOrderId;
-            console.log(`PositionManager: Removed cancelled SL order ${orderId} from tracking`);
+            console.log(`PositionManager: Removed cancelled SL order ${orderId} from tracking for ${key}`);
+            console.log(`PositionManager: WARNING - Position ${key} now missing SL protection, will attempt to re-place`);
           } else if (orders.tpOrderId === orderId) {
             delete orders.tpOrderId;
-            console.log(`PositionManager: Removed cancelled TP order ${orderId} from tracking`);
+            console.log(`PositionManager: Removed cancelled TP order ${orderId} from tracking for ${key}`);
+            console.log(`PositionManager: WARNING - Position ${key} now missing TP protection, will attempt to re-place`);
           }
 
-          // If both orders are gone, remove the position tracking entirely
+          // CRITICAL FIX: Do NOT delete position tracking when orders are cancelled
+          // The position still exists and needs protection!
+          // Only delete tracking when the position itself is confirmed closed
           if (!orders.slOrderId && !orders.tpOrderId) {
-            this.positionOrders.delete(key);
+            // Check if position still exists before removing tracking
+            if (this.currentPositions.has(key)) {
+              console.log(`PositionManager: CRITICAL - Position ${key} lost all protective orders but position is still open!`);
+              console.log(`PositionManager: Will attempt to re-place protective orders on next sync cycle`);
+              // Keep the tracking entry so we know this position needs protection
+              // The periodic sync will detect missing orders and re-place them
+            } else {
+              // Position is actually closed, safe to remove tracking
+              console.log(`PositionManager: Position ${key} is closed, removing order tracking`);
+              this.positionOrders.delete(key);
+            }
           }
           break;
         }
@@ -2372,7 +2399,20 @@ export class PositionManager extends EventEmitter implements PositionTracker {
         if (needsAdjustment) {
           await this.adjustProtectiveOrders(position, slOrder, tpOrder);
         } else if (!slOrder || !tpOrder) {
-          console.log(`PositionManager: [Periodic Check] Position ${key} missing protection (SL: ${!!slOrder}, TP: ${!!tpOrder})`);
+          // Enhanced logging for missing protection
+          if (!slOrder && !tpOrder) {
+            console.log(`PositionManager: [CRITICAL] Position ${key} has NO protective orders! Re-placing both SL and TP immediately`);
+          } else {
+            console.log(`PositionManager: [Periodic Check] Position ${key} missing protection (SL: ${!!slOrder}, TP: ${!!tpOrder})`);
+          }
+
+          // Check if we have tracking for this position
+          const existingTracking = this.positionOrders.get(key);
+          if (!existingTracking) {
+            console.log(`PositionManager: Creating new order tracking for position ${key}`);
+            this.positionOrders.set(key, {});
+          }
+
           await this.placeProtectiveOrdersWithLock(key, position, !slOrder, !tpOrder);
         }
       }

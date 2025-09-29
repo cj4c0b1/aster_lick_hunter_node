@@ -29,7 +29,9 @@
       "Bash(npm run test:errors:*)",
       "Bash(npm test:*)",
       "Bash(npx jest:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(gh issue view:*)",
+      "Bash(git log:*)"
     ],
     "deny": [],
     "ask": []
