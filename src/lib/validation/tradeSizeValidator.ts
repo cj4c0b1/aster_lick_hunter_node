@@ -1,4 +1,4 @@
-import { Config, SymbolConfig } from '../types';
+import { Config } from '../types';
 import { getExchangeInfo } from '../api/market';
 import axios from 'axios';
 
@@ -50,7 +50,6 @@ export async function validateAllTradeSizes(config: Config): Promise<TradeSizeVa
 
       const minNotional = minNotionalFilter?.notional ? parseFloat(minNotionalFilter.notional) : 10;
       const minQty = lotSizeFilter?.minQty ? parseFloat(lotSizeFilter.minQty) : 0.001;
-      const stepSize = lotSizeFilter?.stepSize ? parseFloat(lotSizeFilter.stepSize) : 0.001;
 
       const leverage = symbolConfig.leverage || 1;
 
