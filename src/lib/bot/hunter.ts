@@ -4,7 +4,7 @@ import { Config, LiquidationEvent, SymbolConfig } from '../types';
 import { getMarkPrice, getExchangeInfo } from '../api/market';
 import { placeOrder, setLeverage } from '../api/orders';
 import { calculateOptimalPrice, validateOrderParams, analyzeOrderBookDepth, getSymbolFilters } from '../api/pricing';
-import { getPositionSide } from '../api/positionMode';
+import { getPositionSide, getPositionMode } from '../api/positionMode';
 import { PositionTracker } from './positionManager';
 import { liquidationStorage } from '../services/liquidationStorage';
 import { vwapService } from '../services/vwapService';
@@ -213,12 +213,42 @@ export class Hunter extends EventEmitter {
     }
   }
 
+  // Synchronize position mode with the exchange
+  public async syncPositionMode(): Promise<void> {
+    if (!this.config.api.apiKey || !this.config.api.secretKey) {
+      console.log('Hunter: Skipping position mode sync - no API keys configured');
+      return;
+    }
+
+    try {
+      const actualMode = await getPositionMode(this.config.api);
+      if (actualMode !== this.isHedgeMode) {
+        console.log(`Hunter: Position mode mismatch detected. Local: ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'}, Exchange: ${actualMode ? 'HEDGE' : 'ONE-WAY'}`);
+        this.isHedgeMode = actualMode;
+        console.log(`Hunter: Position mode synchronized to: ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'} mode`);
+      }
+    } catch (error) {
+      console.error('Hunter: Failed to sync position mode with exchange:', error);
+      // Keep current mode on error
+    }
+  }
+
   async start(): Promise<void> {
     if (this.isRunning) return;
     this.isRunning = true;
 
+    // Sync position mode on startup
+    await this.syncPositionMode();
+
     // Start periodic cleanup of stale pending orders (every 30 seconds)
     this.startPeriodicCleanup();
+
+    // Start periodic position mode sync (every 5 minutes)
+    setInterval(() => {
+      this.syncPositionMode().catch(err =>
+        console.error('Hunter: Failed to sync position mode during periodic check:', err)
+      );
+    }, 5 * 60 * 1000);
 
     // Initialize symbol precision manager with exchange info
     try {
@@ -807,18 +837,27 @@ export class Hunter extends EventEmitter {
       } catch (orderError: any) {
         // Check if this is a position mode error (-4061)
         if (orderError?.response?.data?.code === -4061) {
-          console.log(`Hunter: Position mode mismatch detected for ${symbol}, retrying with opposite mode...`);
+          console.log(`Hunter: Position mode mismatch detected for ${symbol}. Attempting to sync with exchange...`);
 
           // Remove temp tracking before retry
           this.removePendingOrder(tempTrackingId);
 
-          // Flip the position mode assumption and retry once
-          const originalMode = this.isHedgeMode;
-          this.isHedgeMode = !this.isHedgeMode;
+          // Query the actual position mode from the exchange
+          let retryMode = !this.isHedgeMode; // Default to opposite mode if query fails
+          try {
+            const actualMode = await getPositionMode(this.config.api);
+            retryMode = actualMode;
+            console.log(`Hunter: Exchange reports position mode as: ${actualMode ? 'HEDGE' : 'ONE-WAY'} mode`);
+          } catch (syncError) {
+            console.error('Hunter: Failed to query position mode from exchange, trying opposite mode:', syncError);
+          }
 
-          // Recalculate position side with the new mode
-          const retryPositionSide = getPositionSide(this.isHedgeMode, side);
-          console.log(`Hunter: Retrying with position mode: ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'}, side: ${side}, positionSide: ${retryPositionSide}`);
+          // Try with the correct position mode
+          const originalMode = this.isHedgeMode;
+
+          // Recalculate position side with the retry mode
+          const retryPositionSide = getPositionSide(retryMode, side);
+          console.log(`Hunter: Retrying with position mode: ${retryMode ? 'HEDGE' : 'ONE-WAY'}, side: ${side}, positionSide: ${retryPositionSide}`);
 
           // Update order params with new position side
           orderParams.positionSide = retryPositionSide;
@@ -833,7 +872,10 @@ export class Hunter extends EventEmitter {
 
             const displayPrice = orderType === 'LIMIT' ? ` at ${orderPrice}` : '';
             console.log(`Hunter: Successfully placed ${orderType} ${side} order for ${symbol}${displayPrice} after position mode adjustment, orderId: ${order.orderId}`);
-            console.log(`Hunter: ✅ Position mode corrected to: ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'} mode`);
+
+            // Update our position mode state to match what actually worked
+            this.isHedgeMode = retryMode;
+            console.log(`Hunter: ✅ Position mode synchronized to: ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'} mode (was ${originalMode ? 'HEDGE' : 'ONE-WAY'})`);
 
             // Replace temp tracking with real order ID
             this.removePendingOrder(retryTrackingId);
@@ -841,9 +883,8 @@ export class Hunter extends EventEmitter {
               this.addPendingOrder(order.orderId.toString(), symbol, side);
             }
           } catch (retryError) {
-            // Retry failed, restore original mode and clean up
-            console.error(`Hunter: Retry failed for ${symbol}, restoring original position mode`);
-            this.isHedgeMode = originalMode;
+            // Retry failed, keep original mode and clean up
+            console.error(`Hunter: Retry failed for ${symbol}, keeping original position mode: ${originalMode ? 'HEDGE' : 'ONE-WAY'}`);
             this.removePendingOrder(retryTrackingId);
             throw retryError; // Re-throw for outer error handling
           }
