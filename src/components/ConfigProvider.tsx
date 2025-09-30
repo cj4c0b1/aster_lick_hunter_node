@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
 import { Config } from '@/lib/types';
 import { OnboardingProvider } from './onboarding/OnboardingProvider';
@@ -58,7 +58,7 @@ export default function ConfigProvider({ children }: { children: React.ReactNode
     version: "1.1.0"
   });
 
-  const loadConfig = async () => {
+  const loadConfig = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch('/api/config');
@@ -121,7 +121,7 @@ export default function ConfigProvider({ children }: { children: React.ReactNode
     } finally {
       setLoading(false);
     }
-  };
+  }, [setConfig, setLoading]);
 
   const updateConfig = async (newConfig: Config) => {
     try {
@@ -147,7 +147,7 @@ export default function ConfigProvider({ children }: { children: React.ReactNode
 
   useEffect(() => {
     loadConfig();
-  }, []);
+  }, [loadConfig]);
 
   // Listen for tutorial restart event
   useEffect(() => {

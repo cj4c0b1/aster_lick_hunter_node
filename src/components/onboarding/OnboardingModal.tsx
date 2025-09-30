@@ -74,7 +74,7 @@ export function OnboardingModal() {
               maxPositionMarginUSDT: 5000,
               priceOffsetBps: 5,
               maxSlippageBps: 50,
-              orderType: 'LIMIT',
+              orderType: 'LIMIT' as const,
               vwapProtection: true,
               vwapTimeframe: '1m',
               vwapLookback: 200

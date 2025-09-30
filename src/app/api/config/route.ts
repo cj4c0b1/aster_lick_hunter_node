@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { Config } from '@/lib/types';
 import { configLoader } from '@/lib/config/configLoader';
 import { configSchema } from '@/lib/config/types';
 
