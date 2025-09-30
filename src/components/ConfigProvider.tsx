@@ -38,49 +38,46 @@ export default function ConfigProvider({ children }: { children: React.ReactNode
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
           const data = await response.json();
+          
+          // Ensure we have all required fields
+          if (!data.api) data.api = { apiKey: '', secretKey: '' };
+          if (!data.symbols) data.symbols = {};
+          if (!data.global) {
+            data.global = {
+              riskPercent: 90,
+              paperMode: true,
+              positionMode: "HEDGE",
+              maxOpenPositions: 5,
+              useThresholdSystem: false,
+              server: {
+                dashboardPassword: data.global?.server?.dashboardPassword || "",
+                dashboardPort: data.global?.server?.dashboardPort || 3000,
+                websocketPort: data.global?.server?.websocketPort || 8080,
+                useRemoteWebSocket: data.global?.server?.useRemoteWebSocket || false,
+                websocketHost: data.global?.server?.websocketHost || null
+              },
+              rateLimit: data.global?.rateLimit || {
+                maxRequestWeight: 2400,
+                maxOrderCount: 1200,
+                reservePercent: 30,
+                enableBatching: true,
+                queueTimeout: 30000,
+                enableDeduplication: true,
+                deduplicationWindowMs: 1000,
+                parallelProcessing: true,
+                maxConcurrentRequests: 3
+              }
+            };
+          }
+          
           setConfig(data);
         } else {
           console.warn('Config API returned non-JSON response');
           throw new Error('Invalid response type');
         }
-      } else if (response.status === 401) {
-        // Not authenticated, use default config
-        const defaultConfig: Config = {
-          api: {
-            apiKey: '',
-            secretKey: '',
-          },
-          symbols: {
-            ASTERUSDT: {
-              longVolumeThresholdUSDT: 1000,
-              shortVolumeThresholdUSDT: 2500,
-              tradeSize: 0.69,
-              shortTradeSize: 0.69,
-              maxPositionMarginUSDT: 200,
-              leverage: 10,
-              tpPercent: 1,
-              slPercent: 20,
-              vwapProtection: true,
-              vwapTimeframe: "5m",
-              vwapLookback: 200
-            },
-          },
-          global: {
-            riskPercent: 90,
-            paperMode: true,
-            positionMode: "HEDGE",
-            maxOpenPositions: 5,
-            server: {
-              dashboardPassword: "",
-              dashboardPort: 3000,
-              websocketPort: 8080,
-              useRemoteWebSocket: false,
-              websocketHost: null
-            }
-          },
-          version: "1.1.0"
-        };
-        setConfig(defaultConfig);
+      } else {
+        console.error('Failed to load config:', await response.text());
+        throw new Error(`Failed to load config: ${response.status}`);
       }
     } catch (error) {
       console.error('Failed to load config:', error);
@@ -90,32 +87,30 @@ export default function ConfigProvider({ children }: { children: React.ReactNode
           apiKey: '',
           secretKey: '',
         },
-        symbols: {
-          ASTERUSDT: {
-            longVolumeThresholdUSDT: 1000,
-            shortVolumeThresholdUSDT: 2500,
-            tradeSize: 0.69,
-            shortTradeSize: 0.69,
-            maxPositionMarginUSDT: 200,
-            leverage: 10,
-            tpPercent: 1,
-            slPercent: 20,
-            vwapProtection: true,
-            vwapTimeframe: "5m",
-            vwapLookback: 200
-          },
-        },
+        symbols: {},
         global: {
           riskPercent: 90,
           paperMode: true,
           positionMode: "HEDGE",
           maxOpenPositions: 5,
+          useThresholdSystem: false,
           server: {
             dashboardPassword: "",
             dashboardPort: 3000,
             websocketPort: 8080,
             useRemoteWebSocket: false,
             websocketHost: null
+          },
+          rateLimit: {
+            maxRequestWeight: 2400,
+            maxOrderCount: 1200,
+            reservePercent: 30,
+            enableBatching: true,
+            queueTimeout: 30000,
+            enableDeduplication: true,
+            deduplicationWindowMs: 1000,
+            parallelProcessing: true,
+            maxConcurrentRequests: 3
           }
         },
         version: "1.1.0"
@@ -139,7 +134,8 @@ export default function ConfigProvider({ children }: { children: React.ReactNode
       if (response.ok) {
         setConfig(newConfig);
       } else {
-        throw new Error('Failed to save config');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`Failed to save config: ${response.status} ${response.statusText}${errorData.error ? ` - ${errorData.error}` : ''}`);
       }
     } catch (error) {
       console.error('Failed to save config:', error);

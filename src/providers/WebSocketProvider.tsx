@@ -24,9 +24,9 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     fetch('/api/config')
       .then(res => res.json())
       .then(data => {
-        const port = data.config?.global?.server?.websocketPort || 8080;
-        const useRemoteWebSocket = data.config?.global?.server?.useRemoteWebSocket || false;
-        const configHost = data.config?.global?.server?.websocketHost;
+        const port = data.global?.server?.websocketPort || 8080;
+        const useRemoteWebSocket = data.global?.server?.useRemoteWebSocket || false;
+        const configHost = data.global?.server?.websocketHost;
 
         setWsPort(port);
 

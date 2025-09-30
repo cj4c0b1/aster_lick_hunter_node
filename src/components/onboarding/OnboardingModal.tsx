@@ -43,23 +43,93 @@ export function OnboardingModal() {
   };
 
   const handlePasswordSetup = async (password: string) => {
-    // Update config with the new password
-    if (config) {
-      const updatedConfig = {
-        ...config,
-        global: {
-          ...config.global,
-          server: {
-            ...config.global.server,
-            dashboardPassword: password,
-          },
-        },
-      };
-      await updateConfig(updatedConfig);
+    console.log('🔍 handlePasswordSetup - DEBUG START');
+    console.log('Password received:', password);
+    console.log('Current config exists:', !!config);
+
+    if (!config) {
+      console.error('❌ Config not loaded yet');
+      return;
     }
 
-    completeStep('password-setup');
-    nextStep();
+    // Ensure we have all required fields with defaults if missing
+    const updatedConfig = {
+      // Ensure API exists with empty strings if not present
+      api: {
+        apiKey: config.api?.apiKey || '',
+        secretKey: config.api?.secretKey || ''
+      },
+      // Ensure symbols exist with at least one default symbol if empty
+      symbols: config.symbols && Object.keys(config.symbols).length > 0 
+        ? config.symbols 
+        : {
+            'BTCUSDT': {
+              tradeSize: 0.001,
+              leverage: 5,
+              tpPercent: 5,
+              slPercent: 2,
+              longVolumeThresholdUSDT: 10000,
+              shortVolumeThresholdUSDT: 10000,
+              maxPositionMarginUSDT: 5000,
+              priceOffsetBps: 5,
+              maxSlippageBps: 50,
+              orderType: 'LIMIT',
+              vwapProtection: true,
+              vwapTimeframe: '1m',
+              vwapLookback: 200
+            }
+          },
+      // Ensure global config has all required fields
+      global: {
+        riskPercent: config.global?.riskPercent || 5,
+        paperMode: config.global?.paperMode ?? true,
+        positionMode: config.global?.positionMode || 'ONE_WAY',
+        maxOpenPositions: config.global?.maxOpenPositions || 10,
+        useThresholdSystem: config.global?.useThresholdSystem ?? false,
+        rateLimit: config.global?.rateLimit || {
+          maxRequestWeight: 2400,
+          maxOrderCount: 1200,
+          reservePercent: 30,
+          enableBatching: true,
+          queueTimeout: 30000,
+          enableDeduplication: true,
+          deduplicationWindowMs: 1000,
+          parallelProcessing: true,
+          maxConcurrentRequests: 3
+        },
+        server: {
+          ...config.global?.server,
+          dashboardPassword: password,
+          dashboardPort: config.global?.server?.dashboardPort || 3000,
+          websocketPort: config.global?.server?.websocketPort || 3001,
+          useRemoteWebSocket: config.global?.server?.useRemoteWebSocket ?? false,
+          websocketHost: config.global?.server?.websocketHost || null
+        }
+      },
+      version: config.version || '1.1.0'
+    };
+
+    console.log('📋 Config structure check:', {
+      hasApi: !!updatedConfig.api,
+      hasSymbols: !!updatedConfig.symbols && Object.keys(updatedConfig.symbols).length > 0,
+      hasGlobal: !!updatedConfig.global,
+      apiKeysPresent: !!(updatedConfig.api.apiKey && updatedConfig.api.secretKey),
+      globalRiskPercent: updatedConfig.global.riskPercent,
+      globalPaperMode: updatedConfig.global.paperMode
+    });
+
+    console.log('📤 Config to be sent:', JSON.stringify(updatedConfig, null, 2));
+    console.log('🔍 handlePasswordSetup - DEBUG END');
+
+    try {
+      await updateConfig(updatedConfig);
+      console.log('✅ Config saved successfully');
+      completeStep('password-setup');
+      nextStep();
+    } catch (error) {
+      console.error('❌ Config save failed:', error);
+      throw error;
+    }
   };
 
   const handlePasswordSkip = () => {
