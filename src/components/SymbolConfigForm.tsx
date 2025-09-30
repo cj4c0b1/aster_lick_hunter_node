@@ -867,7 +867,7 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                                   setShortTradeSizeInput(shortSize.toString());
                                 } else {
                                   // Remove separate values when toggling off
-                                  const { longTradeSize: _longTradeSize, shortTradeSize: _shortTradeSize, ...restConfig } = config.symbols[selectedSymbol];
+                                  const { longTradeSize, shortTradeSize, ...restConfig } = config.symbols[selectedSymbol];
                                   setConfig({
                                     ...config,
                                     symbols: {
@@ -1150,13 +1150,19 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                                       handleSymbolChange(
                                         selectedSymbol,
                                         'vwapLookback',
-                                        isNaN(value) ? 100 : value
+                                        isNaN(value) ? 100 : value,
+                                        () => {
+                                          const restConfig = { ...config.symbols[selectedSymbol] };
+                                          delete restConfig.shortTradeSize;
+                                          delete restConfig.longTradeSize;
+                                          handleSymbolChange(selectedSymbol, 'config', restConfig);
+                                        }
                                       );
                                     }}
                                     min="10"
                                     max="500"
                                   />
-                                  <p className="text-xs text-muted-foreground">
+                                  <p className="text-xs text-muted-foreground mt-1">
                                     Number of candles for VWAP (10-500)
                                   </p>
                                 </div>
