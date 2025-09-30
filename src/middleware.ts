@@ -17,9 +17,9 @@ export default withAuth(
           return true;
         }
 
-        // For /api/config, allow public GET and POST requests (needed for onboarding)
+        // For /api/config, require authentication for all requests
         if (pathname.startsWith('/api/config')) {
-          return true; // Allow all config operations without authentication
+          return !!token;
         }
 
         // For all other protected routes, require authentication

@@ -22,6 +22,10 @@ export async function GET() {
     // Return default server config if loading fails
     const defaultConfig = {
       global: {
+        riskPercent: 2,
+        paperMode: true,
+        positionMode: 'HEDGE',
+        maxOpenPositions: 10,
         server: {
           dashboardPassword: 'admin',
           dashboardPort: 3000,
@@ -29,7 +33,9 @@ export async function GET() {
           useRemoteWebSocket: false,
           websocketHost: null
         }
-      }
+      },
+      symbols: {},
+      version: '1.0.0'
     };
 
     return NextResponse.json(defaultConfig);

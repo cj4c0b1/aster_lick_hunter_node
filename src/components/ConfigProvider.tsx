@@ -27,95 +27,97 @@ export default function ConfigProvider({ children }: { children: React.ReactNode
   const [config, setConfig] = useState<Config | null>(null);
   const [loading, setLoading] = useState(true);
   const pathname = usePathname();
-
-  // Don't show onboarding on login page
   const isLoginPage = pathname === '/login';
 
+  const createDefaultConfig = (): Config => ({
+    api: { apiKey: '', secretKey: '' },
+    symbols: {},
+    global: {
+      riskPercent: 90,
+      paperMode: true,
+      positionMode: "HEDGE",
+      maxOpenPositions: 5,
+      useThresholdSystem: false,
+      server: {
+        dashboardPassword: "",
+        dashboardPort: 3000,
+        websocketPort: 8080,
+        useRemoteWebSocket: false,
+        websocketHost: null
+      },
+      rateLimit: {
+        maxRequestWeight: 2400,
+        maxOrderCount: 1200,
+        reservePercent: 30,
+        enableBatching: true,
+        queueTimeout: 30000,
+        parallelProcessing: false,
+        maxConcurrentRequests: 3
+      }
+    },
+    version: "1.1.0"
+  });
+
   const loadConfig = async () => {
+    setLoading(true);
     try {
       const response = await fetch('/api/config');
+      const data = await response.json() as Partial<Config>;
+
       if (response.ok) {
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          const data = await response.json();
-          
-          // Ensure we have all required fields
-          if (!data.api) data.api = { apiKey: '', secretKey: '' };
-          if (!data.symbols) data.symbols = {};
-          if (!data.global) {
-            data.global = {
-              riskPercent: 90,
-              paperMode: true,
-              positionMode: "HEDGE",
-              maxOpenPositions: 5,
-              useThresholdSystem: false,
-              server: {
-                dashboardPassword: data.global?.server?.dashboardPassword || "",
-                dashboardPort: data.global?.server?.dashboardPort || 3000,
-                websocketPort: data.global?.server?.websocketPort || 8080,
-                useRemoteWebSocket: data.global?.server?.useRemoteWebSocket || false,
-                websocketHost: data.global?.server?.websocketHost || null
-              },
-              rateLimit: data.global?.rateLimit || {
-                maxRequestWeight: 2400,
-                maxOrderCount: 1200,
-                reservePercent: 30,
-                enableBatching: true,
-                queueTimeout: 30000,
-                enableDeduplication: true,
-                deduplicationWindowMs: 1000,
-                parallelProcessing: true,
-                maxConcurrentRequests: 3
-              }
-            };
+        const defaultConfig = createDefaultConfig();
+        
+        // Create merged config with proper type safety
+        const mergedConfig: Config = {
+          ...defaultConfig,
+          ...data,
+          api: {
+            ...defaultConfig.api,
+            ...(data.api || {})
+          },
+          global: {
+            ...defaultConfig.global,
+            ...(data.global || {}),
+            server: {
+              ...defaultConfig.global.server,
+              ...(data.global?.server || {})
+            },
+            rateLimit: {
+              ...defaultConfig.global.rateLimit,
+              ...(data.global?.rateLimit || {})
+            }
+          },
+          symbols: data.symbols || {}
+        };
+        
+        setConfig(mergedConfig);
+      } else if (response.status === 401) {
+        // Not authenticated, use default config with ASTERUSDT symbol
+        const defaultConfig = createDefaultConfig();
+        defaultConfig.symbols = {
+          ASTERUSDT: {
+            longVolumeThresholdUSDT: 1000,
+            shortVolumeThresholdUSDT: 2500,
+            tradeSize: 0.69,
+            shortTradeSize: 0.69,
+            maxPositionMarginUSDT: 200,
+            leverage: 10,
+            tpPercent: 1,
+            slPercent: 20,
+            vwapProtection: true,
+            vwapTimeframe: "5m",
+            vwapLookback: 200,
+            orderType: "LIMIT"
           }
-          
-          setConfig(data);
-        } else {
-          console.warn('Config API returned non-JSON response');
-          throw new Error('Invalid response type');
-        }
+        };
+        setConfig(defaultConfig);
       } else {
-        console.error('Failed to load config:', await response.text());
-        throw new Error(`Failed to load config: ${response.status}`);
+        throw new Error(`Failed to load config: ${response.status} ${response.statusText}`);
       }
     } catch (error) {
       console.error('Failed to load config:', error);
-      // Initialize with default config
-      const defaultConfig: Config = {
-        api: {
-          apiKey: '',
-          secretKey: '',
-        },
-        symbols: {},
-        global: {
-          riskPercent: 90,
-          paperMode: true,
-          positionMode: "HEDGE",
-          maxOpenPositions: 5,
-          useThresholdSystem: false,
-          server: {
-            dashboardPassword: "",
-            dashboardPort: 3000,
-            websocketPort: 8080,
-            useRemoteWebSocket: false,
-            websocketHost: null
-          },
-          rateLimit: {
-            maxRequestWeight: 2400,
-            maxOrderCount: 1200,
-            reservePercent: 30,
-            enableBatching: true,
-            queueTimeout: 30000,
-            enableDeduplication: true,
-            deduplicationWindowMs: 1000,
-            parallelProcessing: true,
-            maxConcurrentRequests: 3
-          }
-        },
-        version: "1.1.0"
-      };
-      setConfig(defaultConfig);
+      // Initialize with default config on error
+      setConfig(createDefaultConfig());
     } finally {
       setLoading(false);
     }

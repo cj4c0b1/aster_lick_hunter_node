@@ -13,8 +13,6 @@ const WebSocketContext = createContext<WebSocketContextType>({
   wsUrl: 'ws://localhost:8080'
 });
 
-export const useWebSocketConfig = () => useContext(WebSocketContext);
-
 export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const [wsPort, setWsPort] = useState(8080);
   const [wsHost, setWsHost] = useState('localhost');
@@ -24,14 +22,9 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     fetch('/api/config')
       .then(res => res.json())
       .then(data => {
-        const port = data.global?.server?.websocketPort || 8080;
-        const useRemoteWebSocket = data.global?.server?.useRemoteWebSocket || false;
-        const configHost = data.global?.server?.websocketHost;
-
-        setWsPort(port);
-
-        // Determine the host based on configuration
-        let host = 'localhost'; // default
+        const port = data.config?.global?.server?.websocketPort || 8080;
+        const useRemoteWebSocket = data.config?.global?.server?.useRemoteWebSocket || false;
+        const configHost = data.config?.global?.server?.websocketHost;
 
         // Check for environment variable override first
         if (process.env.NEXT_PUBLIC_WS_HOST) {

@@ -40,24 +40,60 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
       if (!currentConfig.api) {
         currentConfig.api = { apiKey: '', secretKey: '' };
       }
-      return currentConfig;
+      
+      // Ensure global object exists with all required fields
+      if (!currentConfig.global) {
+        currentConfig.global = {
+          riskPercent: 2,
+          paperMode: true,
+          positionMode: 'HEDGE',
+          maxOpenPositions: 10,
+          useThresholdSystem: false,
+          server: {
+            dashboardPassword: '',
+            dashboardPort: 3000,
+            websocketPort: 8080,
+            useRemoteWebSocket: false,
+            websocketHost: null
+          },
+          rateLimit: {
+            maxRequestWeight: 2400,
+            maxOrderCount: 1200,
+            reservePercent: 30,
+            enableBatching: true,
+            queueTimeout: 30000,
+            enableDeduplication: true,
+            deduplicationWindowMs: 1000,
+            parallelProcessing: true,
+            maxConcurrentRequests: 3
+          }
+        };
+      }
+      
+      // Ensure symbols object exists
+      if (!currentConfig.symbols) {
+        currentConfig.symbols = {};
+      }
+      
+      return { ...currentConfig };
     }
     
+    // Default config if none provided
     return {
       api: {
         apiKey: '',
-        secretKey: '',
+        secretKey: ''
       },
       global: {
         riskPercent: 2,
         paperMode: true,
-        positionMode: 'ONE_WAY',
+        positionMode: 'HEDGE',
         maxOpenPositions: 10,
         useThresholdSystem: false,
         server: {
           dashboardPassword: 'admin',
           dashboardPort: 3000,
-          websocketPort: 3001,
+          websocketPort: 8080,
           useRemoteWebSocket: false,
           websocketHost: null
         },
@@ -67,8 +103,6 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
           reservePercent: 30,
           enableBatching: true,
           queueTimeout: 30000,
-          enableDeduplication: true,
-          deduplicationWindowMs: 1000,
           parallelProcessing: true,
           maxConcurrentRequests: 3
         }

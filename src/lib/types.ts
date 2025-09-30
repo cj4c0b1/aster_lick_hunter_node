@@ -51,6 +51,8 @@ export interface RateLimitConfig {
   reservePercent?: number;     // Percentage to reserve for critical operations (default: 30)
   enableBatching?: boolean;    // Enable order batching (default: true)
   queueTimeout?: number;       // Timeout for queued requests in ms (default: 30000)
+  parallelProcessing?: boolean; // Enable parallel processing of requests (default: false)
+  maxConcurrentRequests?: number; // Maximum number of concurrent requests (default: 3)
 }
 
 export interface GlobalConfig {

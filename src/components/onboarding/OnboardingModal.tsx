@@ -12,6 +12,7 @@ import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { useOnboarding } from './OnboardingProvider';
 import { useConfig } from '@/components/ConfigProvider';
+import type { Config, SymbolConfig } from '@/lib/types';
 import { WelcomeStep } from './steps/WelcomeStep';
 import { PasswordSetup } from './steps/PasswordSetup';
 import { ApiKeyStep } from './steps/ApiKeyStep';
@@ -140,18 +141,45 @@ export function OnboardingModal() {
 
   const handleApiKeyNext = async (apiKey: string, secretKey: string) => {
     setApiKeys({ apiKey, secretKey });
-    setIsPaperMode(!apiKey && !secretKey);
+    const paperMode = !apiKey && !secretKey;
+    setIsPaperMode(paperMode);
 
     // Update config with API keys
     if (config) {
-      const updatedConfig = {
+      const updatedConfig: Config = {
         ...config,
         api: { apiKey, secretKey },
         global: {
           ...config.global,
-          paperMode: !apiKey && !secretKey,
+          paperMode,
+          // Ensure all required global config properties are present
+          riskPercent: config.global?.riskPercent ?? 2,
+          positionMode: config.global?.positionMode ?? 'ONE_WAY',
+          maxOpenPositions: config.global?.maxOpenPositions ?? 10,
+          useThresholdSystem: config.global?.useThresholdSystem ?? false,
+          server: {
+            ...config.global?.server,
+            dashboardPassword: config.global?.server?.dashboardPassword ?? '',
+            dashboardPort: config.global?.server?.dashboardPort ?? 3000,
+            websocketPort: config.global?.server?.websocketPort ?? 3001,
+            useRemoteWebSocket: config.global?.server?.useRemoteWebSocket ?? false,
+            websocketHost: config.global?.server?.websocketHost ?? null
+          },
+          rateLimit: {
+            ...config.global?.rateLimit,
+            maxRequestWeight: config.global?.rateLimit?.maxRequestWeight ?? 2400,
+            maxOrderCount: config.global?.rateLimit?.maxOrderCount ?? 1200,
+            reservePercent: config.global?.rateLimit?.reservePercent ?? 30,
+            enableBatching: config.global?.rateLimit?.enableBatching ?? true,
+            queueTimeout: config.global?.rateLimit?.queueTimeout ?? 30000,
+            parallelProcessing: config.global?.rateLimit?.parallelProcessing ?? false,
+            maxConcurrentRequests: config.global?.rateLimit?.maxConcurrentRequests ?? 3
+          }
         },
+        // Ensure symbols exist
+        symbols: config.symbols || {}
       };
+      
       await updateConfig(updatedConfig);
     }
 
@@ -159,27 +187,56 @@ export function OnboardingModal() {
     nextStep();
   };
 
-  const handleSymbolConfigNext = async (symbolConfigs: any[], riskPercent: number) => {
+  const handleSymbolConfigNext = async (symbolConfigs: Array<{
+    symbol: string;
+    volumeThreshold: number;
+    leverage: number;
+    tpPercent: number;
+    slPercent: number;
+  }>, riskPercent: number) => {
     if (config) {
-      const symbolsObject: any = {};
+      const symbolsObject: Record<string, any> = {};
+      
       symbolConfigs.forEach(sc => {
         symbolsObject[sc.symbol] = {
-          volumeThresholdUSDT: sc.volumeThreshold,
+          // Required fields
           tradeSize: sc.symbol === 'BTCUSDT' ? 0.001 : 0.01,
           leverage: sc.leverage,
           tpPercent: sc.tpPercent,
           slPercent: sc.slPercent,
+          
+          // Volume thresholds
+          volumeThresholdUSDT: sc.volumeThreshold,
+          longVolumeThresholdUSDT: sc.volumeThreshold,
+          shortVolumeThresholdUSDT: sc.volumeThreshold,
+          
+          // Default values for other required fields
+          maxPositionMarginUSDT: 1000,
+          priceOffsetBps: 10,
+          usePostOnly: true,
+          maxSlippageBps: 50,
+          orderType: 'LIMIT' as const,
+          vwapProtection: false,
+          vwapTimeframe: '1m',
+          vwapLookback: 100,
+          useThreshold: false,
+          thresholdTimeWindow: 60000,
+          thresholdCooldown: 30000,
+          
+          // Optional fields with defaults
+          shortTradeSize: sc.symbol === 'BTCUSDT' ? 0.001 : 0.01
         };
       });
 
-      const updatedConfig = {
+      const updatedConfig: Config = {
         ...config,
-        symbols: symbolsObject,
+        symbols: symbolsObject as Record<string, SymbolConfig>,
         global: {
           ...config.global,
           riskPercent,
         },
       };
+      
       await updateConfig(updatedConfig);
     }
 
