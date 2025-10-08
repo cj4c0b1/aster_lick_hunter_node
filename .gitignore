@@ -1,6 +1,6 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
+# Dependencies
 /node_modules
 /.pnp
 .pnp.*
@@ -9,44 +9,142 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
+.pnpm-store/
 
-# testing
+# Testing
 /coverage
+.nyc_output/
 
-# next.js
+# Build outputs
 /.next/
 /out/
+/dist/
+/build/
+.next/
+.cache/
 
-# production
-/build
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# misc
+# IDE and editor files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# System Files
 .DS_Store
-*.pem
+Thumbs.db
 
-# debug
+# Debug logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
 
-# vercel
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Vercel
 .vercel
 
-# typescript
+# TypeScript
 *.tsbuildinfo
 next-env.d.ts
 
-# database
+# Database
 data/*.db
 data/*.db-journal
 data/*.db-wal
 
-# user configuration
-config.user.json
+# User configuration and sensitive data
+config.user*
 config.user.backup*.json
-config.json
+config.json*
+config/*.json
+!config/default.json
+!config/example.json
+
+# Application data
 data/optimizer-jobs.json
+data/logs/
+
+# Local development
+.local-*
+
+# Build analyzer
+.next/analyze/
+
+# Optional package manager specific files
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Optional next.js telemetry
+.next/cache/
+
+# Optional production build files
+.next/server/
+.next/cache/
+.next/standalone/
+
+# Optional test files
+__tests__/__mocks__/
+__tests__/__snapshots__/
+*.test.ts.snap
+
+# Optional cypress
+cypress/
+cypress/videos/
+cypress/screenshots/
+
+# Optional playwright
+playwright-report/
+test-results/
+
+# Optional storybook
+.storybook/
+
+# Optional parcel-bundler cache
+.cache/
+.parcel-cache/
+
+# Optional Windows image file caches
+Thumbs.db
+ehthumbs.db
+
+# Optional Windows shortcuts
+*.lnk
+
+# Windsurf
+.windsurf/
+.windsurf/*
+!.windsurf/workflows/
+.windsurf/cache/
+.windsurf/logs/
+.windsurf/tmp/
+.windsurf/debug/
+*.windsurf.log
