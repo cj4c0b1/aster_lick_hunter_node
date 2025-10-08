@@ -64,7 +64,7 @@ export function ApiKeyStep({ onNext, onBack }: ApiKeyStepProps) {
               <Button
                 variant="default"
                 className="w-full"
-                onClick={() => window.open('https://www.asterdex.com/en/referral/3TixB2', '_blank')}
+                onClick={() => window.open('https://www.asterdex.com/en/referral/183633', '_blank')}
               >
                 <ExternalLink className="mr-2 h-4 w-4" />
                 Open AsterDex (Sign Up / API Management)

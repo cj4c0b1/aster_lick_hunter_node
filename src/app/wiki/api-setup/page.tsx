@@ -38,7 +38,7 @@ export default function ApiSetupPage() {
             </Alert>
 
             <Button className="w-full" asChild>
-              <a href="https://www.asterdex.com/en/referral/3TixB2" target="_blank" rel="noopener noreferrer">
+              <a href="https://www.asterdex.com/en/referral/183633" target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="mr-2 h-4 w-4" />
                 Open AsterDex (Sign Up / API Management)
               </a>

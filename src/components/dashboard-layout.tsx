@@ -87,7 +87,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 </Link>
                 {/* AsterDex */}
                 <Link
-                  href="https://www.asterdex.com/en/referral/3TixB2"
+                  href="https://www.asterdex.com/en/referral/183633"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
