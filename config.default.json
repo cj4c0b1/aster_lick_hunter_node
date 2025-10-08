@@ -8,7 +8,6 @@
       "longVolumeThresholdUSDT": 1000,
       "shortVolumeThresholdUSDT": 2500,
       "tradeSize": 0.69,
-      "shortTradeSize": 0.69,
       "maxPositionMarginUSDT": 200,
       "leverage": 10,
       "tpPercent": 1,
@@ -22,15 +21,15 @@
     }
   },
   "global": {
-    "riskPercent": 90,
-    "paperMode": true,
-    "positionMode": "HEDGE",
-    "maxOpenPositions": 5,
+    "riskPercent": 96,
+    "paperMode": false,
+    "positionMode": "ONE_WAY",
+    "maxOpenPositions": 33,
     "useThresholdSystem": false,
     "server": {
-      "dashboardPassword": "admin",
+      "dashboardPassword": "#!5ggB#sd$XM@@9cnJXC",
       "dashboardPort": 3000,
-      "websocketPort": 8080,
+      "websocketPort": 3001,
       "useRemoteWebSocket": false,
       "websocketHost": null
     },

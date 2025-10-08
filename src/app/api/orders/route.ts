@@ -7,9 +7,13 @@ export const GET = withAuth(async (request: NextRequest, _user) => {
   try {
     const config = await loadConfig();
 
-    // If no API key is configured, return empty orders
+    // Check if API keys are configured
     if (!config.api.apiKey || !config.api.secretKey) {
-      return NextResponse.json([]);
+      console.error('[Orders API] Missing API keys in config');
+      return NextResponse.json(
+        { error: 'API keys not configured. Please update your config file with valid Binance API keys.' },
+        { status: 400 }
+      );
     }
 
     // Get symbol from query params if provided
@@ -36,8 +40,12 @@ export const GET = withAuth(async (request: NextRequest, _user) => {
     return NextResponse.json(formattedOrders);
   } catch (error) {
     console.error('Error fetching open orders:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Failed to fetch open orders' },
+      { 
+        error: 'Failed to fetch open orders',
+        details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+      },
       { status: 500 }
     );
   }

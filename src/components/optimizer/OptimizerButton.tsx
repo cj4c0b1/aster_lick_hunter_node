@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Zap, Loader2, AlertTriangle, RotateCcw } from 'lucide-react';
 import { OptimizerDialog } from './OptimizerDialog';
 import { OptimizerProgressBar } from './OptimizerProgressBar';
+import { optimizerClient } from '@/lib/api/optimizerClient';
 
 /**
  * OptimizerButton Component
@@ -90,14 +91,8 @@ export function OptimizerButton() {
     setProgress(0);
 
     try {
-      const response = await fetch('/api/optimizer/reset', {
-        method: 'POST',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to reset optimizer');
-      }
-
+      await optimizerClient.resetOptimizerState();
+      
       toast.success('Optimizer reset', {
         description: 'All cached results cleared. Ready for a fresh optimization.',
       });

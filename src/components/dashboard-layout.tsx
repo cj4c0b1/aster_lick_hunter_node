@@ -16,6 +16,7 @@ import { LogOut } from "lucide-react"
 import { useConfig } from "@/components/ConfigProvider"
 import { signOut } from "next-auth/react"
 import { RateLimitBarCompact } from "@/components/RateLimitBar"
+import { OptimizerButton } from "@/components/optimizer/OptimizerButton"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -99,6 +100,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   </svg>
                   <span className="text-xs font-medium">AsterDex</span>
                 </Link>
+              </div>
+              <Separator orientation="vertical" className="h-4" />
+              <div className="flex items-center">
+                <OptimizerButton />
               </div>
               <Separator orientation="vertical" className="h-4" />
               <ThemeToggle />

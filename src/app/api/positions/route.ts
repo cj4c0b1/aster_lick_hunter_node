@@ -32,9 +32,13 @@ export const GET = withAuth(async (request: NextRequest, _user) => {
   try {
     const config = await loadConfig();
 
-    // If no API key is configured, return empty positions
+    // Check if API keys are configured
     if (!config.api.apiKey || !config.api.secretKey) {
-      return NextResponse.json([]);
+      console.error('[Positions API] Missing API keys in config');
+      return NextResponse.json(
+        { error: 'API keys not configured. Please update your config file with valid Binance API keys.' },
+        { status: 400 }
+      );
     }
 
     // Get positions and open orders from exchange
@@ -97,8 +101,12 @@ export const GET = withAuth(async (request: NextRequest, _user) => {
     return NextResponse.json(activePositions);
   } catch (error) {
     console.error('Error fetching positions:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Failed to fetch positions' },
+      { 
+        error: 'Failed to fetch positions',
+        details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+      },
       { status: 500 }
     );
   }

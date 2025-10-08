@@ -17,6 +17,7 @@ import { OptimizerProgressBar } from './OptimizerProgressBar';
 import { OptimizerResults } from './OptimizerResults';
 import { OptimizerInfoTooltip } from './OptimizerInfoTooltip';
 import { useConfig } from '@/components/ConfigProvider';
+import { optimizerClient } from '@/lib/api/optimizerClient';
 
 interface OptimizerDialogProps {
   isOpen: boolean;
@@ -92,29 +93,19 @@ export function OptimizerDialog({
     onOptimizationStart();
 
     try {
-      const response = await fetch('/api/optimizer/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          weights: {
-            pnl: pnlWeight,
-            sharpe: sharpeWeight,
-            drawdown: drawdownWeight,
-          },
-        }),
+      const { jobId } = await optimizerClient.startOptimization({
+        weights: {
+          pnl: pnlWeight,
+          sharpe: sharpeWeight,
+          drawdown: drawdownWeight,
+        },
       });
 
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to start optimization');
-      }
-
-      onJobIdChange(data.jobId);
+      onJobIdChange(jobId);
       setActiveTab('progress');
 
       toast.success('Optimization Started', {
-        description: data.message || 'Your configuration is being optimized...',
+        description: 'Your configuration is being optimized...',
       });
     } catch (error) {
       console.error('Error starting optimization:', error);
@@ -162,20 +153,10 @@ export function OptimizerDialog({
     setIsApplying(true);
 
     try {
-      const response = await fetch('/api/optimizer/apply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobId }),
-      });
-
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to apply configuration');
-      }
+      const { backupPath } = await optimizerClient.applyOptimizedConfig(jobId);
 
       toast.success('Configuration Applied', {
-        description: `${data.message}\nBackup saved: ${data.backupPath}`,
+        description: `Configuration applied successfully\nBackup saved: ${backupPath || 'No backup created'}`,
       });
 
       // Reload config to reflect changes in UI
