@@ -3,9 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { Config, SymbolConfig } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -938,12 +938,18 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                                 {symbolDetails && !loadingDetails && getMinimumMargin() && (
                                   <div className="flex flex-col gap-1">
                                     <div className="flex items-center gap-2">
-                                      <Badge
+                                      <Button
+                                        type="button"
                                         variant={config.symbols[selectedSymbol].tradeSize >= getMinimumMargin()! ? "default" : "destructive"}
-                                        className="text-xs"
+                                        className="h-6 text-xs px-2 py-0 cursor-pointer"
+                                        onClick={() => {
+                                          const recValue = getMinimumMargin()! * 1.02; // Add 2% buffer
+                                          // Update the trade size through React state
+                                          handleSymbolChange(selectedSymbol, 'tradeSize', recValue);
+                                        }}
                                       >
                                         Recommended: ${getMinimumMargin()!.toFixed(2)} USDT
-                                      </Badge>
+                                      </Button>
                                       {config.symbols[selectedSymbol].tradeSize < getMinimumMargin()! && (
                                         <Badge variant="destructive" className="text-xs">
                                           Too low - may be rejected!
@@ -999,12 +1005,18 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                                   {symbolDetails && !loadingDetails && getMinimumMargin() && (
                                     <div className="flex flex-col gap-1">
                                       <div className="flex items-center gap-2">
-                                        <Badge
+                                        <Button
+                                          type="button"
                                           variant={(config.symbols[selectedSymbol].longTradeSize || config.symbols[selectedSymbol].tradeSize) >= getMinimumMargin()! ? "default" : "destructive"}
-                                          className="text-xs"
+                                          className="h-6 text-xs px-2 py-0 cursor-pointer"
+                                          onClick={() => {
+                                            const recValue = getMinimumMargin()! * 1.02; // Add 2% buffer
+                                            setLongTradeSizeInput(recValue.toString());
+                                            handleSymbolChange(selectedSymbol, 'longTradeSize', recValue);
+                                          }}
                                         >
-                                          Recommended: ${getMinimumMargin()!.toFixed(2)}
-                                        </Badge>
+                                          Recommended: ${getMinimumMargin()!.toFixed(2)} USDT
+                                        </Button>
                                         {(config.symbols[selectedSymbol].longTradeSize || config.symbols[selectedSymbol].tradeSize) < getMinimumMargin()! && (
                                           <Badge variant="destructive" className="text-xs">
                                             Too low!
@@ -1047,18 +1059,41 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                                   step="0.01"
                                 />
                                 <div className="space-y-1">
-                                  <p className="text-xs text-muted-foreground">
-                                    Margin used for short positions (sell on buy liquidations)
-                                  </p>
+                                  <div className="flex items-center gap-2 relative">
+                                    <p className="text-xs text-muted-foreground">
+                                      Margin used for short positions (sell on buy liquidations)
+                                    </p>
+                                    {getMinimumMargin() && (
+                                      <Button 
+                                        type="button" 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-6 text-xs px-2 py-0 relative z-10"
+                                        onClick={() => {
+                                          const recValue = getMinimumMargin()!;
+                                          setShortTradeSizeInput(recValue.toString());
+                                          handleSymbolChange(selectedSymbol, 'shortTradeSize', recValue);
+                                        }}
+                                      >
+                                        Use Recommended
+                                      </Button>
+                                    )}
+                                  </div>
                                   {symbolDetails && !loadingDetails && getMinimumMargin() && (
                                     <div className="flex flex-col gap-1">
                                       <div className="flex items-center gap-2">
-                                        <Badge
+                                        <Button
+                                          type="button"
                                           variant={(config.symbols[selectedSymbol].shortTradeSize || config.symbols[selectedSymbol].tradeSize) >= getMinimumMargin()! ? "default" : "destructive"}
-                                          className="text-xs"
+                                          className="h-6 text-xs px-2 py-0 cursor-pointer"
+                                          onClick={() => {
+                                            const recValue = getMinimumMargin()! * 1.02; // Add 2% buffer
+                                            setShortTradeSizeInput(recValue.toString());
+                                            handleSymbolChange(selectedSymbol, 'shortTradeSize', recValue);
+                                          }}
                                         >
-                                          Recommended: ${getMinimumMargin()!.toFixed(2)}
-                                        </Badge>
+                                          Recommended: ${getMinimumMargin()!.toFixed(2)} USDT
+                                        </Button>
                                         {(config.symbols[selectedSymbol].shortTradeSize || config.symbols[selectedSymbol].tradeSize) < getMinimumMargin()! && (
                                           <Badge variant="destructive" className="text-xs">
                                             Too low!
