@@ -94,6 +94,7 @@ data/logs/
 
 # Local development
 .local-*
+.venv/
 
 # Build analyzer
 .next/analyze/

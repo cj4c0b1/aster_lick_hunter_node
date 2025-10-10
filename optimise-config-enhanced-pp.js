@@ -1071,7 +1071,7 @@ function getSymbolDataSpanDays(symbol) {
 // ============================================================================
 // ENHANCED: Optimized parameter search with progress indicator
 // ============================================================================
-async function optimizeSymbolParameters(symbol, symbolConfig, capitalBudget, spanDays) {
+async function optimizeSymbolParameters(symbol, symbolConfig, capitalBudget, spanDays, options = {}) {
   console.log(`\n🔍 Optimizing ${symbol}...`);
 
   const cloneConfig = { ...symbolConfig };
@@ -1087,19 +1087,148 @@ async function optimizeSymbolParameters(symbol, symbolConfig, capitalBudget, spa
   const thresholdEnabled = symbolConfig.useThreshold !== false;
   const currentTimeWindowMs = symbolConfig.thresholdTimeWindow || DEFAULT_THRESHOLD_WINDOW_MS;
   const currentCooldownMs = symbolConfig.thresholdCooldown || DEFAULT_THRESHOLD_COOLDOWN_MS;
+  
+  // VWAP optimization with command-line control
+  const vwapMode = options.vwap || 'auto';
+  const currentVwapProtection = vwapMode === 'on' ? true : 
+                               vwapMode === 'off' ? false : 
+                               (symbolConfig.vwapProtection ?? true);
+  const currentVwapTimeframe = symbolConfig.vwapTimeframe || '1m';
+  const currentVwapLookback = symbolConfig.vwapLookback || 100;
+  
+  // VWAP candidates based on mode
+  let vwapTimeframeCandidates = [currentVwapTimeframe];
+  let vwapLookbackCandidates = [currentVwapLookback];
+  
+  if (vwapMode !== 'off') {
+    if (options.fast) {
+      vwapTimeframeCandidates = [currentVwapTimeframe, '5m'];
+      vwapLookbackCandidates = [currentVwapLookback, 50, 100].filter(val => val >= 10 && val <= 500);
+    } else {
+      vwapTimeframeCandidates = ['1m', '3m', '5m', '15m'];
+      vwapLookbackCandidates = [currentVwapLookback, 50, 100, 200, 500].filter(val => val >= 10 && val <= 500);
+    }
+  }
 
-  const timeWindowCandidates = thresholdEnabled ? generateTimeWindowCandidates(currentTimeWindowMs) : [currentTimeWindowMs];
-  const cooldownCandidates = thresholdEnabled ? generateCooldownCandidates(currentCooldownMs) : [currentCooldownMs];
+  // In fast mode, use only current timing values
+  const timeWindowCandidates = options.fast 
+    ? [currentTimeWindowMs] 
+    : (thresholdEnabled ? generateTimeWindowCandidates(currentTimeWindowMs) : [currentTimeWindowMs]);
+    
+  const cooldownCandidates = options.fast 
+    ? [currentCooldownMs]
+    : (thresholdEnabled ? generateCooldownCandidates(currentCooldownMs) : [currentCooldownMs]);
 
   const longBasePositions = Math.max(1, Math.floor(currentMargin / (baseTradeSize || 1)) || 1);
   const shortBasePositions = Math.max(1, Math.floor(currentMargin / (baseShortTradeSize || 1)) || 1);
 
-  const priceData = await getCachedHistoricalPrices(symbol, '1m', 10080);
+  // In fast mode, use much less data and simpler parameter space
+  const candleLimit = options.fast ? 180 : 10080; // 3 hours vs 7 days
+  const priceData = await getCachedHistoricalPrices(symbol, '1m', candleLimit);
   const volStats = computePriceVolatility(priceData);
 
+  // Simplified parameter space for fast mode
+  if (options.fast) {
+    console.log('   ⚡ FAST MODE: Using minimal parameter space for testing');
+    
+    // Tesla-based threshold candidates
+    const getTeslaThresholds = (current, min = 10, max = 10000) => {
+      const teslaBases = [3, 6, 9];
+      const values = new Set();
+      
+      // Always include current value if valid
+      if (typeof current === 'number' && !isNaN(current) && current >= min && current <= max) {
+        values.add(Math.round(current));
+      }
+      
+      // Generate Tesla-based thresholds
+      for (const base of teslaBases) {
+        let val = base * base; // Start with squares (9, 36, 81)
+        while (val <= max) {
+          if (val >= min) {
+            values.add(Math.round(val));
+          }
+          // Scale by multiples of 3, 6, 9
+          val += base * 3;
+        }
+      }
+      
+      // Convert to array, sort, and ensure within bounds
+      return Array.from(values)
+        .sort((a, b) => a - b)
+        .filter(v => v >= min && v <= max);
+    };
+    
+    // Get Tesla-based thresholds
+    const longThresholdCandidates = getTeslaThresholds(currentLongThreshold, 100, 10000);
+    const shortThresholdCandidates = getTeslaThresholds(currentShortThreshold, 100, 10000);
+    
+    // Ensure we have at least 3 values for each threshold
+    if (longThresholdCandidates.length < 3) {
+      longThresholdCandidates.push(300, 600, 900);
+    }
+    if (shortThresholdCandidates.length < 3) {
+      shortThresholdCandidates.push(300, 600, 900);
+    }
+
+    // Tesla numbers (3, 6, 9) based parameter space
+    const getTeslaMultiples = (current, min, max, base = 1) => {
+      const teslaBases = [3, 6, 9];
+      const values = new Set();
+      
+      // Always include current value if it's a valid number
+      if (typeof current === 'number' && !isNaN(current) && current >= min && current <= max) {
+        values.add(Number(current.toFixed(2)));
+      }
+      
+      // Generate Tesla-based values
+      for (const base of teslaBases) {
+        let val = base * base;
+        while (val <= max) {
+          if (val >= min) {
+            values.add(Number(val.toFixed(2)));
+          }
+          val *= 1.5; // Scale by 1.5x for next Tesla multiple
+        }
+      }
+      
+      // Convert to array and sort
+      return Array.from(values)
+        .sort((a, b) => a - b)
+        .filter(v => v >= min && v <= max);
+    };
+    
+    // Get Tesla-based parameter values
+    const tpCandidates = getTeslaMultiples(currentTp, 0.1, 5.0, 0.1);
+    const slCandidates = getTeslaMultiples(currentSl, 0.5, 10.0, 0.5);
+    const leverageCandidates = getTeslaMultiples(leverageCurrent, 1, 25, 1).map(Math.floor);
+    const marginCandidates = getTeslaMultiples(currentMargin, 10, capitalBudget * 0.8, 10);
+    
+    // Ensure we have at least 2-3 values for each parameter
+    if (tpCandidates.length < 2) tpCandidates.push(0.6, 1.2);
+    if (slCandidates.length < 2) slCandidates.push(1.5, 3.0);
+    if (leverageCandidates.length < 2) leverageCandidates.push(3, 6);
+    if (marginCandidates.length < 2) marginCandidates.push(30, 60);
+    
+    // Include VWAP in fast mode but with reduced combinations
+    const vwapProtectionCandidates = [true, false];
+    
+    return {
+      longThresholdCandidates,
+      shortThresholdCandidates,
+      tpCandidates,
+      slCandidates,
+      leverageCandidates,
+      marginCandidates,
+      vwapProtectionCandidates,
+      priceData,
+      volStats
+    };
+  }
+  
+  // Regular mode - full parameter space
   const longThresholdCandidates = generateThresholdCandidates(symbol, 'SELL', currentLongThreshold || 1000);
   const shortThresholdCandidates = generateThresholdCandidates(symbol, 'BUY', currentShortThreshold || 1000);
-
   const tpCandidatesFull = generateTpCandidates(volStats, currentTp);
   const slCandidatesFull = generateSlCandidates(volStats, currentSl);
   const tpCandidates = tpCandidatesFull.length > 10
@@ -1119,12 +1248,17 @@ async function optimizeSymbolParameters(symbol, symbolConfig, capitalBudget, spa
     const {
       cooldownMs = defaultCooldownMs,
       hunterCooldownMs = defaultHunterCooldownMs,
-      windowMs = defaultWindowMs
+      windowMs = defaultWindowMs,
+      vwapProtection = currentVwapProtection,
+      vwapTimeframe = currentVwapTimeframe,
+      vwapLookback = currentVwapLookback
     } = overrides;
 
-    const key = [side, threshold, maxPositions, tradeSize, leverage, tp, sl, cooldownMs, hunterCooldownMs, windowMs]
-      .map(v => Number.isFinite(v) ? Number(v).toFixed(6) : v)
-      .join('|');
+    const key = [
+      side, threshold, maxPositions, tradeSize, leverage, tp, sl, 
+      cooldownMs, hunterCooldownMs, windowMs,
+      vwapProtection ? '1' : '0', vwapTimeframe, vwapLookback
+    ].map(v => Number.isFinite(v) ? Number(v).toFixed(6) : v).join('|');
 
     if (backtestCache.has(key)) {
       return backtestCache.get(key);
@@ -1143,7 +1277,10 @@ async function optimizeSymbolParameters(symbol, symbolConfig, capitalBudget, spa
         suppressLogs: true,
         cooldownMs,
         hunterCooldownMs,
-        windowMs
+        windowMs,
+        vwapProtection,
+        vwapTimeframe,
+        vwapLookback
       }
     );
 
@@ -1194,15 +1331,60 @@ async function optimizeSymbolParameters(symbol, symbolConfig, capitalBudget, spa
     }
   };
 
-  // Calculate total combinations for progress tracking
-  const totalCombinations = leverageCandidates.length * marginCandidates.length * tpCandidates.length * slCandidates.length;
-  console.log(`   🔬 Testing ${totalCombinations.toLocaleString()} parameter combinations...`);
+  // Calculate total combinations and reduce to 10% in fast mode
+  let leverageToTest = leverageCandidates;
+  let marginToTest = marginCandidates;
+  let tpToTest = tpCandidates;
+  let slToTest = slCandidates;
+  let vwapTimeframeToTest = vwapTimeframeCandidates;
+  let vwapLookbackToTest = vwapLookbackCandidates;
+  
+  if (options.fast) {
+    // In fast mode, sample 10% of the combinations by reducing each parameter space
+    leverageToTest = sampleCandidates(leverageCandidates, Math.ceil(Math.sqrt(leverageCandidates.length)));
+    marginToTest = sampleCandidates(marginCandidates, Math.ceil(Math.sqrt(marginCandidates.length)));
+    tpToTest = sampleCandidates(tpCandidates, Math.ceil(Math.sqrt(tpCandidates.length)));
+    slToTest = sampleCandidates(slCandidates, Math.ceil(Math.sqrt(slCandidates.length)));
+    vwapTimeframeToTest = sampleCandidates(vwapTimeframeCandidates, Math.ceil(Math.sqrt(vwapTimeframeCandidates.length)));
+    vwapLookbackToTest = sampleCandidates(vwapLookbackCandidates, Math.ceil(Math.sqrt(vwapLookbackCandidates.length)));
+    
+    // Ensure we don't end up with more combinations than 10% of total
+    const maxFastCombinations = Math.max(10, Math.ceil((leverageCandidates.length * marginCandidates.length * 
+      tpCandidates.length * slCandidates.length * vwapTimeframeCandidates.length * vwapLookbackCandidates.length) * 0.1));
+      
+    while (leverageToTest.length * marginToTest.length * tpToTest.length * slToTest.length * vwapTimeframeToTest.length * vwapLookbackToTest.length > maxFastCombinations) {
+      // Reduce the largest dimension
+      if (leverageToTest.length > 1) leverageToTest.pop();
+      if (marginToTest.length > 1) marginToTest.pop();
+      if (tpToTest.length > 2) tpToTest.pop();
+      if (slToTest.length > 2) slToTest.pop();
+      if (vwapTimeframeToTest.length > 1) vwapTimeframeToTest.pop();
+      if (vwapLookbackToTest.length > 1) vwapLookbackToTest.pop();
+    }
+  }
+  
+  const totalCombinations = leverageToTest.length * marginToTest.length * tpToTest.length * slToTest.length * vwapTimeframeToTest.length * vwapLookbackToTest.length;
+  const totalPossible = leverageCandidates.length * marginCandidates.length * tpCandidates.length * slCandidates.length * vwapTimeframeCandidates.length * vwapLookbackCandidates.length;
+  
+  if (options.fast) {
+    console.log(`   ⚡ FAST MODE: Testing ${totalCombinations} of ${totalPossible} combinations (${Math.round((totalCombinations / totalPossible) * 100)}%)`);
+  } else {
+    console.log(`   🔬 Testing ${totalCombinations.toLocaleString()} parameter combinations...`);
+  }
 
   const progress = new ProgressIndicator(totalCombinations, `   Optimizing ${symbol}`);
   let testedCount = 0;
 
-  for (const leverage of leverageCandidates) {
-    for (const margin of marginCandidates) {
+  // Use the sampled parameter sets in fast mode
+  const leverageSet = options.fast ? leverageToTest : leverageCandidates;
+  const marginSet = options.fast ? marginToTest : marginCandidates;
+  const tpSet = options.fast ? tpToTest : tpCandidates;
+  const slSet = options.fast ? slToTest : slCandidates;
+  const vwapTimeframeSet = options.fast ? vwapTimeframeToTest : vwapTimeframeCandidates;
+  const vwapLookbackSet = options.fast ? vwapLookbackToTest : vwapLookbackCandidates;
+
+  for (const leverage of leverageSet) {
+    for (const margin of marginSet) {
       if (!Number.isFinite(margin) || margin <= 0) continue;
 
       const longTradeSize = margin / longBasePositions;
@@ -1210,8 +1392,8 @@ async function optimizeSymbolParameters(symbol, symbolConfig, capitalBudget, spa
       if (!Number.isFinite(longTradeSize) || longTradeSize <= 0) continue;
       if (!Number.isFinite(shortTradeSize) || shortTradeSize <= 0) continue;
 
-      for (const tp of tpCandidates) {
-        for (const sl of slCandidates) {
+      for (const tp of tpSet) {
+        for (const sl of slSet) {
           testedCount++;
           progress.update(1, `| Best: $${bestCombination.totalPnl.toFixed(2)}`);
 
@@ -1227,85 +1409,100 @@ async function optimizeSymbolParameters(symbol, symbolConfig, capitalBudget, spa
             continue;
           }
 
-          let bestLongSide = null;
-          for (const threshold of longThresholdCandidates) {
-            const candidateThreshold = Math.max(1, threshold);
-            const result = await runBacktest('SELL', candidateThreshold, longBasePositions, longTradeSize, leverage, tp, sl);
-            if (!bestLongSide || result.totalPnl > bestLongSide.result.totalPnl) {
-              bestLongSide = {
-                threshold: candidateThreshold,
-                result,
-                tradeSize: longTradeSize,
-                maxPositions: longBasePositions
-              };
+          // VWAP parameter optimization
+          for (const vwapTimeframe of vwapTimeframeSet) {
+            for (const vwapLookback of vwapLookbackSet) {
+              if (!Number.isFinite(vwapLookback) || vwapLookback < 10 || vwapLookback > 500) continue;
+
+              let bestLongSide = null;
+              for (const threshold of longThresholdCandidates) {
+                const candidateThreshold = Math.max(1, threshold);
+                const result = await runBacktest('SELL', candidateThreshold, longBasePositions, longTradeSize, leverage, tp, sl, {
+                  vwapTimeframe,
+                  vwapLookback
+                });
+                if (!bestLongSide || result.totalPnl > bestLongSide.result.totalPnl) {
+                  bestLongSide = {
+                    threshold: candidateThreshold,
+                    result,
+                    tradeSize: longTradeSize,
+                    maxPositions: longBasePositions
+                  };
+                }
+              }
+
+              let bestShortSide = null;
+              for (const threshold of shortThresholdCandidates) {
+                const candidateThreshold = Math.max(1, threshold);
+                const result = await runBacktest('BUY', candidateThreshold, shortBasePositions, shortTradeSize, leverage, tp, sl, {
+                  vwapTimeframe,
+                  vwapLookback
+                });
+                if (!bestShortSide || result.totalPnl > bestShortSide.result.totalPnl) {
+                  bestShortSide = {
+                    threshold: candidateThreshold,
+                    result,
+                    tradeSize: shortTradeSize,
+                    maxPositions: shortBasePositions
+                  };
+                }
+              }
+
+              if (!bestLongSide || !bestShortSide) continue;
+
+              const combinedPnl = bestLongSide.result.totalPnl + bestShortSide.result.totalPnl;
+              const stopExitCount = (bestLongSide.result.exitReasons?.SL || 0) + (bestShortSide.result.exitReasons?.SL || 0);
+              const totalTrades = (bestLongSide.result.totalTrades || 0) + (bestShortSide.result.totalTrades || 0);
+              const stopRate = totalTrades > 0 ? stopExitCount / totalTrades : 0;
+              const combinedProfitFactor = ((bestLongSide.result.profitFactor || 0) + (bestShortSide.result.profitFactor || 0)) / 2;
+
+              if (combinedProfitFactor < 1.05 || stopRate > 0.65) {
+                continue;
+              }
+
+              const requiredWinRate = sl / (tp + sl);
+              const combinedWinRate = ((bestLongSide.result.winRate || 0) + (bestShortSide.result.winRate || 0)) / 2 / 100;
+
+              if (combinedWinRate < requiredWinRate + 0.05) {
+                continue;
+              }
+
+              const pnlScore = combinedPnl;
+              const rawLongSharpe = bestLongSide.result.sharpeRatio || 0;
+              const rawShortSharpe = bestShortSide.result.sharpeRatio || 0;
+              const cappedLongSharpe = Number.isFinite(rawLongSharpe) ? Math.min(Math.max(rawLongSharpe, -5), 5) : 0;
+              const cappedShortSharpe = Number.isFinite(rawShortSharpe) ? Math.min(Math.max(rawShortSharpe, -5), 5) : 0;
+              const combinedSharpe = (cappedLongSharpe + cappedShortSharpe) / 2;
+              const combinedDrawdown = Math.max(bestLongSide.result.maxDrawdown || 1, bestShortSide.result.maxDrawdown || 1);
+              const drawdownScore = combinedPnl / (combinedDrawdown + 1);
+
+              const finalScore = (
+                (pnlScore * normalizedScoringWeights.pnl) +
+                (combinedSharpe * normalizedScoringWeights.sharpe) +
+                (drawdownScore * normalizedScoringWeights.drawdown)
+              );
+
+              if (!Number.isFinite(finalScore)) {
+                continue;
+              }
+
+              if (finalScore > bestCombination.finalScore) {
+                bestCombination = {
+                  totalPnl: combinedPnl,
+                  finalScore: finalScore,
+                  sharpeRatio: combinedSharpe,
+                  drawdownScore: drawdownScore,
+                  leverage,
+                  margin,
+                  tp,
+                  sl,
+                  vwapTimeframe,
+                  vwapLookback,
+                  long: bestLongSide,
+                  short: bestShortSide
+                };
+              }
             }
-          }
-
-          let bestShortSide = null;
-          for (const threshold of shortThresholdCandidates) {
-            const candidateThreshold = Math.max(1, threshold);
-            const result = await runBacktest('BUY', candidateThreshold, shortBasePositions, shortTradeSize, leverage, tp, sl);
-            if (!bestShortSide || result.totalPnl > bestShortSide.result.totalPnl) {
-              bestShortSide = {
-                threshold: candidateThreshold,
-                result,
-                tradeSize: shortTradeSize,
-                maxPositions: shortBasePositions
-              };
-            }
-          }
-
-          if (!bestLongSide || !bestShortSide) continue;
-
-          const combinedPnl = bestLongSide.result.totalPnl + bestShortSide.result.totalPnl;
-          const stopExitCount = (bestLongSide.result.exitReasons?.SL || 0) + (bestShortSide.result.exitReasons?.SL || 0);
-          const totalTrades = (bestLongSide.result.totalTrades || 0) + (bestShortSide.result.totalTrades || 0);
-          const stopRate = totalTrades > 0 ? stopExitCount / totalTrades : 0;
-          const combinedProfitFactor = ((bestLongSide.result.profitFactor || 0) + (bestShortSide.result.profitFactor || 0)) / 2;
-
-          if (combinedProfitFactor < 1.05 || stopRate > 0.65) {
-            continue;
-          }
-
-          const requiredWinRate = sl / (tp + sl);
-          const combinedWinRate = ((bestLongSide.result.winRate || 0) + (bestShortSide.result.winRate || 0)) / 2 / 100;
-
-          if (combinedWinRate < requiredWinRate + 0.05) {
-            continue;
-          }
-
-          const pnlScore = combinedPnl;
-          const rawLongSharpe = bestLongSide.result.sharpeRatio || 0;
-          const rawShortSharpe = bestShortSide.result.sharpeRatio || 0;
-          const cappedLongSharpe = Number.isFinite(rawLongSharpe) ? Math.min(Math.max(rawLongSharpe, -5), 5) : 0;
-          const cappedShortSharpe = Number.isFinite(rawShortSharpe) ? Math.min(Math.max(rawShortSharpe, -5), 5) : 0;
-          const combinedSharpe = (cappedLongSharpe + cappedShortSharpe) / 2;
-          const combinedDrawdown = Math.max(bestLongSide.result.maxDrawdown || 1, bestShortSide.result.maxDrawdown || 1);
-          const drawdownScore = combinedPnl / (combinedDrawdown + 1);
-
-          const finalScore = (
-            (pnlScore * normalizedScoringWeights.pnl) +
-            (combinedSharpe * normalizedScoringWeights.sharpe) +
-            (drawdownScore * normalizedScoringWeights.drawdown)
-          );
-
-          if (!Number.isFinite(finalScore)) {
-            continue;
-          }
-
-          if (finalScore > bestCombination.finalScore) {
-            bestCombination = {
-              totalPnl: combinedPnl,
-              finalScore: finalScore,
-              sharpeRatio: combinedSharpe,
-              drawdownScore: drawdownScore,
-              leverage,
-              margin,
-              tp,
-              sl,
-              long: bestLongSide,
-              short: bestShortSide
-            };
           }
         }
       }
@@ -1387,25 +1584,48 @@ async function optimizeSymbolParameters(symbol, symbolConfig, capitalBudget, spa
   const longImprovement = (bestCombination.long.result.totalPnl - currentLongBacktest.totalPnl) * dailyFactor;
   const shortImprovement = (bestCombination.short.result.totalPnl - currentShortBacktest.totalPnl) * dailyFactor;
 
-  const vwapOptimized = symbolConfig.vwapProtection === false
-    ? false
-    : (bestCombination.long.threshold < Math.max(1, currentLongThreshold) * 0.7
-      || bestCombination.short.threshold < Math.max(1, currentShortThreshold) * 0.7
-      ? false
-      : symbolConfig.vwapProtection);
+  // Respect the command-line VWAP setting
+  let vwapOptimized;
+  if (options.vwap === 'on') {
+    // Always enable if explicitly set via command line
+    vwapOptimized = true;
+  } else if (options.vwap === 'off') {
+    // Always disable if explicitly set via command line
+    vwapOptimized = false;
+  } else {
+    // Auto mode: disable if thresholds are too aggressive
+    vwapOptimized = !(
+      bestCombination.long.threshold < Math.max(1, currentLongThreshold) * 0.7 ||
+      bestCombination.short.threshold < Math.max(1, currentShortThreshold) * 0.7
+    );
+    
+    // If VWAP was enabled in config, keep it enabled unless thresholds are too aggressive
+    if (symbolConfig.vwapProtection) {
+      vwapOptimized = vwapOptimized || symbolConfig.vwapProtection;
+    }
+  }
 
+  // Calculate final trade sizes for config
+  const finalLongTradeSize = parseFloat(bestCombination.long.tradeSize.toFixed(2));
+  const finalShortTradeSize = parseFloat(bestCombination.short.tradeSize.toFixed(2));
+  
+  // Prepare config with only tradeSize by default
   const optimizedSymbolConfig = {
-    ...cloneConfig,
+    ...cleanedConfig,
     longVolumeThresholdUSDT: Math.round(bestCombination.long.threshold),
     shortVolumeThresholdUSDT: Math.round(bestCombination.short.threshold),
-    tradeSize: parseFloat((bestCombination.long.tradeSize).toFixed(2)),
-    longTradeSize: parseFloat((bestCombination.long.tradeSize).toFixed(2)),
-    shortTradeSize: parseFloat((bestCombination.short.tradeSize).toFixed(2)),
+    tradeSize: finalLongTradeSize,  // Use long trade size as the default
+    ...(Math.abs(finalLongTradeSize - finalShortTradeSize) > 0.01 && {
+      longTradeSize: finalLongTradeSize,
+      shortTradeSize: finalShortTradeSize
+    }),
     maxPositionMarginUSDT: parseFloat(bestCombination.margin.toFixed(2)),
     leverage: bestCombination.leverage,
     tpPercent: parseFloat(bestCombination.tp.toFixed(2)),
     slPercent: parseFloat(bestCombination.sl.toFixed(2)),
     vwapProtection: vwapOptimized,
+    vwapTimeframe: bestCombination.vwapTimeframe || currentVwapTimeframe,
+    vwapLookback: Math.max(10, Math.min(500, bestCombination.vwapLookback || currentVwapLookback)),
     thresholdTimeWindow: Math.round(bestCombination.windowMs || currentTimeWindowMs),
     thresholdCooldown: Math.round(bestCombination.cooldownMs || currentCooldownMs)
   };
@@ -1437,6 +1657,7 @@ async function optimizeSymbolParameters(symbol, symbolConfig, capitalBudget, spa
     },
     optimized: {
       config: optimizedSymbolConfig,
+      cleanedConfig,
       long: bestCombination.long,
       short: bestCombination.short,
       leverage: bestCombination.leverage,
@@ -1465,20 +1686,43 @@ async function optimizeSymbolParameters(symbol, symbolConfig, capitalBudget, spa
 // ============================================================================
 // ENHANCED: Generate recommendations with progress tracking
 // ============================================================================
-async function generateRecommendations(deployableCapital) {
+async function generateRecommendations(deployableCapital, options = {}) {
   console.log('\n🎯 REALISTIC BACKTEST OPTIMIZATION');
   console.log('===================================\n');
 
   const recommendations = [];
-  const optimizedConfig = JSON.parse(JSON.stringify(config));
-  const sanitizedCapital = Number.isFinite(deployableCapital) && deployableCapital > 0 ? deployableCapital : 0;
-
-  const symbolEntries = Object.entries(config.symbols);
-  if (symbolEntries.length === 0) {
-    return { recommendations, optimizedConfig, recommendedGlobalMax: 0 };
+  
+  // Filter symbols if a specific symbol is provided
+  const symbolsToOptimize = {};
+  if (options.symbol) {
+    if (config.symbols[options.symbol]) {
+      symbolsToOptimize[options.symbol] = config.symbols[options.symbol];
+      console.log(`🔍 Optimizing single symbol: ${options.symbol}`);
+    } else {
+      console.error(`❌ Symbol ${options.symbol} not found in config`);
+      process.exit(1);
+    }
+  } else {
+    Object.assign(symbolsToOptimize, config.symbols);
+    console.log('🔍 Optimizing all symbols from config');
   }
 
-  const baselineTotalMargin = symbolEntries.reduce((sum, [, cfg]) => {
+  const symbolEntries = Object.entries(symbolsToOptimize);
+  if (symbolEntries.length === 0) {
+    return { 
+      recommendations, 
+      optimizedConfig: { ...config, symbols: {} }, 
+      recommendedGlobalMax: 0 
+    };
+  }
+  
+  const optimizedConfig = JSON.parse(JSON.stringify({
+    ...config,
+    symbols: { ...symbolsToOptimize } // Only include symbols we're optimizing
+  }));
+  const sanitizedCapital = Number.isFinite(deployableCapital) && deployableCapital > 0 ? deployableCapital : 0;
+
+  const baselineTotalMargin = Object.values(symbolsToOptimize).reduce((sum, cfg) => {
     const baseMargin = cfg.maxPositionMarginUSDT || (cfg.tradeSize || 20) * 5;
     const perSide = Number.isFinite(baseMargin) && baseMargin > 0 ? baseMargin : 0;
     return sum + perSide * 2;
@@ -1549,7 +1793,7 @@ async function generateRecommendations(deployableCapital) {
     });
 
     optimizedConfig.symbols[symbol] = {
-      ...optimizedConfig.symbols[symbol],
+      ...optimization.optimized.cleanedConfig,
       ...optimization.optimized.config
     };
 
@@ -1777,7 +2021,64 @@ async function maybeApplyOptimizedConfig(originalConfig, optimizedConfig, summar
   console.log('✅ config.user.json overwritten with optimized settings');
 }
 
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const options = {
+    symbol: null,
+    fast: false,
+    help: false,
+    vwap: 'auto' // 'on', 'off', or 'auto'
+  };
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if ((arg === '--symbol' || arg === '-s') && i + 1 < args.length) {
+      options.symbol = args[++i].toUpperCase();
+    } else if (arg.startsWith('--symbol=')) {
+      options.symbol = arg.split('=')[1].toUpperCase();
+    } else if (arg === '--fast' || arg === '-f') {
+      options.fast = true;
+    } else if (arg === '--help' || arg === '-h') {
+      options.help = true;
+    } else if ((arg === '--vwap' || arg === '-v') && i + 1 < args.length) {
+      const vwapArg = args[++i].toLowerCase();
+      if (['on', 'off', 'auto'].includes(vwapArg)) {
+        options.vwap = vwapArg;
+      }
+    } else if (arg.startsWith('--vwap=')) {
+      const vwapArg = arg.split('=')[1].toLowerCase();
+      if (['on', 'off', 'auto'].includes(vwapArg)) {
+        options.vwap = vwapArg;
+      }
+    }
+  }
+  return options;
+}
+
+function showHelp() {
+  console.log(`
+Optimization Script Usage:
+  node ${path.basename(__filename)} [options]
+
+Options:
+  --symbol <SYMBOL>    Optimize a specific trading pair (e.g., BTCUSDT)
+  --fast, -f           Run in fast mode (reduced iterations for testing)
+  --vwap <MODE>, -v    VWAP protection: 'on', 'off', or 'auto' (default: auto)
+  --help, -h           Show this help message
+`);
+  process.exit(0);
+}
+
 async function main() {
+  const options = parseArgs();
+  
+  if (options.help) {
+    showHelp();
+  }
+
+  if (options.fast) {
+    console.log('🚀 FAST MODE ENABLED: Using reduced iterations for faster testing');
+  }
   try {
     const weightSummary = `${formatWeightPercent(scoringWeights.percent.pnl)} / ${formatWeightPercent(scoringWeights.percent.sharpe)} / ${formatWeightPercent(scoringWeights.percent.drawdown)}`;
     const weightLabel = scoringWeights.isDefault ? ' (default)' : '';
@@ -1796,7 +2097,7 @@ async function main() {
     console.log(`📊 Total Wallet: $${formatLargeNumber(deployableCapital)}`);
     console.log(`📈 Active Positions: ${positions.length}`);
 
-    const { recommendations, optimizedConfig, recommendedGlobalMax } = await generateRecommendations(deployableCapital);
+    const { recommendations, optimizedConfig, recommendedGlobalMax } = await generateRecommendations(deployableCapital, options);
 
     const capitalOptimization = optimizeCapitalAllocation(accountInfo, recommendations, optimizedConfig.symbols);
 

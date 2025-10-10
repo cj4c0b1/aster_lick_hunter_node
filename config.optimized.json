@@ -1,0 +1,56 @@
+{
+  "api": {
+    "apiKey": "8e6e96be9a4a94f43a9e89bdac0d99071ee232aea7027a5a22baecf451954f43",
+    "secretKey": "21024b2ba1b1c80628bb2f3c5cc87b1e7de08bfb32e0e69aeae9de02db8d6d61"
+  },
+  "symbols": {
+    "BTCUSDT": {
+      "volumeThresholdUSDT": 20000,
+      "longVolumeThresholdUSDT": 1555,
+      "shortVolumeThresholdUSDT": 3070,
+      "maxPositionMarginUSDT": 209.14,
+      "leverage": 25,
+      "tpPercent": 0.5,
+      "slPercent": 0.63,
+      "vwapProtection": true,
+      "vwapTimeframe": "5m",
+      "thresholdTimeWindow": 211000,
+      "thresholdCooldown": 10000,
+      "tradeSize": 41.83,
+      "optimized": {
+        "longVolumeThresholdUSDT": 1555,
+        "shortVolumeThresholdUSDT": 3070,
+        "dailyLongTriggers": 107.9,
+        "dailyShortTriggers": 81.8,
+        "estimatedDailyProfit": 992.09,
+        "analysisTime": "2025-10-09T14:30:26.475386"
+      }
+    }
+  },
+  "global": {
+    "riskPercent": 96,
+    "paperMode": false,
+    "positionMode": "ONE_WAY",
+    "maxOpenPositions": 1,
+    "useThresholdSystem": false,
+    "server": {
+      "dashboardPassword": "#!5ggB#sd$XM@@9cnJXC",
+      "dashboardPort": 3000,
+      "websocketPort": 3001,
+      "useRemoteWebSocket": false,
+      "websocketHost": null
+    },
+    "rateLimit": {
+      "maxRequestWeight": 2400,
+      "maxOrderCount": 1200,
+      "reservePercent": 30,
+      "enableBatching": true,
+      "queueTimeout": 30000,
+      "enableDeduplication": true,
+      "deduplicationWindowMs": 1000,
+      "parallelProcessing": true,
+      "maxConcurrentRequests": 3
+    }
+  },
+  "version": "1.1.0"
+}
