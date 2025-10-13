@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { BarChart3, TrendingUp, TrendingDown, Shield, Target, ChevronDown, X } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, Shield, Target, ChevronDown, X, AlertTriangle } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -28,6 +28,7 @@ interface Position {
   stopLoss?: number;
   takeProfit?: number;
   leverage: number;
+  liquidationPrice?: number;
   hasStopLoss?: boolean;
   hasTakeProfit?: boolean;
 }
@@ -338,14 +339,15 @@ export default function PositionTable({
 
       const priceDiff = liveMarkPrice - entryPrice;
       const livePnL = isLong ? priceDiff * quantity : -priceDiff * quantity;
-      const notionalValue = quantity * entryPrice;
-      const livePnLPercent = notionalValue > 0 ? (livePnL / notionalValue) * 100 : 0;
+      const margin = (quantity * liveMarkPrice) / position.leverage;
+      const livePnLPercent = Math.abs(margin) > 0 ? (livePnL / Math.abs(margin)) * 100 : 0;
 
       return {
         ...position,
         markPrice: liveMarkPrice,
         pnl: livePnL,
-        pnlPercent: livePnLPercent
+        pnlPercent: livePnLPercent,
+        margin: margin
       };
     }
     return position;
@@ -395,6 +397,7 @@ export default function PositionTable({
                   <TableHead className="text-xs">Side</TableHead>
                   <TableHead className="text-xs text-right">Size</TableHead>
                   <TableHead className="text-xs text-right">Entry/Mark</TableHead>
+                  <TableHead className="text-xs text-right">Liq. Price</TableHead>
                   <TableHead className="text-xs text-right">PnL</TableHead>
                   <TableHead className="text-xs text-center">Protection</TableHead>
                   <TableHead className="text-xs text-center">Actions</TableHead>
@@ -407,6 +410,7 @@ export default function PositionTable({
                     <TableCell className="py-2"><Skeleton className="h-4 w-20" /></TableCell>
                     <TableCell className="py-2"><Skeleton className="h-5 w-8" /></TableCell>
                     <TableCell className="py-2 text-right"><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
+                    <TableCell className="py-2 text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
                     <TableCell className="py-2 text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
                     <TableCell className="py-2 text-right"><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
                     <TableCell className="py-2 text-center"><Skeleton className="h-5 w-20 mx-auto" /></TableCell>
@@ -423,7 +427,15 @@ export default function PositionTable({
                 <TableRow key={key} className="h-12">
                   <TableCell className="py-2">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-medium text-sm">{position.symbol}</span>
+                      <a 
+                        href={`https://www.asterdex.com/en/futures/v1/${position.symbol}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="font-medium text-sm hover:underline hover:text-primary transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {position.symbol}
+                      </a>
                       <Badge variant="secondary" className="h-4 text-[10px] px-1">
                         {position.leverage}x
                       </Badge>
@@ -457,6 +469,58 @@ export default function PositionTable({
                     <div className="text-[10px] text-muted-foreground">
                       ${formatPriceWithCommas(position.symbol, position.markPrice)}
                     </div>
+                  </TableCell>
+                  <TableCell className="text-right py-2">
+                    {position.liquidationPrice && position.liquidationPrice > 0 ? (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex flex-col items-end gap-0.5">
+                              <div className="flex items-center gap-1">
+                                {(() => {
+                                  const distancePercent = position.side === 'LONG'
+                                    ? ((position.markPrice - position.liquidationPrice) / position.markPrice) * 100
+                                    : ((position.liquidationPrice - position.markPrice) / position.markPrice) * 100;
+                                  const isNearLiquidation = distancePercent < 20;
+                                  const isCritical = distancePercent < 10;
+
+                                  return (
+                                    <>
+                                      {(isNearLiquidation || isCritical) && (
+                                        <AlertTriangle className={`h-3 w-3 ${isCritical ? 'text-red-600 dark:text-red-400' : 'text-orange-600 dark:text-orange-400'}`} />
+                                      )}
+                                      <span className={`text-sm font-mono ${isCritical ? 'text-red-600 dark:text-red-400' : isNearLiquidation ? 'text-orange-600 dark:text-orange-400' : ''}`}>
+                                        ${formatPriceWithCommas(position.symbol, position.liquidationPrice)}
+                                      </span>
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground">
+                                {(() => {
+                                  const distancePercent = position.side === 'LONG'
+                                    ? ((position.markPrice - position.liquidationPrice) / position.markPrice) * 100
+                                    : ((position.liquidationPrice - position.markPrice) / position.markPrice) * 100;
+                                  return `${distancePercent.toFixed(1)}% away`;
+                                })()}
+                              </div>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <div className="text-xs space-y-1">
+                              <p>Liquidation Price: ${formatPrice(position.symbol, position.liquidationPrice)}</p>
+                              <p className="text-muted-foreground">
+                                {position.side === 'LONG'
+                                  ? 'Position liquidates if price drops below this level'
+                                  : 'Position liquidates if price rises above this level'}
+                              </p>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right py-2">
                     <div className="flex flex-col items-end gap-0.5">
@@ -568,7 +632,7 @@ export default function PositionTable({
             })}
               {!isLoading && displayPositions.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-6">
+                  <TableCell colSpan={8} className="text-center py-6">
                     <div className="flex flex-col items-center gap-1">
                       <span className="text-sm text-muted-foreground">No open positions</span>
                       <Badge variant="secondary" className="h-4 text-[10px] px-1.5">

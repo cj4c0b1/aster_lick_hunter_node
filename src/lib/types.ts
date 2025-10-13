@@ -20,6 +20,7 @@ export interface SymbolConfig {
   usePostOnly?: boolean;       // Use post-only orders to guarantee maker fees (default: false)
   maxSlippageBps?: number;     // Maximum acceptable slippage in basis points (default: 50)
   orderType?: 'LIMIT' | 'MARKET'; // Order type preference (default: 'LIMIT')
+  forceMarketEntry?: boolean;  // Force market orders for opening positions (default: false)
 
   // VWAP protection settings
   vwapProtection?: boolean;    // Enable VWAP-based entry filtering (default: false)

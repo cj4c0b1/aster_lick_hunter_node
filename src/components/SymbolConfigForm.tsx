@@ -1126,6 +1126,58 @@ export default function SymbolConfigForm({ onSave, currentConfig }: SymbolConfig
                           </p>
                         </div>
 
+                        {/* Order Type Settings */}
+                        <div className="col-span-2">
+                          <Separator className="my-4" />
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label>Order Type</Label>
+                              <Select
+                                value={config.symbols[selectedSymbol].orderType || 'LIMIT'}
+                                onValueChange={(value) =>
+                                  handleSymbolChange(selectedSymbol, 'orderType', value)
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="LIMIT">LIMIT Orders (Better fills)</SelectItem>
+                                  <SelectItem value="MARKET">MARKET Orders (Instant fills)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <p className="text-xs text-muted-foreground">
+                                Default order type for opening positions
+                              </p>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <div className="space-y-0.5">
+                                <Label>Force Market Entry</Label>
+                                <p className="text-sm text-muted-foreground">
+                                  Always use MARKET orders for opening positions (overrides order type above)
+                                </p>
+                              </div>
+                              <Switch
+                                checked={config.symbols[selectedSymbol].forceMarketEntry || false}
+                                onCheckedChange={(checked) =>
+                                  handleSymbolChange(selectedSymbol, 'forceMarketEntry', checked)
+                                }
+                              />
+                            </div>
+
+                            {config.symbols[selectedSymbol].forceMarketEntry && (
+                              <Alert>
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertDescription className="text-xs">
+                                  <strong>Market Entry Forced:</strong> All opening orders will use MARKET type for instant fills,
+                                  regardless of the order type setting above. This ensures faster entry but may have higher slippage.
+                                </AlertDescription>
+                              </Alert>
+                            )}
+                          </div>
+                        </div>
+
                         {/* VWAP Protection Settings */}
                         <div className="col-span-2">
                           <Separator className="my-4" />

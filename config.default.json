@@ -13,6 +13,8 @@
       "leverage": 10,
       "tpPercent": 1,
       "slPercent": 20,
+      "orderType": "LIMIT",
+      "forceMarketEntry": false,
       "vwapProtection": true,
       "vwapTimeframe": "5m",
       "vwapLookback": 200,

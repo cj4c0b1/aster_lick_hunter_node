@@ -239,12 +239,12 @@ export default function ErrorsPage() {
         try {
           document.execCommand('copy');
           toast.success('Copied to clipboard');
-        } catch (err) {
+        } catch (_err) {
           toast.error('Failed to copy to clipboard');
         }
         document.body.removeChild(textArea);
       }
-    } catch (err) {
+    } catch (_err) {
       toast.error('Failed to copy to clipboard');
     }
   };

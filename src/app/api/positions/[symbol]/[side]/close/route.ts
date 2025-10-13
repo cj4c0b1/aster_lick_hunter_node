@@ -5,6 +5,7 @@ import { getPositionMode } from '@/lib/api/positionMode';
 import { loadConfig } from '@/lib/bot/config';
 import { symbolPrecision } from '@/lib/utils/symbolPrecision';
 import { getExchangeInfo } from '@/lib/api/market';
+import { invalidateIncomeCache } from '@/lib/api/income';
 
 export async function POST(
   request: NextRequest,
@@ -120,6 +121,10 @@ export async function POST(
     const orderResult = await placeOrder(orderParams, config.api);
 
     console.log(`Successfully closed position ${symbol} ${side}:`, orderResult);
+
+    // Invalidate income cache since a position was closed (generates realized PnL and commission)
+    invalidateIncomeCache();
+    console.log('[Close Position] Invalidated income cache after closing position');
 
     return NextResponse.json({
       success: true,

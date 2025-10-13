@@ -17,6 +17,7 @@ import { getRateLimitManager } from '../lib/api/rateLimitManager';
 import { startRateLimitLogging } from '../lib/api/rateLimitMonitor';
 import { initializeRateLimitToasts } from '../lib/api/rateLimitToasts';
 import { thresholdMonitor } from '../lib/services/thresholdMonitor';
+import { logWithTimestamp, logErrorWithTimestamp, logWarnWithTimestamp } from '../lib/utils/timestamp';
 
 // Helper function to kill all child processes (synchronous for exit handler)
 function killAllProcesses() {
@@ -49,38 +50,38 @@ class AsterBot {
 
   async start(): Promise<void> {
     if (this.isRunning) {
-      console.log('Bot is already running');
+logWithTimestamp('Bot is already running');
       return;
     }
 
     try {
-      console.log('🚀 Starting Aster Liquidation Hunter Bot...');
+      logWithTimestamp('🚀 Starting Aster Liquidation Hunter Bot...');
 
       // Initialize database first (ensures schema is created)
       await db.initialize();
-      console.log('✅ Database initialized');
+      logWithTimestamp('✅ Database initialized');
 
       // Initialize config manager and load configuration
       this.config = await configManager.initialize();
-      console.log('✅ Configuration loaded');
+      logWithTimestamp('✅ Configuration loaded');
 
       // Validate trade sizes against exchange minimums
       const { validateAllTradeSizes } = await import('../lib/validation/tradeSizeValidator');
       const validationResult = await validateAllTradeSizes(this.config);
 
       if (!validationResult.valid) {
-        console.error('❌ CONFIGURATION ERROR: Trade sizes below exchange minimums detected!');
-        console.error('The following symbols have insufficient trade sizes:');
+logErrorWithTimestamp('❌ CONFIGURATION ERROR: Trade sizes below exchange minimums detected!');
+logErrorWithTimestamp('The following symbols have insufficient trade sizes:');
 
         validationResult.warnings.forEach(warning => {
-          console.error(`  ${warning.symbol}: ${warning.reason}`);
-          console.error(`    Current price: $${warning.currentPrice.toFixed(2)}`);
-          console.error(`    Leverage: ${warning.leverage}x`);
-          console.error(`    MINIMUM REQUIRED: ${warning.minimumRequired.toFixed(2)} USDT`);
+logErrorWithTimestamp(`  ${warning.symbol}: ${warning.reason}`);
+logErrorWithTimestamp(`    Current price: $${warning.currentPrice.toFixed(2)}`);
+logErrorWithTimestamp(`    Leverage: ${warning.leverage}x`);
+logErrorWithTimestamp(`    MINIMUM REQUIRED: ${warning.minimumRequired.toFixed(2)} USDT`);
         });
 
-        console.error('\n⚠️  Please update your configuration at http://localhost:3000/config');
-        console.error('The bot will continue but trades for these symbols will be rejected.\n');
+logErrorWithTimestamp('\n⚠️  Please update your configuration at http://localhost:3000/config');
+logErrorWithTimestamp('The bot will continue but trades for these symbols will be rejected.\n');
 
         // Store warnings to broadcast to UI
         this.tradeSizeWarnings = validationResult.warnings;
@@ -89,47 +90,47 @@ class AsterBot {
       // Security warnings
       const dashboardPassword = this.config.global.server?.dashboardPassword;
       if (!dashboardPassword || dashboardPassword === 'admin') {
-        console.warn('⚠️  WARNING: Using default "admin" dashboard password!');
-        console.warn('   Please change it at http://localhost:3000/config for better security');
+logWarnWithTimestamp('⚠️  WARNING: Using default "admin" dashboard password!');
+logWarnWithTimestamp('   Please change it at http://localhost:3000/config for better security');
       } else if (dashboardPassword.length < 8) {
-        console.warn('⚠️  WARNING: Dashboard password is less than 8 characters');
-        console.warn('   Consider using a stronger password for better security');
+logWarnWithTimestamp('⚠️  WARNING: Dashboard password is less than 8 characters');
+logWarnWithTimestamp('   Consider using a stronger password for better security');
       }
 
       // Check if exposing to network with weak password
       const websocketHost = this.config.global.server?.websocketHost;
       const isRemoteAccess = this.config.global.server?.useRemoteWebSocket || websocketHost;
       if (isRemoteAccess && (!dashboardPassword || dashboardPassword === 'admin' || dashboardPassword.length < 8)) {
-        console.warn('🔴 SECURITY RISK: Remote access enabled with weak/default password!');
-        console.warn('   This could allow unauthorized access to your bot controls');
-        console.warn('   Please set a strong password immediately at /config');
+logWarnWithTimestamp('🔴 SECURITY RISK: Remote access enabled with weak/default password!');
+logWarnWithTimestamp('   This could allow unauthorized access to your bot controls');
+logWarnWithTimestamp('   Please set a strong password immediately at /config');
       }
 
       // Initialize threshold monitor with actual config
       thresholdMonitor.updateConfig(this.config);
-      console.log(`✅ Threshold monitor initialized with ${Object.keys(this.config.symbols).length} symbols`);
+      logWithTimestamp(`✅ Threshold monitor initialized with ${Object.keys(this.config.symbols).length} symbols`);
 
       // Initialize Rate Limit Manager with config
       const rateLimitConfig = this.config.global.rateLimit || {};
       const _rateLimitManager = getRateLimitManager(rateLimitConfig);
-      console.log('✅ Rate limit manager initialized');
-      console.log(`  Max weight: ${rateLimitConfig.maxRequestWeight || 2400}/min`);
-      console.log(`  Max orders: ${rateLimitConfig.maxOrderCount || 1200}/min`);
-      console.log(`  Reserve: ${rateLimitConfig.reservePercent || 30}% for critical operations`);
+      logWithTimestamp('✅ Rate limit manager initialized');
+      logWithTimestamp(`  Max weight: ${rateLimitConfig.maxRequestWeight || 2400}/min`);
+      logWithTimestamp(`  Max orders: ${rateLimitConfig.maxOrderCount || 1200}/min`);
+      logWithTimestamp(`  Reserve: ${rateLimitConfig.reservePercent || 30}% for critical operations`);
 
       // Initialize WebSocket server with configured port
       const wsPort = this.config.global.server?.websocketPort || 8080;
       this.statusBroadcaster = new StatusBroadcaster(wsPort);
       await this.statusBroadcaster.start();
-      console.log(`✅ WebSocket status server started on port ${wsPort}`);
+logWithTimestamp(`✅ WebSocket status server started on port ${wsPort}`);
 
       // Start rate limit monitoring with toast notifications
       startRateLimitLogging(60000); // Log status every minute
       initializeRateLimitToasts(this.statusBroadcaster); // Enable toast notifications
-      console.log('✅ Rate limit monitoring started with toast notifications');
-      console.log(`📝 Paper Mode: ${this.config.global.paperMode ? 'ENABLED' : 'DISABLED'}`);
-      console.log(`💰 Risk Percent: ${this.config.global.riskPercent}%`);
-      console.log(`📊 Symbols configured: ${Object.keys(this.config.symbols).join(', ')}`);
+logWithTimestamp('✅ Rate limit monitoring started with toast notifications');
+logWithTimestamp(`📝 Paper Mode: ${this.config.global.paperMode ? 'ENABLED' : 'DISABLED'}`);
+logWithTimestamp(`💰 Risk Percent: ${this.config.global.riskPercent}%`);
+logWithTimestamp(`📊 Symbols configured: ${Object.keys(this.config.symbols).join(', ')}`);
 
       // Update status broadcaster with config info
       this.statusBroadcaster.updateStatus({
@@ -148,7 +149,7 @@ class AsterBot {
       });
 
       configManager.on('config:error', (error) => {
-        console.error('❌ Config error:', error.message);
+logErrorWithTimestamp('❌ Config error:', error.message);
         this.statusBroadcaster.broadcastConfigError(
           'Configuration Error',
           error.message,
@@ -165,10 +166,10 @@ class AsterBot {
                               this.config.api.apiKey.length > 0 && this.config.api.secretKey.length > 0;
 
       if (!hasValidApiKeys) {
-        console.log('⚠️  WARNING: No API keys configured. Running in PAPER MODE only.');
-        console.log('   Please configure your API keys via the web interface at http://localhost:3000/config');
+logWithTimestamp('⚠️  WARNING: No API keys configured. Running in PAPER MODE only.');
+logWithTimestamp('   Please configure your API keys via the web interface at http://localhost:3000/config');
         if (!this.config.global.paperMode) {
-          console.error('❌ Cannot run in LIVE mode without API keys!');
+logErrorWithTimestamp('❌ Cannot run in LIVE mode without API keys!');
           this.statusBroadcaster.broadcastConfigError(
             'Invalid Configuration',
             'Cannot run in LIVE mode without API keys. Please configure your API keys or enable paper mode.',
@@ -183,20 +184,20 @@ class AsterBot {
       if (hasValidApiKeys) {
         // Initialize balance service and set up WebSocket broadcasting
         try {
-          console.log('Initializing balance service...');
+logWithTimestamp('Initializing balance service...');
           await initializeBalanceService(this.config.api);
 
           // Connect balance service to status broadcaster
           const balanceService = getBalanceService();
           if (balanceService) {
             balanceService.on('balanceUpdate', (balanceData) => {
-              console.log('[Bot] Broadcasting balance update via WebSocket');
+logWithTimestamp('[Bot] Broadcasting balance update via WebSocket');
               this.statusBroadcaster.broadcast('balance_update', balanceData);
             });
           }
-          console.log('✅ Balance service initialized and connected to WebSocket broadcaster');
+logWithTimestamp('✅ Balance service initialized and connected to WebSocket broadcaster');
         } catch (error) {
-          console.error('Failed to initialize balance service:', error);
+logErrorWithTimestamp('Failed to initialize balance service:', error);
           this.statusBroadcaster.broadcastApiError(
             'Balance Service Initialization Failed',
             'Failed to connect to balance service. Some features may be unavailable.',
@@ -211,30 +212,30 @@ class AsterBot {
         // Check and set position mode
         try {
           this.isHedgeMode = await getPositionMode(this.config.api);
-          console.log(`📊 Position Mode: ${this.isHedgeMode ? 'HEDGE MODE' : 'ONE-WAY MODE'}`);
+logWithTimestamp(`📊 Position Mode: ${this.isHedgeMode ? 'HEDGE MODE' : 'ONE-WAY MODE'}`);
 
           // If config specifies a position mode and it differs from current, automatically set it
           if (this.config.global.positionMode) {
             const wantHedgeMode = this.config.global.positionMode === 'HEDGE';
             if (wantHedgeMode !== this.isHedgeMode) {
-              console.log(`⚠️  Config specifies ${this.config.global.positionMode} mode but account is in ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'} mode`);
-              console.log(`🔄 Automatically changing position mode to match config...`);
+logWithTimestamp(`⚠️  Config specifies ${this.config.global.positionMode} mode but account is in ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'} mode`);
+logWithTimestamp(`🔄 Automatically changing position mode to match config...`);
 
               try {
                 await setPositionMode(wantHedgeMode, this.config.api);
                 this.isHedgeMode = wantHedgeMode;
-                console.log(`✅ Position mode successfully changed to ${this.config.global.positionMode}`);
+logWithTimestamp(`✅ Position mode successfully changed to ${this.config.global.positionMode}`);
               } catch (error: any) {
                 // Check if error is because of open positions
                 if (error?.response?.data?.code === -5021) {
-                  console.log(`⚠️  Cannot change position mode: Open positions exist`);
-                  console.log(`📊 Using current exchange position mode: ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'}`);
+logWithTimestamp(`⚠️  Cannot change position mode: Open positions exist`);
+logWithTimestamp(`📊 Using current exchange position mode: ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'}`);
                 } else if (error?.response?.data?.code === -5020) {
-                  console.log(`⚠️  Cannot change position mode: Open orders exist`);
-                  console.log(`📊 Using current exchange position mode: ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'}`);
+logWithTimestamp(`⚠️  Cannot change position mode: Open orders exist`);
+logWithTimestamp(`📊 Using current exchange position mode: ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'}`);
                 } else {
                   const errorMsg = error?.response?.data?.msg || error?.message || 'Unknown error';
-                  console.error('❌ Failed to change position mode:', error?.response?.data || error);
+logErrorWithTimestamp('❌ Failed to change position mode:', error?.response?.data || error);
                   this.statusBroadcaster.broadcastConfigError(
                     'Position Mode Change Failed',
                     `Failed to change position mode: ${errorMsg}`,
@@ -244,13 +245,13 @@ class AsterBot {
                       rawError: error?.response?.data || error,
                     }
                   );
-                  console.log(`📊 Using current exchange position mode: ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'}`);
+logWithTimestamp(`📊 Using current exchange position mode: ${this.isHedgeMode ? 'HEDGE' : 'ONE-WAY'}`);
                 }
               }
             }
           }
         } catch (error) {
-          console.error('⚠️  Failed to check position mode, assuming ONE-WAY mode:', error);
+logErrorWithTimestamp('⚠️  Failed to check position mode, assuming ONE-WAY mode:', error);
           this.statusBroadcaster.broadcastApiError(
             'Position Mode Check Failed',
             'Failed to check position mode from exchange. Assuming ONE-WAY mode.',
@@ -270,36 +271,36 @@ class AsterBot {
             const currentBalance = balanceService.getCurrentBalance();
 
             if (status.connected) {
-              console.log('✅ Real-time balance service connected');
-              console.log('[Bot] Balance service status:', {
+logWithTimestamp('✅ Real-time balance service connected');
+logWithTimestamp('[Bot] Balance service status:', {
                 connected: status.connected,
                 lastUpdate: status.lastUpdate ? new Date(status.lastUpdate).toISOString() : 'never',
                 balance: currentBalance
               });
             } else {
-              console.warn('⚠️ Balance service initialized but not fully connected:', status.error);
+logWarnWithTimestamp('⚠️ Balance service initialized but not fully connected:', status.error);
             }
 
             // Initialize PnL tracking service
             if (currentBalance && currentBalance.totalBalance > 0) {
               pnlService.resetSession(currentBalance.totalBalance);
-              console.log('✅ PnL tracking service initialized with balance:', currentBalance.totalBalance);
+logWithTimestamp('✅ PnL tracking service initialized with balance:', currentBalance.totalBalance);
             } else {
-              console.warn('⚠️ PnL tracking not initialized - no balance data available');
+logWarnWithTimestamp('⚠️ PnL tracking not initialized - no balance data available');
             }
           }
         } catch (error: any) {
-          console.error('⚠️  Balance service failed to start:', error instanceof Error ? error.message : error);
-          console.error('[Bot] Balance service error stack:', error instanceof Error ? error.stack : 'No stack trace');
+logErrorWithTimestamp('⚠️  Balance service failed to start:', error instanceof Error ? error.message : error);
+logErrorWithTimestamp('[Bot] Balance service error stack:', error instanceof Error ? error.stack : 'No stack trace');
           this.statusBroadcaster.addError(`Balance Service: ${error instanceof Error ? error.message : 'Unknown error'}`);
           // Continue running bot even if balance service fails
-          console.log('[Bot] Bot will continue without real-time balance updates');
+logWithTimestamp('[Bot] Bot will continue without real-time balance updates');
         }
 
         // Initialize Price Service for real-time mark prices
         try {
           await initializePriceService();
-          console.log('✅ Real-time price service started');
+logWithTimestamp('✅ Real-time price service started');
 
           // Listen for mark price updates and broadcast to web UI
           const priceService = getPriceService();
@@ -312,7 +313,7 @@ class AsterBot {
             // Note: We'll subscribe to position symbols after position manager starts
           }
         } catch (error: any) {
-          console.error('⚠️  Price service failed to start:', error.message);
+logErrorWithTimestamp('⚠️  Price service failed to start:', error.message);
           this.statusBroadcaster.addError(`Price Service: ${error.message}`);
         }
 
@@ -334,9 +335,9 @@ class AsterBot {
             }
           }, 2000);
 
-          console.log('✅ VWAP streaming service started');
+logWithTimestamp('✅ VWAP streaming service started');
         } catch (error: any) {
-          console.error('⚠️  VWAP streamer failed to start:', error.message);
+logErrorWithTimestamp('⚠️  VWAP streamer failed to start:', error.message);
           this.statusBroadcaster.addError(`VWAP Streamer: ${error.message}`);
         }
       }
@@ -349,7 +350,7 @@ class AsterBot {
 
       try {
         await this.positionManager.start();
-        console.log('✅ Position Manager started');
+logWithTimestamp('✅ Position Manager started');
 
         // Subscribe to price updates for all open positions
         const priceService = getPriceService();
@@ -359,11 +360,11 @@ class AsterBot {
 
           if (positionSymbols.length > 0) {
             priceService.subscribeToSymbols(positionSymbols);
-            console.log(`📊 Price streaming enabled for open positions: ${positionSymbols.join(', ')}`);
+logWithTimestamp(`📊 Price streaming enabled for open positions: ${positionSymbols.join(', ')}`);
           }
         }
       } catch (error: any) {
-        console.error('⚠️  Position Manager failed to start:', error.message);
+logErrorWithTimestamp('⚠️  Position Manager failed to start:', error.message);
         this.statusBroadcaster.addError(`Position Manager: ${error.message}`);
         // Continue running in paper mode without position manager
         if (!this.config.global.paperMode) {
@@ -384,19 +385,19 @@ class AsterBot {
 
       // Connect hunter events to position manager and status broadcaster
       this.hunter.on('liquidationDetected', (liquidationEvent: any) => {
-        console.log(`💥 Liquidation: ${liquidationEvent.symbol} ${liquidationEvent.side} ${liquidationEvent.quantity}`);
+        logWithTimestamp(`💥 Liquidation: ${liquidationEvent.symbol} ${liquidationEvent.side} ${liquidationEvent.quantity}`);
         this.statusBroadcaster.broadcastLiquidation(liquidationEvent);
         this.statusBroadcaster.logActivity(`Liquidation: ${liquidationEvent.symbol} ${liquidationEvent.side} ${liquidationEvent.quantity}`);
       });
 
       this.hunter.on('tradeOpportunity', (data: any) => {
-        console.log(`🎯 Trade opportunity: ${data.symbol} ${data.side} (${data.reason})`);
+        logWithTimestamp(`🎯 Trade opportunity: ${data.symbol} ${data.side} (${data.reason})`);
         this.statusBroadcaster.broadcastTradeOpportunity(data);
         this.statusBroadcaster.logActivity(`Opportunity: ${data.symbol} ${data.side} - ${data.reason}`);
       });
 
       this.hunter.on('tradeBlocked', (data: any) => {
-        console.log(`🚫 Trade blocked: ${data.symbol} ${data.side} - ${data.reason}`);
+        logWithTimestamp(`🚫 Trade blocked: ${data.symbol} ${data.side} - ${data.reason}`);
         this.statusBroadcaster.broadcastTradeBlocked(data);
         this.statusBroadcaster.logActivity(`Blocked: ${data.symbol} ${data.side} - ${data.blockType}`);
       });
@@ -407,7 +408,7 @@ class AsterBot {
       });
 
       this.hunter.on('positionOpened', (data: any) => {
-        console.log(`📈 Position opened: ${data.symbol} ${data.side} qty=${data.quantity}`);
+        logWithTimestamp(`📈 Position opened: ${data.symbol} ${data.side} qty=${data.quantity}`);
         this.positionManager?.onNewPosition(data);
         this.statusBroadcaster.broadcastPositionUpdate({
           symbol: data.symbol,
@@ -425,7 +426,7 @@ class AsterBot {
         const priceService = getPriceService();
         if (priceService && data.symbol) {
           priceService.subscribeToSymbols([data.symbol]);
-          console.log(`📊 Added price streaming for new position: ${data.symbol}`);
+logWithTimestamp(`📊 Added price streaming for new position: ${data.symbol}`);
         }
 
         // Trigger balance refresh after position open
@@ -445,24 +446,24 @@ class AsterBot {
       });
 
       this.hunter.on('error', (error: any) => {
-        console.error('❌ Hunter error:', error);
+logErrorWithTimestamp('❌ Hunter error:', error);
         this.statusBroadcaster.addError(error.toString());
       });
 
       await this.hunter.start();
-      console.log('✅ Liquidation Hunter started');
+logWithTimestamp('✅ Liquidation Hunter started');
 
       // Start the cleanup scheduler for liquidation database
       cleanupScheduler.start();
-      console.log('✅ Database cleanup scheduler started (7-day retention)');
+logWithTimestamp('✅ Database cleanup scheduler started (7-day retention)');
 
       this.isRunning = true;
       this.statusBroadcaster.setRunning(true);
-      console.log('🟢 Bot is now running. Press Ctrl+C to stop.');
+logWithTimestamp('🟢 Bot is now running. Press Ctrl+C to stop.');
 
       // Handle graceful shutdown with enhanced signal handling
       const shutdownHandler = async (signal: string) => {
-        console.log(`\n📡 Received ${signal}`);
+logWithTimestamp(`\n📡 Received ${signal}`);
         await this.stop();
       };
 
@@ -479,30 +480,30 @@ class AsterBot {
       // Handle process exit
       process.on('exit', (code) => {
         if (!this.isRunning) return;
-        console.log(`Process exiting with code ${code}`);
+logWithTimestamp(`Process exiting with code ${code}`);
         // Synchronous cleanup only
         killAllProcesses();
       });
 
       // Handle uncaught errors
       process.on('uncaughtException', (error) => {
-        console.error('❌ Uncaught exception:', error);
+logErrorWithTimestamp('❌ Uncaught exception:', error);
         this.stop().catch(console.error);
       });
 
       process.on('unhandledRejection', (reason, promise) => {
-        console.error('❌ Unhandled rejection at:', promise, 'reason:', reason);
+logErrorWithTimestamp('❌ Unhandled rejection at:', promise, 'reason:', reason);
         this.stop().catch(console.error);
       });
 
     } catch (error) {
-      console.error('❌ Failed to start bot:', error);
+logErrorWithTimestamp('❌ Failed to start bot:', error);
       process.exit(1);
     }
   }
 
   private async handleConfigUpdate(newConfig: Config): Promise<void> {
-    console.log('🔄 Applying config update...');
+logWithTimestamp('🔄 Applying config update...');
 
     const oldConfig = this.config;
     this.config = newConfig;
@@ -516,24 +517,24 @@ class AsterBot {
 
       // Notify about critical changes
       if (oldConfig && oldConfig.global.paperMode !== newConfig.global.paperMode) {
-        console.log(`⚠️  Paper Mode changed: ${oldConfig.global.paperMode} → ${newConfig.global.paperMode}`);
+logWithTimestamp(`⚠️  Paper Mode changed: ${oldConfig.global.paperMode} → ${newConfig.global.paperMode}`);
         this.statusBroadcaster.logActivity(`Config: Paper Mode ${newConfig.global.paperMode ? 'ENABLED' : 'DISABLED'}`);
       }
 
       // Update Hunter with new config
       if (this.hunter) {
         this.hunter.updateConfig(newConfig);
-        console.log('✅ Hunter config updated');
+logWithTimestamp('✅ Hunter config updated');
       }
 
       // Update threshold monitor with new config
       thresholdMonitor.updateConfig(newConfig);
-      console.log('✅ Threshold monitor config updated');
+logWithTimestamp('✅ Threshold monitor config updated');
 
       // Update PositionManager with new config
       if (this.positionManager) {
         this.positionManager.updateConfig(newConfig);
-        console.log('✅ Position Manager config updated');
+logWithTimestamp('✅ Position Manager config updated');
       }
 
       // Update VWAP streamer with new symbols
@@ -547,7 +548,7 @@ class AsterBot {
 
         if (symbolsChanged) {
           await vwapStreamer.updateSymbols(newConfig);
-          console.log('✅ VWAP symbols updated');
+logWithTimestamp('✅ VWAP symbols updated');
         }
       }
 
@@ -557,10 +558,10 @@ class AsterBot {
         config: newConfig,
       });
 
-      console.log('✅ Config update applied successfully');
+logWithTimestamp('✅ Config update applied successfully');
       this.statusBroadcaster.logActivity('Config reloaded from file');
     } catch (error) {
-      console.error('❌ Failed to apply config update:', error);
+logErrorWithTimestamp('❌ Failed to apply config update:', error);
       this.statusBroadcaster.addError(`Config update failed: ${error}`);
 
       // Rollback to old config on error
@@ -575,68 +576,68 @@ class AsterBot {
   async stop(): Promise<void> {
     if (!this.isRunning) return;
 
-    console.log('\n🛑 Stopping bot...');
+logWithTimestamp('\n🛑 Stopping bot...');
     this.isRunning = false;
     this.statusBroadcaster.setRunning(false);
 
     // Create a timeout to force exit if graceful shutdown takes too long
     const forceExitTimeout = setTimeout(() => {
-      console.error('⚠️  Graceful shutdown timeout, forcing exit...');
+logErrorWithTimestamp('⚠️  Graceful shutdown timeout, forcing exit...');
       process.exit(1);
     }, 5000); // 5 second timeout
 
     try {
       if (this.hunter) {
         this.hunter.stop();
-        console.log('✅ Hunter stopped');
+logWithTimestamp('✅ Hunter stopped');
       }
 
       if (this.positionManager) {
         this.positionManager.stop();
-        console.log('✅ Position Manager stopped');
+logWithTimestamp('✅ Position Manager stopped');
       }
 
       // Stop other services
       vwapStreamer.stop();
-      console.log('✅ VWAP streamer stopped');
+logWithTimestamp('✅ VWAP streamer stopped');
 
       await stopBalanceService().catch(err =>
-        console.error('⚠️  Balance service stop error:', err)
+logErrorWithTimestamp('⚠️  Balance service stop error:', err)
       );
-      console.log('✅ Balance service stopped');
+logWithTimestamp('✅ Balance service stopped');
 
       stopPriceService();
-      console.log('✅ Price service stopped');
+logWithTimestamp('✅ Price service stopped');
 
       cleanupScheduler.stop();
-      console.log('✅ Cleanup scheduler stopped');
+logWithTimestamp('✅ Cleanup scheduler stopped');
 
       configManager.stop();
-      console.log('✅ Config manager stopped');
+logWithTimestamp('✅ Config manager stopped');
 
       this.statusBroadcaster.stop();
-      console.log('✅ WebSocket server stopped');
+logWithTimestamp('✅ WebSocket server stopped');
 
       clearTimeout(forceExitTimeout);
-      console.log('👋 Bot stopped successfully');
+logWithTimestamp('👋 Bot stopped successfully');
       process.exit(0);
     } catch (error) {
       clearTimeout(forceExitTimeout);
-      console.error('❌ Error while stopping:', error);
+logErrorWithTimestamp('❌ Error while stopping:', error);
       process.exit(1);
     }
   }
 
   async status(): Promise<void> {
     if (!this.isRunning) {
-      console.log('⚠️  Bot is not running');
+logWithTimestamp('⚠️  Bot is not running');
       return;
     }
 
-    console.log('🟢 Bot Status:');
-    console.log(`  Running: ${this.isRunning}`);
-    console.log(`  Paper Mode: ${this.config?.global.paperMode}`);
-    console.log(`  Symbols: ${this.config ? Object.keys(this.config.symbols).join(', ') : 'N/A'}`);
+logWithTimestamp('🟢 Bot Status:');
+logWithTimestamp(`  Running: ${this.isRunning}`);
+logWithTimestamp(`  Paper Mode: ${this.config?.global.paperMode}`);
+logWithTimestamp(`  Symbols: ${this.config ? Object.keys(this.config.symbols).join(', ') : 'N/A'}`);
   }
 }
 
@@ -655,9 +656,9 @@ async function main() {
       await bot.status();
       break;
     default:
-      console.log('Usage: node src/bot/index.js [start|status]');
-      console.log('  start  - Start the bot');
-      console.log('  status - Show bot status');
+logWithTimestamp('Usage: node src/bot/index.js [start|status]');
+logWithTimestamp('  start  - Start the bot');
+logWithTimestamp('  status - Show bot status');
       process.exit(1);
   }
 }
@@ -665,7 +666,7 @@ async function main() {
 // Run if this is the main module
 if (require.main === module) {
   main().catch((error) => {
-    console.error('Fatal error:', error);
+logErrorWithTimestamp('Fatal error:', error);
     process.exit(1);
   });
 }

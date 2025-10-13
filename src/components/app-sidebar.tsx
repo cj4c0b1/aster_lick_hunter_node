@@ -73,7 +73,13 @@ export function AppSidebar() {
   const { config } = useConfig()
   const { status, isConnected } = useBotStatus()
   const [positions, setPositions] = React.useState<any[]>([])
+  const [isMounted, setIsMounted] = React.useState(false)
   const isPaperMode = config?.global?.paperMode
+
+  // Track client-side mount to prevent hydration mismatch
+  React.useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   // Load positions and listen for updates
   React.useEffect(() => {
@@ -140,9 +146,10 @@ export function AppSidebar() {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
-                    isActive={pathname === item.href}
+                    isActive={isMounted ? pathname === item.href : false}
+                    suppressHydrationWarning
                   >
-                    <Link href={item.href}>
+                    <Link href={item.href} suppressHydrationWarning>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </Link>
@@ -225,7 +232,7 @@ export function AppSidebar() {
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Restart Tutorial
               </Button>
-              <Link href="/wiki/getting-started">
+              <Link href="/wiki/getting-started" suppressHydrationWarning>
                 <Button
                   variant="ghost"
                   size="sm"

@@ -163,3 +163,46 @@ export async function getBookTicker(symbol: string): Promise<any> {
   const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v1/ticker/bookTicker?${query}`);
   return response.data;
 }
+
+// Get account trades with realized PnL
+export interface UserTrade {
+  buyer: boolean;
+  commission: string;
+  commissionAsset: string;
+  id: number;
+  maker: boolean;
+  orderId: number;
+  price: string;
+  qty: string;
+  quoteQty: string;
+  realizedPnl: string;
+  side: 'BUY' | 'SELL';
+  positionSide: 'LONG' | 'SHORT' | 'BOTH';
+  symbol: string;
+  time: number;
+}
+
+export async function getUserTrades(
+  symbol: string,
+  credentials: ApiCredentials,
+  params: {
+    startTime?: number;
+    endTime?: number;
+    fromId?: number;
+    limit?: number;
+  } = {}
+): Promise<UserTrade[]> {
+  const queryParams: any = {
+    symbol,
+    ...params,
+  };
+
+  const query = buildSignedQuery(queryParams, credentials);
+  const axios = getRateLimitedAxios();
+  const response: AxiosResponse = await axios.get(`${BASE_URL}/fapi/v1/userTrades?${query}`, {
+    headers: {
+      'X-MBX-APIKEY': credentials.apiKey,
+    },
+  });
+  return response.data;
+}

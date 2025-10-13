@@ -12,6 +12,10 @@ interface DailyPnL {
   realizedPnl: number;
   commission: number;
   fundingFee: number;
+  insuranceClear: number;
+  marketMerchantReward: number;
+  apolloxRebate: number;
+  usdfReward: number;
   netPnl: number;
   tradeCount: number;
 }
@@ -21,6 +25,10 @@ interface PnLMetrics {
   totalRealizedPnl: number;
   totalCommission: number;
   totalFundingFee: number;
+  totalInsuranceClear: number;
+  totalMarketMerchantReward: number;
+  totalApolloxRebate: number;
+  totalUsdfReward: number;
   winRate: number;
   profitableDays: number;
   lossDays: number;

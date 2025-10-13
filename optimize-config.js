@@ -90,6 +90,26 @@ function parseScoringWeights() {
 const scoringWeights = parseScoringWeights();
 const normalizedScoringWeights = scoringWeights.normalized;
 
+function parseSelectedSymbols() {
+  const raw = process.env.OPTIMIZER_SELECTED_SYMBOLS;
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((symbol) => typeof symbol === 'string' && symbol.trim().length > 0);
+    }
+  } catch (_error) {
+    console.warn('Warning: Failed to parse OPTIMIZER_SELECTED_SYMBOLS, ignoring value.');
+  }
+
+  return null;
+}
+
+const selectedSymbols = parseSelectedSymbols();
+
 const formatWeightPercent = (value) => {
   if (!Number.isFinite(value)) {
     return '0%';
@@ -668,7 +688,7 @@ function generateSlCandidates(volStats, currentSl) {
     ? [currentSl, currentSl * 0.5, currentSl * 0.75, currentSl * 1.25, currentSl * 1.5, currentSl * 2, currentSl * 3]
     : [];
 
-  const general = [0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 7.5]; // trimmed: 10, 12.5, 15, 20, 25, 30, 35, 40
+  const general = [0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 7.5, 10, 12.5, 15, 20, 25, 30, 35, 40, 45, 50];
   const dynamic = [
     base * 0.5,
     base * 0.75,
@@ -684,7 +704,7 @@ function generateSlCandidates(volStats, currentSl) {
     .filter(val => typeof val === 'number' && val > 0.1 && val <= 80);
 
   const candidates = sampleCandidates(rawCandidates, 15)
-    .filter(val => val >= 0.1 && val <= 40);  // Basic sanity bounds only
+    .filter(val => val >= 0.1 && val <= 50);  // Basic sanity bounds only
 
   return candidates;
 }
@@ -869,9 +889,15 @@ async function optimizeSymbolParameters(symbol, symbolConfig, capitalBudget, spa
 
           const combinedPnl = bestLongSide.result.totalPnl + bestShortSide.result.totalPnl;
           const stopExitCount = (bestLongSide.result.exitReasons?.SL || 0) + (bestShortSide.result.exitReasons?.SL || 0);
+          const liquidationCount = (bestLongSide.result.exitReasons?.LIQUIDATED || 0) + (bestShortSide.result.exitReasons?.LIQUIDATED || 0);
           const totalTrades = (bestLongSide.result.totalTrades || 0) + (bestShortSide.result.totalTrades || 0);
           const stopRate = totalTrades > 0 ? stopExitCount / totalTrades : 0;
           const combinedProfitFactor = ((bestLongSide.result.profitFactor || 0) + (bestShortSide.result.profitFactor || 0)) / 2;
+
+          // CRITICAL: Reject ANY combination that resulted in liquidations
+          if (liquidationCount > 0) {
+            continue;  // Zero tolerance for liquidations - these configs are unsafe
+          }
 
           // Skip combinations with poor profit factor or excessive stop rate
           if (combinedProfitFactor < 1.05 || stopRate > 0.65) {
@@ -1213,7 +1239,9 @@ function optimizeThresholds() {
   console.log('========================================\n');
 
   // Focus on most active symbols
-  const topSymbols = ['ASTERUSDT', 'BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
+  const topSymbols = selectedSymbols && selectedSymbols.length > 0
+    ? selectedSymbols
+    : ['ASTERUSDT', 'BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
 
   topSymbols.forEach(symbol => {
     if (!config.symbols[symbol]) return;
@@ -1448,6 +1476,37 @@ async function backtestSymbol(symbol, side, threshold, maxPositions, tradeSize, 
   };
 
   const recordExit = (pos, exitPrice, exitReason, priceEventTime, volatilityFactor = 1.0) => {
+    // Handle liquidation specially - 100% margin loss
+    if (exitReason === 'LIQUIDATED') {
+      const notional = tradeSize * leverage;
+      const entryCommission = notional * (COMMISSION.MAKER_FEE * 0.9 + COMMISSION.TAKER_FEE * 0.1);
+
+      // Liquidation fee is typically 0.5% of position value on most exchanges
+      const liquidationFee = notional * 0.005;
+
+      // Total loss = entire margin + entry commission + liquidation fee
+      const netPnl = -(tradeSize + entryCommission + liquidationFee);
+
+      totalPnl += netPnl;
+      completedTrades.push({
+        symbol,
+        side: pos.isLong ? 'LONG' : 'SHORT',
+        entryPrice: pos.entryPrice,
+        exitPrice: exitPrice,
+        triggerPrice: exitPrice,
+        slippage: 0,
+        grossPnl: netPnl,
+        commission: entryCommission + liquidationFee,
+        pnl: netPnl,
+        exitReason,
+        duration: priceEventTime - pos.entryTime,
+        margin: tradeSize,
+        leverage: pos.leverage,
+        volatilityFactor: null
+      });
+      return;
+    }
+
     // Apply realistic slippage based on order type and market conditions
     let actualExitPrice = exitPrice;
 
@@ -1511,7 +1570,21 @@ async function backtestSymbol(symbol, side, threshold, maxPositions, tradeSize, 
       let exitReason = null;
       let exitPrice = null;
 
-      // Check if both TP and SL were touched in this candle
+      // PRIORITY 1: Check liquidation FIRST (happens before TP/SL can trigger)
+      const liquidationTouched = pos.isLong
+        ? priceBar.low <= pos.liquidationPrice
+        : priceBar.high >= pos.liquidationPrice;
+
+      if (liquidationTouched) {
+        // Position liquidated - exit at liquidation price with total margin loss
+        shouldExit = true;
+        exitReason = 'LIQUIDATED';
+        exitPrice = pos.liquidationPrice;
+        recordExit(pos, exitPrice, exitReason, priceBar.event_time, volatilityFactor);
+        return false;
+      }
+
+      // PRIORITY 2: Check if both TP and SL were touched in this candle
       const tpTouched = pos.isLong ? priceBar.high >= pos.tpPrice : priceBar.low <= pos.tpPrice;
       const slTouched = pos.isLong ? priceBar.low <= pos.slPrice : priceBar.high >= pos.slPrice;
 
@@ -1620,13 +1693,23 @@ async function backtestSymbol(symbol, side, threshold, maxPositions, tradeSize, 
         ? entryPrice * (1 - slPercent/100)
         : entryPrice * (1 + slPercent/100);
 
+      // Calculate liquidation price based on leverage
+      // Liquidation happens at approximately (100 / leverage)% price move from entry
+      // Using 95% of theoretical distance to account for maintenance margin and fees
+      const liquidationDistance = (100 / leverage) * 0.95;
+      const liquidationPrice = isLong
+        ? entryPrice * (1 - liquidationDistance/100)
+        : entryPrice * (1 + liquidationDistance/100);
+
       activePositions.push({
         entryPrice,
         entryTime: currentTime,
         tpPrice,
         slPrice,
+        liquidationPrice,
         isLong,
-        size: tradeSize * leverage / entryPrice
+        size: tradeSize * leverage / entryPrice,
+        leverage
       });
       lastEntryTime = currentTime;
       lastHunterEntryTime = currentTime;
@@ -1666,6 +1749,14 @@ async function backtestSymbol(symbol, side, threshold, maxPositions, tradeSize, 
   const avgLoss = losses > 0 ? completedTrades.filter(t => t.pnl < 0).reduce((sum, t) => sum + t.pnl, 0) / losses : 0;
   const avgDuration = completedTrades.length > 0 ? completedTrades.reduce((sum, t) => sum + t.duration, 0) / completedTrades.length / 1000 / 60 : 0; // minutes
 
+  // Calculate exit reason breakdown
+  const exitReasons = {
+    TP: completedTrades.filter(t => t.exitReason === 'TP').length,
+    SL: completedTrades.filter(t => t.exitReason === 'SL').length,
+    EOD: completedTrades.filter(t => t.exitReason === 'EOD').length,
+    LIQUIDATED: completedTrades.filter(t => t.exitReason === 'LIQUIDATED').length
+  };
+
   // Calculate risk metrics
   const riskMetrics = calculateRiskMetrics(completedTrades);
 
@@ -1680,6 +1771,7 @@ async function backtestSymbol(symbol, side, threshold, maxPositions, tradeSize, 
     avgDuration,
     activePositions: activePositions.length,
     recentTrades: completedTrades.slice(-3),
+    exitReasons,
     ...riskMetrics
   };
 }
@@ -1693,7 +1785,19 @@ async function generateRecommendations(deployableCapital) {
   const optimizedConfig = JSON.parse(JSON.stringify(config));
   const sanitizedCapital = Number.isFinite(deployableCapital) && deployableCapital > 0 ? deployableCapital : 0;
 
-  const symbolEntries = Object.entries(config.symbols);
+  let symbolEntries = Object.entries(config.symbols);
+
+  if (selectedSymbols && selectedSymbols.length > 0) {
+    symbolEntries = symbolEntries.filter(([symbol]) => selectedSymbols.includes(symbol));
+
+    if (symbolEntries.length === 0) {
+      console.log(`Warning: No matching symbols found for selection ${selectedSymbols.join(', ')}. Falling back to all symbols.`);
+      symbolEntries = Object.entries(config.symbols);
+    } else {
+      console.log(`Optimizing selected symbols: ${symbolEntries.map(([symbol]) => symbol).join(', ')}`);
+    }
+  }
+
   if (symbolEntries.length === 0) {
     return { recommendations, optimizedConfig, recommendedGlobalMax: 0 };
   }
@@ -1708,11 +1812,16 @@ async function generateRecommendations(deployableCapital) {
     ? Math.max(0.25, Math.min(2.5, sanitizedCapital / baselineTotalMargin))
     : 1;
 
-  for (const [symbol, symbolConfig] of symbolEntries) {
+  const totalSymbols = symbolEntries.length;
+
+  for (let index = 0; index < symbolEntries.length; index++) {
+    const [symbol, symbolConfig] = symbolEntries[index];
     const spanDays = getSymbolDataSpanDays(symbol);
     const fallbackMargin = (symbolConfig.tradeSize || 20) * 5;
     const baseMargin = symbolConfig.maxPositionMarginUSDT || fallbackMargin;
     const capitalBudget = Math.max(5, Math.min(sanitizedCapital || baseMargin, baseMargin * scaleFactor));
+
+    console.log(`Analyzing ${symbol} (${index + 1}/${totalSymbols})`);
 
     const optimization = await optimizeSymbolParameters(symbol, symbolConfig, capitalBudget, spanDays);
 
@@ -1965,7 +2074,9 @@ async function analyzeRealTradingHistory(credentials) {
   console.log('???? REAL TRADING HISTORY ANALYSIS');
   console.log('=================================\n');
 
-  const symbols = ['ASTERUSDT'];
+  const symbols = selectedSymbols && selectedSymbols.length > 0
+    ? selectedSymbols
+    : ['ASTERUSDT', 'BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
   const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
 
   for (const symbol of symbols) {
@@ -2386,14 +2497,16 @@ async function main() {
     const deployableCapital = capitalInfo.calculatedTotal || parseFloat(accountInfo?.totalWalletBalance ?? 0);
     const { recommendations, optimizedConfig, recommendedGlobalMax } = await generateRecommendations(deployableCapital);
 
-    // Optimize capital allocation
+    console.log('Finalizing results: optimizing capital allocation...');
     const capitalOptimization = optimizeCapitalAllocation(accountInfo, recommendations, optimizedConfig.symbols);
 
-    // Generate final summary
+    console.log('Finalizing results: generating summary...');
     const optimizationResults = generateOptimizationSummary(recommendations, capitalOptimization, optimizedConfig, recommendedGlobalMax);
 
+    console.log('Finalizing results: writing outputs...');
     await maybeApplyOptimizedConfig(config, optimizedConfig, optimizationResults.summary);
 
+    console.log('Optimization complete');
     console.log('???? Optimization analysis complete!');
     const totalValue = parseFloat(accountInfo?.totalMarginBalance || balance.totalWalletBalance || 0);
     console.log(`???? Total account value: $${formatLargeNumber(totalValue)}`);

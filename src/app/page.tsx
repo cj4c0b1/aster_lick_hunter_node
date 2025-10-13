@@ -17,6 +17,7 @@ import LiquidationSidebar from '@/components/LiquidationSidebar';
 import PositionTable from '@/components/PositionTable';
 import PnLChart from '@/components/PnLChart';
 import PerformanceCardInline from '@/components/PerformanceCardInline';
+import SessionPerformanceCard from '@/components/SessionPerformanceCard';
 import RecentOrdersTable from '@/components/RecentOrdersTable';
 import { TradeSizeWarningModal } from '@/components/TradeSizeWarningModal';
 import { useConfig } from '@/components/ConfigProvider';
@@ -346,8 +347,13 @@ export default function DashboardPage() {
 
             <div className="w-px h-8 bg-border" />
 
-            {/* Session Performance - Inline */}
+            {/* 24h Performance - Inline */}
             <PerformanceCardInline />
+
+            <div className="w-px h-8 bg-border" />
+
+            {/* Live Session Performance */}
+            <SessionPerformanceCard />
 
             <div className="w-px h-8 bg-border" />
 

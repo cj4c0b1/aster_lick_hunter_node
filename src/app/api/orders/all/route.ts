@@ -20,8 +20,30 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '100');
     const force = searchParams.get('force') === 'true';
 
-    // Get configured symbols
-    const configuredSymbols = config.symbols ? Object.keys(config.symbols) : [];
+    // Get configured/active symbols only
+    let configuredSymbols = config.symbols ? Object.keys(config.symbols) : [];
+
+    // If no symbols configured, try to get symbols from recent income history
+    if (configuredSymbols.length === 0 && !symbol) {
+      try {
+        const { getIncomeHistory } = await import('@/lib/api/income');
+        const recentIncome = await getIncomeHistory(config.api, {
+          startTime: Date.now() - 30 * 24 * 60 * 60 * 1000, // Last 30 days
+          limit: 1000,
+        });
+        // Extract unique symbols from income records
+        const symbolSet = new Set<string>();
+        recentIncome.forEach(record => {
+          if (record.symbol && record.symbol !== '') {
+            symbolSet.add(record.symbol);
+          }
+        });
+        configuredSymbols = Array.from(symbolSet);
+        console.log(`[Orders API] No configured symbols, discovered ${configuredSymbols.length} symbols from income history:`, configuredSymbols);
+      } catch (err) {
+        console.error('[Orders API] Failed to fetch income history for symbol discovery:', err);
+      }
+    }
 
     // Determine which symbol to fetch - use provided symbol or first configured symbol
     const fetchSymbol = symbol || (configuredSymbols.length > 0 ? configuredSymbols[0] : 'BTCUSDT');
@@ -38,8 +60,7 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      // Fetch orders from exchange - we can only fetch one symbol at a time from the API
-      // So we'll fetch for the requested symbol or iterate through configured symbols
+      // Fetch orders from exchange - only from configured/active symbols
       let allOrders: any[] = [];
 
       if (symbol && symbol !== 'ALL') {
@@ -53,23 +74,29 @@ export async function GET(request: NextRequest) {
         );
         allOrders = orders;
       } else if (configuredSymbols.length > 0) {
-        // Fetch for all configured symbols
-        const symbolsToFetch = configuredSymbols; // Fetch all configured symbols
+        // Fetch for all configured/active symbols
+        console.log(`[Orders API] Fetching orders from ${configuredSymbols.length} configured symbols...`);
 
-        for (const sym of symbolsToFetch) {
+        // Fetch generous amount per symbol to ensure we get enough orders
+        // The limit will be applied AFTER filtering and sorting all orders from all symbols
+        const perSymbolLimit = Math.max(200, limit * 2);
+
+        for (const sym of configuredSymbols) {
           try {
             const orders = await getAllOrders(
               sym,
               config.api,
               startTime ? parseInt(startTime) : undefined,
               endTime ? parseInt(endTime) : undefined,
-              Math.min(limit, 200) // Limit per symbol when fetching multiple
+              Math.min(perSymbolLimit, 500)
             );
+            console.log(`[Orders API] Fetched ${orders.length} orders from ${sym}`);
             allOrders = allOrders.concat(orders);
           } catch (err) {
             console.error(`Failed to fetch orders for ${sym}:`, err);
           }
         }
+        console.log(`[Orders API] Total orders fetched from all symbols: ${allOrders.length}`);
       } else {
         // Fallback to default symbol
         const orders = await getAllOrders(
@@ -104,9 +131,7 @@ export async function GET(request: NextRequest) {
         }
       } else if (configuredSymbols.length > 0) {
         // Fetch trades for all configured symbols
-        const symbolsToFetch = configuredSymbols;
-
-        for (const sym of symbolsToFetch) {
+        for (const sym of configuredSymbols) {
           try {
             const trades = await getUserTrades(sym, config.api, {
               startTime: startTime ? parseInt(startTime) : Date.now() - 7 * 24 * 60 * 60 * 1000,
